@@ -1,0 +1,189 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@fontsource-variable/geist';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 0.5rem;
+  /* Soft gray canvas, white cards, near-black ink for primary actions. */
+  --background: oklch(0.968 0.002 286);
+  --foreground: oklch(0.2 0.006 286);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.006 286);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.006 286);
+  --primary: oklch(0.18 0.004 286);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.955 0.003 286);
+  --secondary-foreground: oklch(0.25 0.006 286);
+  --muted: oklch(0.962 0.002 286);
+  --muted-foreground: oklch(0.54 0.01 286);
+  --accent: oklch(0.958 0.003 286);
+  --accent-foreground: oklch(0.2 0.006 286);
+  /* Attention accent: counts and billing days on the calendar. Ink text on top. */
+  --highlight: oklch(0.82 0.16 82);
+  --highlight-foreground: oklch(0.3 0.07 70);
+  --destructive: oklch(0.58 0.21 25);
+  --success: oklch(0.6 0.15 152);
+  --warning: oklch(0.76 0.16 75);
+  --warning-foreground: oklch(0.52 0.12 62);
+  --info: oklch(0.56 0.17 270);
+  --border: oklch(0.928 0.003 286);
+  --input: oklch(0.905 0.004 286);
+  --ring: oklch(0.45 0.01 286);
+  /* Solid icon chips on stat cards, white glyph on top. */
+  --chip-violet: oklch(0.6 0.2 293);
+  --chip-green: oklch(0.6 0.15 152);
+  --chip-amber: oklch(0.78 0.16 78);
+  --chip-blue: oklch(0.64 0.15 268);
+  /* The sidebar sits on the canvas; the active item is a white pill. */
+  --sidebar: oklch(0.968 0.002 286);
+  --sidebar-foreground: oklch(0.45 0.008 286);
+  --sidebar-accent: oklch(1 0 0);
+  --sidebar-accent-foreground: oklch(0.18 0.004 286);
+  --sidebar-border: oklch(0.928 0.003 286);
+  /* Ink panel (sign-in brand panel). */
+  --hero: oklch(0.18 0.004 286);
+  --hero-foreground: oklch(0.985 0 0);
+  --hero-muted: oklch(0.75 0.008 286);
+  /* Chart series, validated with the dataviz checker (light, white surface). */
+  --chart-1: #6b7bf0;
+  --chart-2: #1f9d5a;
+  --shadow-color: 286 10% 20%;
+}
+
+.dark {
+  --background: oklch(0.155 0.004 286);
+  --foreground: oklch(0.95 0.002 286);
+  --card: oklch(0.205 0.005 286);
+  --card-foreground: oklch(0.95 0.002 286);
+  --popover: oklch(0.225 0.005 286);
+  --popover-foreground: oklch(0.95 0.002 286);
+  --primary: oklch(0.96 0.002 286);
+  --primary-foreground: oklch(0.18 0.004 286);
+  --secondary: oklch(0.26 0.006 286);
+  --secondary-foreground: oklch(0.92 0.004 286);
+  --muted: oklch(0.245 0.005 286);
+  --muted-foreground: oklch(0.7 0.01 286);
+  --accent: oklch(0.26 0.006 286);
+  --accent-foreground: oklch(0.95 0.002 286);
+  --highlight: oklch(0.8 0.15 82);
+  --highlight-foreground: oklch(0.24 0.05 65);
+  --destructive: oklch(0.68 0.19 25);
+  --success: oklch(0.72 0.15 152);
+  --warning: oklch(0.8 0.14 78);
+  --warning-foreground: oklch(0.82 0.13 78);
+  --info: oklch(0.74 0.13 270);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 13%);
+  --ring: oklch(0.8 0.01 286);
+  --chip-violet: oklch(0.6 0.19 293);
+  --chip-green: oklch(0.58 0.14 152);
+  --chip-amber: oklch(0.72 0.15 78);
+  --chip-blue: oklch(0.62 0.15 268);
+  --sidebar: oklch(0.155 0.004 286);
+  --sidebar-foreground: oklch(0.7 0.008 286);
+  --sidebar-accent: oklch(0.225 0.005 286);
+  --sidebar-accent-foreground: oklch(0.97 0 0);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --hero: oklch(0.205 0.005 286);
+  --hero-foreground: oklch(0.97 0 0);
+  --hero-muted: oklch(0.72 0.008 286);
+  /* Same hues stepped for the dark surface, validated separately. */
+  --chart-1: #6f7df0;
+  --chart-2: #22a462;
+  --shadow-color: 286 20% 2%;
+}
+
+@theme inline {
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 14px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-highlight: var(--highlight);
+  --color-highlight-foreground: var(--highlight-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chip-violet: var(--chip-violet);
+  --color-chip-green: var(--chip-green);
+  --color-chip-amber: var(--chip-amber);
+  --color-chip-blue: var(--chip-blue);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-hero: var(--hero);
+  --color-hero-foreground: var(--hero-foreground);
+  --color-hero-muted: var(--hero-muted);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  ::selection {
+    @apply bg-primary/15;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Headline figures and titles: the same sans, set tighter. */
+@utility font-display {
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* The standard raised surface: white card, hairline border, near-flat shadow. */
+@utility surface {
+  @apply rounded-xl border bg-card text-card-foreground;
+  box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.04);
+}
+
+/* Small label for panel sections and detail lists. */
+@utility eyebrow {
+  @apply text-[13px] font-medium text-muted-foreground;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

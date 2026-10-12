@@ -1,0 +1,167 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { roomKeys } from '@/features/rooms/api'
+import { tenantKeys } from '@/features/tenants/api'
+import type { Database, Views } from '@/lib/database.types'
+import { supabase } from '@/lib/supabase'
+
+export type BillOverview = Views<'bill_overview'>
+export type ReadingSheetRow = Database['public']['Functions']['meter_reading_sheet']['Returns'][number]
+
+export const billingKeys = {
+  all: ['billing'] as const,
+  bills: (period: string) => [...billingKeys.all, 'bills', period] as const,
+  bill: (id: string) => [...billingKeys.all, 'bill', id] as const,
+  items: (id: string) => [...billingKeys.all, 'items', id] as const,
+  sheet: (period: string) => [...billingKeys.all, 'sheet', period] as const,
+  runs: () => [...billingKeys.all, 'runs'] as const,
+}
+
+const byRoom = <T extends { room_number: string }>(a: T, b: T) =>
+  a.room_number.localeCompare(b.room_number, undefined, { numeric: true })
+
+// Queries --------------------------------------------------------------------------
+
+export function useBills(period: string) {
+  return useQuery({
+    queryKey: billingKeys.bills(period),
+    queryFn: async () => {
+      const { data, error } = await supabase.from('bill_overview').select('*').eq('period', period)
+      if (error) throw error
+      return data.sort(byRoom)
+    },
+  })
+}
+
+export function useBill(id: string) {
+  return useQuery({
+    queryKey: billingKeys.bill(id),
+    queryFn: async () => {
+      const { data, error } = await supabase.from('bill_overview').select('*').eq('id', id).maybeSingle()
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+export function useBillItems(billId: string) {
+  return useQuery({
+    queryKey: billingKeys.items(billId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bill_items')
+        .select('*')
+        .eq('bill_id', billId)
+        .order('sort_order')
+        .order('created_at')
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+export function useReadingSheet(period: string) {
+  return useQuery({
+    queryKey: billingKeys.sheet(period),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('meter_reading_sheet', { p_period: period })
+      if (error) throw error
+      return data.sort(byRoom)
+    },
+  })
+}
+
+export function useBillingRuns() {
+  return useQuery({
+    queryKey: billingKeys.runs(),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('billing_runs')
+        .select('*')
+        .order('ran_at', { ascending: false })
+        .limit(5)
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+// Mutations -----------------------------------------------------------------------
+
+/** Bills feed balances shown on rooms, tenants and the dashboard. */
+export function useInvalidateBilling() {
+  const qc = useQueryClient()
+  return () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: billingKeys.all }),
+      qc.invalidateQueries({ queryKey: tenantKeys.all }),
+      qc.invalidateQueries({ queryKey: roomKeys.all }),
+      qc.invalidateQueries({ queryKey: ['payments'] }),
+      qc.invalidateQueries({ queryKey: ['dashboard'] }),
+    ])
+}
+
+async function call<T>(promise: PromiseLike<{ data: T; error: unknown }>): Promise<T> {
+  const { data, error } = await promise
+  if (error) throw error
+  return data
+}
+
+export function useGenerateBills() {
+  const invalidate = useInvalidateBilling()
+  return useMutation({
+    mutationFn: (period: string) => call(supabase.rpc('generate_bills', { p_period: period })),
+    onSuccess: invalidate,
+  })
+}
+
+export type ReadingInput = {
+  room_id: string
+  electricity_previous: number | null
+  electricity_current: number | null
+  water_previous: number | null
+  water_current: number | null
+}
+
+export function useRecordReadings() {
+  const invalidate = useInvalidateBilling()
+  return useMutation({
+    mutationFn: ({ period, readings }: { period: string; readings: ReadingInput[] }) =>
+      call(supabase.rpc('record_meter_readings', { p_period: period, p_readings: readings })),
+    onSuccess: invalidate,
+  })
+}
+
+export function useAddCharge() {
+  const invalidate = useInvalidateBilling()
+  return useMutation({
+    mutationFn: (a: { billId: string; description: string; amount: number }) =>
+      call(supabase.rpc('add_bill_charge', { p_bill_id: a.billId, p_description: a.description, p_amount: a.amount })),
+    onSuccess: invalidate,
+  })
+}
+
+export function useUpdateBillItem() {
+  const invalidate = useInvalidateBilling()
+  return useMutation({
+    mutationFn: (a: { itemId: string; description: string | null; amount: number }) =>
+      call(supabase.rpc('update_bill_item', { p_item_id: a.itemId, p_description: a.description, p_amount: a.amount })),
+    onSuccess: invalidate,
+  })
+}
+
+export function useRemoveCharge() {
+  const invalidate = useInvalidateBilling()
+  return useMutation({
+    mutationFn: (itemId: string) => call(supabase.rpc('remove_bill_charge', { p_item_id: itemId })),
+    onSuccess: invalidate,
+  })
+}
+
+export function useVoidBill() {
+  const invalidate = useInvalidateBilling()
+  return useMutation({
+    mutationFn: (a: { billId: string; reason: string }) =>
+      call(supabase.rpc('void_bill', { p_bill_id: a.billId, p_reason: a.reason })),
+    onSuccess: invalidate,
+  })
+}
