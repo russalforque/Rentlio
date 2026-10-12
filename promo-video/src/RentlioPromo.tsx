@@ -9,16 +9,20 @@ import { Billing } from "./scenes/Billing";
 import { Dashboard } from "./scenes/Dashboard";
 import { Intro } from "./scenes/Intro";
 import { Outro } from "./scenes/Outro";
-import { Payments } from "./scenes/Payments";
+import { Reports } from "./scenes/Reports";
 import { Rooms } from "./scenes/Rooms";
+import { Tenant } from "./scenes/Tenant";
+import { Verify } from "./scenes/Verify";
 import { SCENE_IDS, sceneFrames, sceneStart, TOTAL_FRAMES, TRANSITION, VO_LEAD, voDuration } from "./timeline";
 
 const SCENES = {
   intro: Intro,
+  dashboard: Dashboard,
   rooms: Rooms,
   billing: Billing,
-  payments: Payments,
-  dashboard: Dashboard,
+  tenant: Tenant,
+  verify: Verify,
+  reports: Reports,
   outro: Outro,
 };
 

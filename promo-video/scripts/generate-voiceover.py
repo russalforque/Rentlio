@@ -23,11 +23,13 @@ VOICE = "af_heart"
 SPEED = 1.0
 
 SCRIPT = {
-    "intro": "Meet Rentlio. Rent, utilities, and payments, on autopilot.",
-    "rooms": "Every room and every tenant, in one dashboard. See who's in, what's vacant, and what needs fixing, at a glance.",
-    "billing": "On billing day, Rentlio writes every bill for you. Rent, electricity, and water, calculated straight from your meter readings.",
-    "payments": "Tenants pay from their phone and upload proof. You verify it in a single tap.",
-    "dashboard": "Your dashboard shows what's collected, what's outstanding, and how full you are, month after month.",
+    "intro": "Meet Rentlio. Every room, every bill, in one calm place.",
+    "dashboard": "Your dashboard shows what's collected, what's outstanding, and exactly what needs your attention today.",
+    "rooms": "See every room at a glance: who's in, what's free, and who still owes.",
+    "billing": "Bills generate themselves on billing day. Type in the meter readings, and electricity is added for you.",
+    "tenant": "Tenants pay from their phone, and upload a screenshot as proof.",
+    "verify": "You check the receipt, and verify it in one tap. The bill updates instantly.",
+    "reports": "Reports track twelve months of billed versus collected, ready to export.",
     "outro": "Rentlio. Less chasing. More collecting.",
 }
 

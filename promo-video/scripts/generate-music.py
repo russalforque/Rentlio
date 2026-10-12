@@ -13,7 +13,7 @@ import numpy as np
 SR = 44100
 BPM = 104
 BEAT = 60 / BPM
-BARS = 18  # ~41.5s
+BARS = 26  # ~60s
 rng = np.random.default_rng(7)
 
 # I – vi – IV – V in C, voiced as 7th chords

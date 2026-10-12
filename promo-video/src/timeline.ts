@@ -3,26 +3,28 @@ import voiceover from "./voiceover.json";
 export const FPS = 30;
 export const TRANSITION = 15;
 // Voice starts this many frames into each scene
-export const VO_LEAD = 10;
-const TAIL = 20;
+export const VO_LEAD = 12;
+const TAIL = 18;
 
-type SceneId = keyof typeof voiceover;
+export type SceneId = keyof typeof voiceover;
 
-// Minimum lengths so each scene's animation has room to finish
+// Minimum lengths so each scene's camera moves and clicks have room to play
 const MIN_FRAMES: Record<SceneId, number> = {
-  intro: 90,
-  rooms: 120,
-  billing: 130,
-  payments: 150,
-  dashboard: 120,
-  outro: 120,
+  intro: 125,
+  dashboard: 205,
+  rooms: 150,
+  billing: 215,
+  tenant: 165,
+  verify: 225,
+  reports: 160,
+  outro: 150,
 };
 
 export const SCENE_IDS = Object.keys(voiceover) as SceneId[];
 
 export const sceneFrames = (id: SceneId) => {
   const extra = id === "outro" ? 45 : 0;
-  return Math.max(MIN_FRAMES[id], Math.ceil(voiceover[id] * FPS) + VO_LEAD + TAIL + TRANSITION + extra);
+  return Math.max(MIN_FRAMES[id], Math.ceil(voiceover[id] * FPS) + VO_LEAD + TAIL + TRANSITION) + extra;
 };
 
 export const TOTAL_FRAMES =

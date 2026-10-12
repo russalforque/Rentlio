@@ -1,39 +1,36 @@
-import { Easing } from "remotion";
 import { loadFont } from "@remotion/fonts";
-import { staticFile } from "remotion";
+import { Easing, staticFile } from "remotion";
 
-export const fontFamily = "Plus Jakarta Sans";
+export const fontFamily = "Geist";
 
-// Bundled locally (SIL OFL, see public/fonts/OFL.txt). The latin-ext files supply the ₱ sign.
-for (const weight of ["400", "500", "600", "700", "800"]) {
-  loadFont({ family: fontFamily, weight, url: staticFile(`fonts/plus-jakarta-sans-latin-${weight}-normal.woff2`) });
-  loadFont({
-    family: fontFamily,
-    weight,
-    unicodeRange: "U+20A0-20C0",
-    url: staticFile(`fonts/plus-jakarta-sans-latin-ext-${weight}-normal.woff2`),
-  });
-}
+// Rentlio's own typeface, bundled locally (SIL OFL, see public/fonts/OFL.txt).
+// The latin-ext file supplies the ₱ sign.
+loadFont({ family: fontFamily, weight: "100 900", url: staticFile("fonts/geist-latin-wght-normal.woff2") });
+loadFont({
+  family: fontFamily,
+  weight: "100 900",
+  unicodeRange: "U+20A0-20C0",
+  url: staticFile("fonts/geist-latin-ext-wght-normal.woff2"),
+});
 
+// Taken from the app's theme tokens (src/index.css)
 export const colors = {
-  bg: "#070B18",
-  panel: "#0F1629",
-  panelBorder: "rgba(148, 163, 184, 0.14)",
-  text: "#F8FAFC",
-  muted: "#94A3B8",
-  indigo: "#6366F1",
-  violet: "#8B5CF6",
-  emerald: "#10B981",
-  amber: "#F59E0B",
-  rose: "#F43F5E",
-  slate: "#1E293B",
+  ink: "#121214",
+  inkRaised: "#1c1c20",
+  text: "#f5f5f7",
+  muted: "#a1a1aa",
+  highlight: "#f2b52b",
+  success: "#22a462",
+  violet: "#8b5cf6",
+  chart: "#6b7bf0",
+  canvas: "#f4f4f6",
+  border: "rgba(255,255,255,0.08)",
 };
 
 export const ease = Easing.bezier(0.16, 1, 0.3, 1);
+export const inOut = Easing.bezier(0.65, 0, 0.35, 1);
 
 export const clamp = {
   extrapolateLeft: "clamp",
   extrapolateRight: "clamp",
 } as const;
-
-export const peso = (n: number) => `₱${Math.round(n).toLocaleString("en-US")}`;

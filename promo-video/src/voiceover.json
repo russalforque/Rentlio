@@ -1,8 +1,10 @@
 {
-  "intro": 3.947,
-  "rooms": 6.741,
-  "billing": 7.467,
-  "payments": 4.459,
-  "dashboard": 5.269,
+  "intro": 3.691,
+  "dashboard": 5.696,
+  "rooms": 3.819,
+  "billing": 5.973,
+  "tenant": 3.413,
+  "verify": 4.565,
+  "reports": 3.968,
   "outro": 2.389
 }
