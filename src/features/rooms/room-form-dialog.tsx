@@ -173,7 +173,7 @@ function RoomForm({ room, beds, onManageBedTypes, onDone }: RoomFormProps) {
         </Link>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2">
         <FormField id="room_number" label="Room number" error={errors.room_number?.message}>
           <Input id="room_number" aria-invalid={!!errors.room_number} {...register('room_number')} />
         </FormField>

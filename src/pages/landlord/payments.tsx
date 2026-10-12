@@ -35,18 +35,18 @@ function Queue({ currency }: { currency: string }) {
 
   return (
     <>
-      <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {data.map((p) => (
           <li key={p.id} className="surface flex flex-col p-4 sm:p-5">
             <div className="flex items-start gap-3">
               <InitialsBadge text={initials(p.tenant_name)} className="size-9" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-semibold">{p.tenant_name}</p>
+                <p className="truncate text-sm font-semibold md:text-[13px]">{p.tenant_name}</p>
                 <p className="text-xs text-muted-foreground">
                   Room {p.room_number} · {formatPeriod(p.period)}
                 </p>
               </div>
-              <p className="font-display text-lg font-semibold tabular">{formatMoney(p.amount, currency)}</p>
+              <p className="font-display shrink-0 text-lg font-semibold tabular">{formatMoney(p.amount, currency)}</p>
             </div>
             <p className="mt-3 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
               {METHOD_LABEL[p.method]} · paid {formatDate(p.paid_on)} · sent{' '}
@@ -87,7 +87,28 @@ function History({ currency }: { currency: string }) {
           No payments in {formatPeriod(period)}
         </div>
       ) : (
-        <div className="border-t">
+        <>
+        {/* Phones: one row per payment */}
+        <ul className="divide-y border-t md:hidden">
+          {data.map((p) => (
+            <li key={p.id}>
+              <Link to={`/billing/bills/${p.bill_id}`} className="flex min-h-16 items-center gap-3 px-5 py-3 active:bg-muted">
+                <InitialsBadge text={initials(p.tenant_name)} className="size-9" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">{p.tenant_name}</span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    Room {p.room_number} · {METHOD_LABEL[p.method]} · {formatDate(p.paid_on, 'MMM d')}
+                  </span>
+                </span>
+                <span className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="text-sm font-semibold tabular">{formatMoney(p.amount, currency)}</span>
+                  <PaymentStatusBadge status={p.status} />
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <div className="hidden border-t md:block">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -132,6 +153,7 @@ function History({ currency }: { currency: string }) {
             </TableBody>
           </Table>
         </div>
+        </>
       )}
     </Panel>
   )

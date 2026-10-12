@@ -1,9 +1,10 @@
-import { format, parseISO } from 'date-fns'
+import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
 import {
   AlertTriangle,
   Building2,
   CalendarClock,
   CheckCircle2,
+  DoorOpen,
   Gauge,
   Inbox,
   type LucideIcon,
@@ -18,7 +19,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { ColumnChart } from '@/components/app/column-chart'
 import { PageHeader } from '@/components/app/page-header'
-import { InitialsBadge, InsightRow, Panel, PanelLink, Segmented, StatGrid, StatTile, StatusPill, Trend } from '@/components/app/panel'
+import { type Accent, IconChip, InitialsBadge, InsightRow, Panel, PanelLink, Segmented, StatusPill, Trend } from '@/components/app/panel'
 import { ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -26,15 +27,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useReadingSheet } from '@/features/billing/api'
 import { BillingCalendar } from '@/features/billing/billing-calendar'
 import { METHOD_LABEL, usePendingPayments } from '@/features/payments/api'
-import { useBillsSince, useOpenBills, useRecentVerifiedPayments } from '@/features/reports/api'
+import { type OpenBill, useBillsSince, useOpenBills, useRecentVerifiedPayments } from '@/features/reports/api'
 import { type RoomOverview, useRoomOverview } from '@/features/rooms/api'
 import { RoomMap, RoomMapLegend } from '@/features/rooms/room-map'
 import { InviteTenantDialog } from '@/features/tenants/invite-tenant-dialog'
 import { useTenants } from '@/features/tenants/api'
 import { useProfile } from '@/hooks/use-auth'
 import { useCurrency, useSettings } from '@/hooks/use-settings'
-import { currentPeriod, nextBillingDates, shiftPeriod } from '@/lib/dates'
+import { currentPeriod, nextBillingDates, shiftPeriod, todayISO } from '@/lib/dates'
 import { formatCompact, formatDate, formatMoney, formatPeriod, initials } from '@/lib/format'
+import { cn } from '@/lib/utils'
 
 const SERIES = [
   { name: 'Billed', color: 'var(--chart-1)' },
@@ -110,13 +112,93 @@ function CollectionsCard({ currency }: { currency: string }) {
           series={SERIES}
           height={260}
           data={rows.map((r) => ({
-            label: format(parseISO(r.period), months > 6 ? 'MMM' : 'MMMM'),
+            label: format(parseISO(r.period), 'MMM'),
             title: formatPeriod(r.period),
             values: [r.billed, r.collected],
           }))}
           formatValue={(v) => formatMoney(v, currency)}
           formatTick={formatCompact}
         />
+      )}
+    </Panel>
+  )
+}
+
+/** Compact KPI for the two-column phone grid: label, figure, one-line note. */
+function MiniStat({
+  label,
+  value,
+  icon,
+  accent,
+  note,
+  to,
+  alert,
+}: {
+  label: string
+  value: string
+  icon: LucideIcon
+  accent: Accent
+  note: string
+  to: string
+  alert?: boolean
+}) {
+  return (
+    <Link
+      to={to}
+      className="surface flex min-w-0 flex-col p-4 transition-colors hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none xl:p-5"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="truncate text-[13px] font-medium text-foreground/80">{label}</p>
+        <IconChip icon={icon} accent={accent} className="size-7 rounded-md [&_svg]:size-3.5" />
+      </div>
+      <p className="font-display mt-3 truncate text-[22px] leading-none font-semibold sm:text-2xl">{value}</p>
+      <p className={cn('mt-2 truncate text-xs', alert ? 'font-medium text-destructive' : 'text-muted-foreground')}>{note}</p>
+    </Link>
+  )
+}
+
+/** Open bills that fall due in the next two weeks, soonest first. */
+function UpcomingDue({ bills, currency, className }: { bills: OpenBill[]; currency: string; className?: string }) {
+  const today = todayISO()
+  const horizon = format(addDays(new Date(), 14), 'yyyy-MM-dd')
+  const upcoming = bills
+    .filter((b) => !b.is_overdue && b.due_date >= today && b.due_date <= horizon)
+    .sort((a, b) => a.due_date.localeCompare(b.due_date))
+  return (
+    <Panel
+      title="Upcoming due dates"
+      description="Open bills due in the next 14 days"
+      className={className}
+      action={<PanelLink to="/billing">Billing</PanelLink>}
+    >
+      {upcoming.length === 0 ? (
+        <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
+          <CheckCircle2 className="size-4 text-success" aria-hidden /> Nothing due in the next two weeks.
+        </p>
+      ) : (
+        <ul className="-mx-2 space-y-0.5">
+          {upcoming.slice(0, 5).map((b) => {
+            const days = differenceInCalendarDays(parseISO(b.due_date), new Date())
+            return (
+              <li key={b.id}>
+                <Link to={`/billing/bills/${b.id}`} className="flex min-h-12 items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/60">
+                  <span className="grid w-11 shrink-0 place-items-center rounded-lg border py-1 text-center leading-none" aria-hidden>
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase">{formatDate(b.due_date, 'MMM')}</span>
+                    <span className="mt-0.5 text-[15px] font-semibold tabular">{formatDate(b.due_date, 'd')}</span>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-semibold">{b.tenant_name}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      Room {b.room_number} · {days === 0 ? 'due today' : days === 1 ? 'due tomorrow' : `in ${days} days`}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-[13px] font-semibold tabular">{formatMoney(b.balance, currency)}</span>
+                </Link>
+              </li>
+            )
+          })}
+          {upcoming.length > 5 && <li className="px-2 pt-1 text-xs text-muted-foreground">+{upcoming.length - 5} more</li>}
+        </ul>
       )}
     </Panel>
   )
@@ -159,6 +241,8 @@ export function DashboardPage() {
     const openBills = open.data ?? []
     return {
       rooms: r.length,
+      vacant: r.filter((x) => x.occupancy === 'vacant').length,
+      maintenance: r.filter((x) => x.occupancy === 'maintenance').length,
       occupied: r.filter((x) => x.occupancy === 'occupied').length,
       unpriced: r.filter((x) => x.monthly_rent <= 0).length,
       billed: thisMonth.reduce((t, b) => t + b.total_amount, 0),
@@ -280,63 +364,91 @@ export function DashboardPage() {
         <ErrorState error={error} onRetry={() => (rooms.refetch(), monthBills.refetch(), open.refetch(), pending.refetch())} />
       ) : loading ? (
         <div className="space-y-4">
-          <StatGrid>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <Skeleton className="col-span-2 h-36 rounded-xl lg:row-span-2 lg:h-auto" />
             {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
-          </StatGrid>
-          <div className="grid gap-4 xl:grid-cols-12">
+          </div>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
             <Skeleton className="h-96 rounded-xl xl:col-span-8" />
             <Skeleton className="h-96 rounded-xl xl:col-span-4" />
           </div>
         </div>
       ) : (
         <>
-          <StatGrid>
-            <StatTile
-              label="Total rooms"
-              value={String(stats.rooms)}
-              icon={Building2}
-              accent="violet"
-              to="/rooms"
-              sub={<span className="text-xs text-muted-foreground">{stats.occupied} occupied · {pct(stats.occupied, stats.rooms)}%</span>}
-            />
-            <StatTile
-              label="Collected this month"
-              value={formatMoney(stats.collected, currency)}
-              icon={Wallet}
-              accent="green"
+          <section aria-label="This month" className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <Link
               to="/reports"
-              sub={<Trend current={stats.collected} previous={stats.prevCollected} label="vs last month" />}
-            />
-            <StatTile
+              className="surface col-span-2 flex flex-col p-4 transition-colors hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-5 lg:row-span-2"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className="pt-1 text-[13px] font-medium text-foreground/80">Collected in {format(new Date(), 'MMMM')}</p>
+                <IconChip icon={Wallet} accent="green" />
+              </div>
+              <p className="font-display mt-2 truncate text-[32px] leading-none font-semibold lg:mt-4 lg:text-[44px]">{formatMoney(stats.collected, currency)}</p>
+              <p className="mt-2.5 hidden text-sm text-muted-foreground lg:block">
+                {stats.billsThisMonth} {stats.billsThisMonth === 1 ? 'bill' : 'bills'} issued this month
+              </p>
+              <div
+                className="mt-4 h-2 shrink-0 overflow-hidden rounded-full bg-muted lg:mt-auto"
+                role="progressbar"
+                aria-label="Share of this month's bills collected"
+                aria-valuenow={pct(stats.collected, stats.billed)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div className="h-full rounded-full bg-chart-2" style={{ width: `${pct(stats.collected, stats.billed)}%` }} />
+              </div>
+              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <span className="text-xs text-muted-foreground">
+                  {stats.billed > 0 ? `${pct(stats.collected, stats.billed)}% of ${formatMoney(stats.billed, currency)} billed` : 'Nothing billed yet'}
+                </span>
+                <Trend current={stats.collected} previous={stats.prevCollected} label="vs last month" />
+              </div>
+            </Link>
+            <MiniStat
               label="Outstanding"
               value={formatMoney(stats.outstanding, currency)}
               icon={AlertTriangle}
               accent="amber"
               to="/reports"
-              sub={
-                <span className={stats.overdueBills.length ? 'text-xs font-medium text-destructive' : 'text-xs text-muted-foreground'}>
-                  {stats.overdueBills.length ? `${stats.overdueBills.length} overdue` : 'Nothing overdue'}
-                </span>
-              }
+              note={stats.overdueBills.length ? `${stats.overdueBills.length} overdue` : 'Nothing overdue'}
+              alert={stats.overdueBills.length > 0}
             />
-            <StatTile
+            <MiniStat
               label="To verify"
               value={String(toVerify)}
               icon={Inbox}
               accent="blue"
               to="/payments"
-              sub={<span className="text-xs text-muted-foreground">{toVerify ? 'Payment proofs waiting' : 'All caught up'}</span>}
+              note={toVerify ? 'Proofs waiting' : 'All caught up'}
+              alert={toVerify > 0}
             />
-          </StatGrid>
+            <MiniStat
+              label="Occupied"
+              value={`${stats.occupied}/${stats.rooms}`}
+              icon={Building2}
+              accent="violet"
+              to="/rooms"
+              note={`${pct(stats.occupied, stats.rooms)}% occupancy`}
+            />
+            <MiniStat
+              label="Vacant"
+              value={String(stats.vacant)}
+              icon={DoorOpen}
+              accent="green"
+              to="/rooms"
+              note={stats.maintenance ? `${stats.maintenance} in maintenance` : stats.vacant ? 'Ready to let' : 'Fully let'}
+            />
+          </section>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-            <div className="xl:col-span-8">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-flow-row-dense xl:grid-cols-12">
+            <div className="order-5 md:col-span-2 xl:order-1 xl:col-span-8">
               <CollectionsCard currency={currency} />
             </div>
 
             <Panel
-              title="Insights"
-              className="xl:col-span-4"
+              title="Needs attention"
+              className="order-1 md:col-span-2 xl:order-2 xl:col-span-4"
               action={insights.length > 0 ? <StatusPill tone="destructive">{insights.length} to do</StatusPill> : <StatusPill tone="success">All caught up</StatusPill>}
             >
               <ul className="space-y-2">
@@ -348,18 +460,20 @@ export function DashboardPage() {
               </ul>
             </Panel>
 
-            <div className="xl:col-span-8">
+            <div className="order-6 md:col-span-2 xl:order-3 xl:col-span-8">
               <RoomsCard rooms={rooms.data ?? []} currency={currency} />
             </div>
 
-            <Panel title="Billing calendar" className="xl:col-span-4">
+            <UpcomingDue bills={open.data ?? []} currency={currency} className="order-2 xl:order-6 xl:col-span-4" />
+
+            <Panel title="Billing calendar" className="order-7 md:col-span-2 xl:order-4 xl:col-span-4">
               {s ? <BillingCalendar billingDay={s.billing_day} dueDays={s.due_days} /> : <Skeleton className="h-72" />}
             </Panel>
 
             <Panel
               title="Recent payments"
               flush
-              className="xl:col-span-8"
+              className="order-4 md:col-span-2 xl:order-5 xl:col-span-8 xl:row-span-2"
               action={<PanelLink to="/payments?tab=history">View all</PanelLink>}
             >
               {recent.isPending ? (
@@ -367,42 +481,58 @@ export function DashboardPage() {
               ) : !recent.data?.length ? (
                 <p className="px-5 pb-5 text-[13px] text-muted-foreground">No verified payments yet.</p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="pl-5">Tenant</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="hidden sm:table-cell">Method</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead className="hidden pr-5 md:table-cell">Paid on</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <>
+                  <ul className="divide-y border-t sm:hidden">
                     {recent.data.slice(0, 5).map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="pl-5">
-                          <span className="flex items-center gap-3">
-                            <InitialsBadge text={initials(p.tenant_name)} />
-                            <span className="min-w-0">
-                              <span className="block max-w-44 truncate font-semibold">{p.tenant_name}</span>
-                              <span className="block text-xs text-muted-foreground">Room {p.room_number}</span>
-                            </span>
+                      <li key={p.id} className="flex items-center gap-3 px-5 py-3">
+                        <InitialsBadge text={initials(p.tenant_name)} className="size-9" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold">{p.tenant_name}</span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            Room {p.room_number} · {METHOD_LABEL[p.method]} · {formatDate(p.paid_on, 'MMM d')}
                           </span>
-                        </TableCell>
-                        <TableCell>
-                          <StatusPill tone="success">Verified</StatusPill>
-                        </TableCell>
-                        <TableCell className="hidden text-muted-foreground sm:table-cell">{METHOD_LABEL[p.method]}</TableCell>
-                        <TableCell className="text-right font-semibold tabular">{formatMoney(p.amount, currency)}</TableCell>
-                        <TableCell className="hidden pr-5 text-muted-foreground md:table-cell">{formatDate(p.paid_on, 'MMM d, yyyy')}</TableCell>
-                      </TableRow>
+                        </span>
+                        <span className="shrink-0 text-sm font-semibold tabular">{formatMoney(p.amount, currency)}</span>
+                      </li>
                     ))}
-                  </TableBody>
-                </Table>
+                  </ul>
+                  <Table className="hidden sm:table">
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="pl-5">Tenant</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Method</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="hidden pr-5 md:table-cell">Paid on</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recent.data.slice(0, 5).map((p) => (
+                        <TableRow key={p.id}>
+                          <TableCell className="pl-5">
+                            <span className="flex items-center gap-3">
+                              <InitialsBadge text={initials(p.tenant_name)} />
+                              <span className="min-w-0">
+                                <span className="block max-w-44 truncate font-semibold">{p.tenant_name}</span>
+                                <span className="block text-xs text-muted-foreground">Room {p.room_number}</span>
+                              </span>
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <StatusPill tone="success">Verified</StatusPill>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{METHOD_LABEL[p.method]}</TableCell>
+                          <TableCell className="text-right font-semibold tabular">{formatMoney(p.amount, currency)}</TableCell>
+                          <TableCell className="hidden pr-5 text-muted-foreground md:table-cell">{formatDate(p.paid_on, 'MMM d, yyyy')}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </>
               )}
             </Panel>
 
-            <Panel title="Overdue balances" className="xl:col-span-4" action={<PanelLink to="/reports">View all</PanelLink>}>
+            <Panel title="Overdue balances" className="order-3 xl:order-7 xl:col-span-4" action={<PanelLink to="/reports">View all</PanelLink>}>
               {overdueByTenant.length === 0 ? (
                 <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
                   <CheckCircle2 className="size-4 text-success" aria-hidden /> No overdue balances.
@@ -411,7 +541,7 @@ export function DashboardPage() {
                 <ul className="-mx-2 space-y-0.5">
                   {overdueByTenant.map((t) => (
                     <li key={t.id}>
-                      <Link to={`/tenants/${t.id}`} className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/60">
+                      <Link to={`/tenants/${t.id}`} className="flex min-h-12 items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/60">
                         <InitialsBadge text={initials(t.name)} className="bg-destructive/10 text-destructive" />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[13px] font-semibold">{t.name}</span>

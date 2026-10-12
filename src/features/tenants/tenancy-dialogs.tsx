@@ -129,7 +129,7 @@ export function AssignRoomDialog({ tenant, open, onOpenChange }: DialogProps) {
             )}
           />
         </FormField>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2">
           <FormField id="assign-start" label="Move-in date" error={errors.start_date?.message}>
             <Input id="assign-start" type="date" {...register('start_date')} />
           </FormField>
@@ -206,7 +206,7 @@ export function MoveRoomDialog({ tenant, open, onOpenChange }: DialogProps) {
             )}
           />
         </FormField>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2">
           <FormField id="move-date" label="Move date" error={errors.move_date?.message}>
             <Input id="move-date" type="date" {...register('move_date')} />
           </FormField>
@@ -399,7 +399,7 @@ export function DepositDialog({ tenant, leaseId, open, onOpenChange }: DialogPro
             )}
           />
         </FormField>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2">
           <FormField id="deposit-amount" label="Amount" error={errors.amount?.message}>
             <Input id="deposit-amount" inputMode="decimal" className="tabular" aria-invalid={!!errors.amount} {...register('amount')} />
           </FormField>
@@ -462,7 +462,7 @@ export function EditTenantDialog({ tenant, open, onOpenChange }: DialogProps) {
         <FormField id="edit-phone" label="Phone" error={errors.phone?.message}>
           <Input id="edit-phone" type="tel" aria-invalid={!!errors.phone} {...register('phone')} />
         </FormField>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2">
           <FormField id="edit-ec-name" label="Emergency contact" error={errors.emergency_contact_name?.message}>
             <Input id="edit-ec-name" {...register('emergency_contact_name')} />
           </FormField>

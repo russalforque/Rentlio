@@ -50,7 +50,7 @@ export function TenantPaymentsPage() {
             <li key={p.id} className="px-5 py-3.5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[13px] font-semibold tabular">{formatMoney(p.amount, currency)}</p>
+                  <p className="text-[15px] font-semibold tabular md:text-[13px]">{formatMoney(p.amount, currency)}</p>
                   <p className="text-xs text-muted-foreground">
                     <Link to={`/my/bills/${p.bill_id}`} className="hover:text-foreground hover:underline">
                       {formatPeriod(p.period)} bill
@@ -67,8 +67,8 @@ export function TenantPaymentsPage() {
                 </p>
               )}
               {p.proof_path && (
-                <Button variant="ghost" size="sm" className="mt-1 -ml-2" onClick={() => setViewing(p)}>
-                  <Eye /> View proof
+                <Button variant="ghost" size="sm" className="mt-1 -ml-3" onClick={() => setViewing(p)}>
+                  <Eye /> View receipt
                 </Button>
               )}
             </li>

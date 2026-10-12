@@ -72,8 +72,9 @@ export function ColumnChart({ series, data, formatValue, formatTick, height = 24
   const barW = Math.max(2, Math.min(BAR_MAX, (band * 0.7 - GAP * (series.length - 1)) / series.length))
   const groupW = barW * series.length + GAP * (series.length - 1)
   const y = (v: number) => PAD.top + plotH - (v / max) * plotH
-  // Thin out x labels on narrow screens.
-  const labelEvery = band < 34 ? Math.ceil(34 / Math.max(band, 1)) : 1
+  // Thin out x labels on narrow screens: leave room for the longest label at 11px.
+  const labelW = Math.max(0, ...data.map((d) => d.label.length)) * 6.5 + 10
+  const labelEvery = band < labelW ? Math.ceil(labelW / Math.max(band, 1)) : 1
   const activeDatum = active !== null ? data[active] : undefined
 
   return (

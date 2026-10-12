@@ -48,11 +48,11 @@ export function BillItems({ items, currency, total, paid, balance, onEdit, onRem
                 <p className="text-sm font-medium">{item.description}</p>
                 {sub && <p className="text-[12px] text-muted-foreground tabular">{sub}</p>}
               </div>
-              <span className="text-sm font-semibold tabular">{formatMoney(item.amount, currency)}</span>
+              <span className="shrink-0 text-sm font-semibold tabular">{formatMoney(item.amount, currency)}</span>
               {onEdit && (
-                <div className="flex w-16 justify-end">
+                <div className="flex w-20 shrink-0 justify-end md:w-16">
                   {editable && (
-                    <Button variant="ghost" size="icon" className="size-7" onClick={() => onEdit(item)} aria-label={`Edit ${item.description}`}>
+                    <Button variant="ghost" size="icon" className="size-10 md:size-7" onClick={() => onEdit(item)} aria-label={`Edit ${item.description}`}>
                       <Pencil className="size-3.5" />
                     </Button>
                   )}
@@ -60,7 +60,7 @@ export function BillItems({ items, currency, total, paid, balance, onEdit, onRem
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="size-7 text-destructive hover:text-destructive"
+                      className="size-10 text-destructive hover:text-destructive md:size-7"
                       onClick={() => onRemove(item)}
                       aria-label={`Remove ${item.description}`}
                     >
@@ -73,7 +73,7 @@ export function BillItems({ items, currency, total, paid, balance, onEdit, onRem
           )
         })}
       </ul>
-      <dl className={cn('mt-2 space-y-1.5 border-t pt-3 text-sm', onEdit && 'pr-16')}>
+      <dl className={cn('mt-2 space-y-1.5 border-t pt-3 text-sm', onEdit && 'pr-20 md:pr-16')}>
         <div className="flex justify-between">
           <dt className="text-muted-foreground">Total</dt>
           <dd className="font-semibold tabular">{formatMoney(total, currency)}</dd>

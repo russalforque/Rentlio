@@ -107,8 +107,7 @@ export function ProofFileInput({
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            className="size-7"
+            size="icon-sm"
             onClick={() => {
               onChange(null)
               if (inputRef.current) inputRef.current.value = ''

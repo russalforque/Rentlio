@@ -92,8 +92,33 @@ function CollectionsCard({ currency }: { currency: string }) {
               formatTick={formatCompact}
             />
           </div>
+          {/* Phones: one row per month, collected over billed. */}
+          <ul className="divide-y border-t sm:hidden">
+            {[...months].reverse().map((m) => (
+              <li key={m.period}>
+                <Link to={`/billing?period=${m.period}`} className="flex min-h-14 items-center gap-3 px-5 py-3 active:bg-muted">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold">{formatPeriod(m.period)}</span>
+                    <span className="block truncate text-xs text-muted-foreground tabular">
+                      {formatMoney(m.collected, currency)} of {formatMoney(m.billed, currency)}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="block text-sm font-semibold tabular">{rate(m.collected, m.billed)}</span>
+                    {m.outstanding > 0 && (
+                      <span className="block text-xs text-destructive tabular">{formatMoney(m.outstanding, currency)} open</span>
+                    )}
+                  </span>
+                </Link>
+              </li>
+            ))}
+            <li className="flex items-center justify-between gap-3 bg-muted/50 px-5 py-3 text-sm font-semibold">
+              <span>Total · {rate(totals.collected, totals.billed)}</span>
+              <span className="tabular">{formatMoney(totals.collected, currency)}</span>
+            </li>
+          </ul>
           {/* Table view: every charted value, readable without hovering. */}
-          <div className="border-t">
+          <div className="hidden border-t sm:block">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -192,7 +217,25 @@ function ArrearsCard({ currency }: { currency: string }) {
       ) : rows.length === 0 ? (
         <p className="border-t px-5 py-10 text-center text-[13px] text-muted-foreground">No unpaid balances.</p>
       ) : (
-        <div className="border-t">
+        <>
+        <ul className="divide-y border-t sm:hidden">
+          {rows.map((r) => (
+            <li key={r.id}>
+              <Link to={`/tenants/${r.id}`} className="flex min-h-16 items-center gap-3 px-5 py-3 active:bg-muted">
+                <InitialsBadge text={initials(r.name)} className="size-9" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">{r.name}</span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    Room {r.room} · {r.bills} {r.bills === 1 ? 'bill' : 'bills'}
+                    {daysLate(r.oldest) > 0 ? ` · ${daysLate(r.oldest)} days late` : ` · due ${formatDate(r.oldest, 'MMM d')}`}
+                  </span>
+                </span>
+                <span className="shrink-0 text-sm font-semibold text-destructive tabular">{formatMoney(r.amount, currency)}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <div className="hidden border-t sm:block">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -225,6 +268,7 @@ function ArrearsCard({ currency }: { currency: string }) {
             </TableBody>
           </Table>
         </div>
+        </>
       )}
     </Panel>
   )
@@ -310,11 +354,11 @@ export function ReportsPage() {
         </StatGrid>
       )}
       <CollectionsCard currency={currency} />
-      <div className="grid gap-4 lg:grid-cols-5">
-        <div className="lg:col-span-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <div className="min-w-0 lg:col-span-3">
           <ArrearsCard currency={currency} />
         </div>
-        <div className="lg:col-span-2">
+        <div className="min-w-0 lg:col-span-2">
           <OccupancyCard currency={currency} />
         </div>
       </div>

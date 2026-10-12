@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AuthHeading } from '@/layouts/auth-layout'
 import { getErrorMessage } from '@/lib/errors'
-import { supabase } from '@/lib/supabase'
+import { getRememberMe, setRememberMe, supabase } from '@/lib/supabase'
 
 const schema = z.object({
   email: z.email('Enter a valid email address').trim(),
@@ -24,6 +24,7 @@ export function LoginPage() {
   const location = useLocation()
   const from = (location.state as { from?: string } | null)?.from
   const [serverError, setServerError] = useState<string | null>(null)
+  const [remember, setRemember] = useState(getRememberMe)
   const {
     register,
     handleSubmit,
@@ -32,6 +33,8 @@ export function LoginPage() {
 
   const onSubmit = async (values: Values) => {
     setServerError(null)
+    // Read by the auth storage adapter when the new session is saved.
+    setRememberMe(remember)
     const { error } = await supabase.auth.signInWithPassword(values)
     if (error) {
       setServerError(getErrorMessage(error))
@@ -55,7 +58,9 @@ export function LoginPage() {
             type="email"
             autoComplete="email"
             inputMode="email"
-            autoFocus
+            enterKeyHint="next"
+            // Desktop only: on phones the keyboard would cover the form on arrival.
+            autoFocus={typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches}
             placeholder="you@example.com"
             className="h-11"
             aria-invalid={!!errors.email}
@@ -64,14 +69,9 @@ export function LoginPage() {
           />
         </FormField>
         <div className="grid gap-1.5">
-          <div className="flex items-center justify-between">
-            <label htmlFor="password" className="text-[13px] font-semibold">
-              Password
-            </label>
-            <Link to="/forgot-password" className="text-[13px] font-semibold text-foreground underline-offset-2 hover:underline">
-              Forgot password?
-            </Link>
-          </div>
+          <label htmlFor="password" className="text-[13px] font-semibold">
+            Password
+          </label>
           <PasswordInput
             id="password"
             autoComplete="current-password"
@@ -86,7 +86,24 @@ export function LoginPage() {
             </p>
           )}
         </div>
-        <Button type="submit" size="lg" className="mt-1 w-full" disabled={isSubmitting}>
+        <div className="-my-1 flex items-center justify-between gap-3">
+          <label className="-ml-1 flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-1 text-sm select-none">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+              className="size-4.5 cursor-pointer rounded accent-primary"
+            />
+            Remember me
+          </label>
+          <Link
+            to="/forgot-password"
+            className="-mr-1 inline-flex min-h-11 items-center rounded-lg px-1 text-sm font-semibold text-foreground underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          >
+            Forgot password?
+          </Link>
+        </div>
+        <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
           {isSubmitting ? <Loader2 className="animate-spin" /> : null}
           {isSubmitting ? 'Signing in…' : 'Sign in'}
           {!isSubmitting && <ArrowRight />}

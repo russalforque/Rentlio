@@ -254,7 +254,7 @@ export function TenantDetailPage() {
     return (
       <div className="space-y-6">
         <Skeleton className="h-16 w-72" />
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <Skeleton className="h-56 rounded-xl lg:col-span-2" />
           <Skeleton className="h-56 rounded-xl" />
         </div>
@@ -300,7 +300,7 @@ export function TenantDetailPage() {
           />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display truncate text-[22px] font-semibold">{tenant.full_name || tenant.email}</h1>
+              <h1 className="font-display min-w-0 text-[22px] leading-tight font-semibold [overflow-wrap:anywhere] sm:truncate">{tenant.full_name || tenant.email}</h1>
               <TenantStatusBadge status={tenant.account_status} />
             </div>
             <p className="truncate text-[13px] text-muted-foreground">
@@ -309,7 +309,14 @@ export function TenantDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setDialog('edit')}>
+          {tenant.phone && (
+            <Button variant="outline" className="flex-1 sm:hidden" asChild>
+              <a href={`tel:${tenant.phone}`}>
+                <Phone /> Call
+              </a>
+            </Button>
+          )}
+          <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => setDialog('edit')}>
             <Pencil /> Edit
           </Button>
           <DropdownMenu>
@@ -356,13 +363,18 @@ export function TenantDetailPage() {
         </Callout>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
-          <CurrentRoomCard tenant={tenant} currency={currency} open={setDialog} />
-          <LeaseHistoryCard tenantId={tenant.id} currency={currency} />
+      {/* Phones: one column ordered room, deposit, contact, history; large screens: two columns. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
+        <div className="contents lg:col-span-2 lg:block lg:space-y-4">
+          <div className="order-1 lg:order-none">
+            <CurrentRoomCard tenant={tenant} currency={currency} open={setDialog} />
+          </div>
+          <div className="order-4 lg:order-none">
+            <LeaseHistoryCard tenantId={tenant.id} currency={currency} />
+          </div>
         </div>
-        <div className="space-y-4">
-          <Card>
+        <div className="contents lg:block lg:space-y-4">
+          <Card className="order-3 lg:order-none">
             <CardHeader>
               <CardTitle>Contact</CardTitle>
             </CardHeader>
@@ -399,12 +411,14 @@ export function TenantDetailPage() {
               </dl>
             </CardContent>
           </Card>
-          <DepositCard
-            tenant={tenant}
-            currency={currency}
-            canRecord={depositLeaseId !== null}
-            onRecord={() => setDialog('deposit')}
-          />
+          <div className="order-2 lg:order-none">
+            <DepositCard
+              tenant={tenant}
+              currency={currency}
+              canRecord={depositLeaseId !== null}
+              onRecord={() => setDialog('deposit')}
+            />
+          </div>
         </div>
       </div>
 

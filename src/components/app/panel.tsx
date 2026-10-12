@@ -28,7 +28,7 @@ export function Panel({ title, description, action, flush, className, bodyClassN
           </h2>
           {description && <p className="mt-1 text-[13px] text-muted-foreground">{description}</p>}
         </div>
-        {action && <div className="flex shrink-0 flex-wrap items-center gap-2">{action}</div>}
+        {action && <div className="flex max-w-full min-w-0 shrink-0 flex-wrap items-center gap-2">{action}</div>}
       </header>
       <div className={cn('flex min-h-0 flex-1 flex-col', !flush && 'px-5 pb-5', bodyClassName)}>{children}</div>
     </section>
@@ -40,7 +40,7 @@ export function PanelLink({ to, children }: { to: string; children: ReactNode })
   return (
     <Link
       to={to}
-      className="inline-flex h-8 items-center gap-1 rounded-lg bg-muted px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className="inline-flex h-10 items-center gap-1 rounded-lg bg-muted px-3 text-[13px] md:h-8 md:text-xs font-medium text-foreground transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
     >
       {children}
     </Link>
@@ -129,10 +129,10 @@ export function StatTile({ label, value, icon, accent = 'violet', sub, to }: Sta
     <>
       <div className="flex items-start justify-between gap-3">
         <p className="truncate pt-1 text-[13px] font-medium text-foreground/80">{label}</p>
-        <IconChip icon={icon} accent={accent} />
+        <IconChip icon={icon} accent={accent} className="size-7 rounded-md sm:size-8 sm:rounded-lg [&_svg]:size-3.5 sm:[&_svg]:size-4" />
       </div>
-      <p className="font-display mt-3 truncate text-[28px] leading-none font-semibold sm:text-[30px]">{value}</p>
-      {sub && <div className="mt-2.5 min-w-0 truncate">{sub}</div>}
+      <p className="font-display mt-3 truncate text-xl leading-none font-semibold min-[375px]:text-[22px] sm:text-[28px] lg:text-[30px]">{value}</p>
+      {sub && <div className="mt-2 min-w-0 truncate sm:mt-2.5">{sub}</div>}
     </>
   )
   const cls = 'surface block min-w-0 p-4 sm:p-5'
@@ -147,7 +147,7 @@ export function StatTile({ label, value, icon, accent = 'violet', sub, to }: Sta
 
 /** Four stat cards in a responsive row. */
 export function StatGrid({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:gap-4 xl:grid-cols-4', className)}>{children}</div>
+  return <div className={cn('grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4', className)}>{children}</div>
 }
 
 interface SegmentedProps<T extends string> {
@@ -169,7 +169,7 @@ export function Segmented<T extends string>({ label, value, options, onChange }:
           aria-checked={value === o.value}
           onClick={() => onChange(o.value)}
           className={cn(
-            'h-7 rounded-md px-2.5 text-xs font-medium text-muted-foreground transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+            'h-9 rounded-md px-3 text-[13px] font-medium md:h-7 md:px-2.5 md:text-xs text-muted-foreground transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
             value === o.value && 'bg-card text-foreground shadow-xs',
           )}
         >
@@ -206,7 +206,7 @@ export function FilterChips<T extends string>({ label, value, options, onChange,
             aria-checked={active}
             onClick={() => onChange(o.value)}
             className={cn(
-              'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+              'inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3.5 text-sm md:h-8 md:px-3 md:text-[13px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
               active
                 ? 'border-border bg-card text-foreground shadow-xs'
                 : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -231,7 +231,7 @@ export function SearchField({ className, ...props }: ComponentProps<'input'>) {
       <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
       <input
         type="search"
-        className="h-9 w-full rounded-lg border border-input bg-card pr-3 pl-9 text-base outline-none placeholder:text-muted-foreground hover:border-foreground/20 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 md:text-[13px] dark:bg-input/20"
+        className="h-11 w-full rounded-lg border border-input bg-card pr-3 pl-9 text-base md:h-9 outline-none placeholder:text-muted-foreground hover:border-foreground/20 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 md:text-[13px] dark:bg-input/20"
         {...props}
       />
     </div>

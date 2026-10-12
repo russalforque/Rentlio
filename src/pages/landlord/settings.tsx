@@ -114,13 +114,13 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
   const dueDays = Number(useWatch({ control, name: 'due_days' })) || 0
 
   return (
-    <form onSubmit={handleSubmit((v) => save.mutate(v))} noValidate className="space-y-6">
+    <form onSubmit={handleSubmit((v) => save.mutate(v))} noValidate className="mx-auto max-w-4xl space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>Property</CardTitle>
           <CardDescription>Shown to tenants on their portal and bills.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField id="property_name" label="Property name" error={errors.property_name?.message}>
             <Input id="property_name" aria-invalid={!!errors.property_name} {...register('property_name')} />
           </FormField>
@@ -156,7 +156,7 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
             {dueDays === 1 ? 'day' : 'days'} later.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField id="billing_day" label="Billing day of month (1–28)" error={errors.billing_day?.message}>
             <Input id="billing_day" inputMode="numeric" aria-invalid={!!errors.billing_day} {...register('billing_day')} />
           </FormField>
@@ -188,7 +188,7 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
             A rate is locked into each bill when the charge is first added, so changing it does not alter past bills.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField id="electricity_rate" label={`Electricity per kWh (${settings.currency_code})`} error={errors.electricity_rate?.message}>
             <Input id="electricity_rate" inputMode="decimal" className="tabular" aria-invalid={!!errors.electricity_rate} {...register('electricity_rate')} />
           </FormField>
@@ -234,7 +234,7 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
           <CardTitle>Tenant information</CardTitle>
           <CardDescription>How tenants can reach you, and the house rules shown on their portal.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-3">
+        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FormField id="contact_name" label="Contact name" error={errors.contact_name?.message}>
             <Input id="contact_name" {...register('contact_name')} />
           </FormField>
@@ -252,7 +252,7 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
         </CardContent>
       </Card>
 
-      <div className="sticky bottom-0 -mx-4 flex justify-end gap-2 border-t bg-background/90 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0">
+      <div className="sticky bottom-[calc(57px+env(safe-area-inset-bottom))] z-10 -mx-4 flex justify-end gap-2 border-t bg-background/90 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 [&>*]:flex-1 sm:[&>*]:flex-none">
         <Button type="button" variant="ghost" disabled={!isDirty || save.isPending} onClick={() => reset()}>
           Discard
         </Button>

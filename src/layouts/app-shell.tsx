@@ -1,4 +1,4 @@
-import { ArrowLeft, Bell, ChevronDown, LogOut, Monitor, Moon, MoreHorizontal, PanelLeft, Search, Sun, UserRound } from 'lucide-react'
+import { ArrowLeft, Bell, ChevronDown, ChevronRight, LogOut, Monitor, Moon, MoreHorizontal, PanelLeft, Search, Sun, UserRound } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
@@ -70,7 +70,7 @@ function SideLink({ item, wide }: { item: NavItem; wide: boolean }) {
           aria-label={label}
           // Static classes: Radix Slot cannot merge NavLink's function className. NavLink sets aria-current.
           className={cn(
-            'group relative flex h-9 items-center justify-center gap-2.5 rounded-lg text-[13px] font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-sidebar-accent-foreground aria-[current=page]:shadow-xs aria-[current=page]:ring-1 aria-[current=page]:ring-sidebar-border',
+            'group relative flex h-11 items-center justify-center gap-2.5 lg:h-9 rounded-lg text-[13px] font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-sidebar-accent-foreground aria-[current=page]:shadow-xs aria-[current=page]:ring-1 aria-[current=page]:ring-sidebar-border',
             wide && 'lg:justify-start lg:px-2.5',
           )}
         >
@@ -108,7 +108,7 @@ function DarkModeRow({ wide }: { wide: boolean }) {
             onClick={() => setTheme(dark ? 'light' : 'dark')}
             aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
             className={cn(
-              'flex h-9 items-center justify-center rounded-lg text-sidebar-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+              'flex h-11 items-center justify-center rounded-lg text-sidebar-foreground lg:h-9 transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
               wide && 'lg:hidden',
             )}
           >
@@ -198,7 +198,7 @@ function UserMenu() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-2.5 rounded-full p-0.5 transition-colors hover:bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none lg:rounded-lg lg:py-1 lg:pr-2 lg:pl-1"
+          className="flex items-center gap-2.5 rounded-full p-1.5 transition-colors hover:bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:p-0.5 lg:rounded-lg lg:py-1 lg:pr-2 lg:pl-1"
           aria-label="Account menu"
         >
           <UserAvatar
@@ -249,7 +249,7 @@ function UserMenu() {
 }
 
 const iconButton =
-  'relative grid size-9 shrink-0 place-items-center rounded-full border bg-card text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+  'relative grid size-11 shrink-0 place-items-center rounded-full border bg-card md:size-9 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
 
 function SearchButton({ onOpen }: { onOpen: () => void }) {
   const mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
@@ -278,7 +278,7 @@ function NotificationsButton() {
   return (
     <Link to="/payments" aria-label={count ? `${count} payments to verify` : 'Notifications'} className={iconButton}>
       <Bell className="size-4" />
-      {count > 0 && <span className="absolute top-2 right-2.5 size-2 rounded-full bg-destructive ring-2 ring-card" aria-hidden />}
+      {count > 0 && <span className="absolute top-2.5 right-3 size-2 md:top-2 md:right-2.5 rounded-full bg-destructive ring-2 ring-card" aria-hidden />}
     </Link>
   )
 }
@@ -287,17 +287,20 @@ function NotificationsButton() {
 function TabBar({ items, more }: { items: NavItem[]; more: NavItem[] }) {
   const [open, setOpen] = useState(false)
   const { signOut } = useAuth()
+  const profile = useProfile()
   const location = useLocation()
   const moreActive = more.some((m) => location.pathname.startsWith(m.to))
   const cols = items.length + (more.length ? 1 : 0)
-  const tab = 'group flex flex-col items-center gap-1 pt-2 pb-2 text-[11px] font-medium text-muted-foreground aria-[current=page]:text-foreground'
-  const pill = 'relative grid h-8 w-14 place-items-center rounded-full transition-colors group-aria-[current=page]:bg-muted'
+  const tab =
+    'group flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 pt-1.5 pb-1 text-[11px] font-medium text-muted-foreground transition-colors focus-visible:outline-none aria-[current=page]:font-semibold aria-[current=page]:text-foreground'
+  const pill =
+    'relative grid h-8 w-14 max-w-full place-items-center rounded-full transition-colors group-focus-visible:ring-2 group-focus-visible:ring-ring group-aria-[current=page]:bg-primary group-aria-[current=page]:text-primary-foreground'
 
   return (
     <>
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-30 grid border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid border-t bg-card/95 px-[env(safe-area-inset-left)] pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_12px_hsl(var(--shadow-color)/0.06)] backdrop-blur-md md:hidden"
         style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
       >
         {items.map((item) => (
@@ -306,11 +309,18 @@ function TabBar({ items, more }: { items: NavItem[]; more: NavItem[] }) {
               <item.icon className="size-5" strokeWidth={1.8} />
               {navBadge(item, 'dot')}
             </span>
-            {item.label}
+            <span className="max-w-full truncate px-0.5">{item.label}</span>
           </NavLink>
         ))}
         {more.length > 0 && (
-          <button type="button" onClick={() => setOpen(true)} className={tab} aria-current={moreActive ? 'page' : undefined}>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className={tab}
+            aria-current={moreActive ? 'page' : undefined}
+            aria-haspopup="dialog"
+            aria-expanded={open}
+          >
             <span className={pill}>
               <MoreHorizontal className="size-5" />
             </span>
@@ -320,27 +330,52 @@ function TabBar({ items, more }: { items: NavItem[]; more: NavItem[] }) {
       </nav>
       {more.length > 0 && (
         <Sheet open={open} onOpenChange={setOpen}>
-          <SheetContent side="bottom" className="rounded-t-2xl bg-card px-4 pt-6 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
-            <SheetTitle className="px-2 text-base font-semibold">More</SheetTitle>
-            <SheetDescription className="sr-only">Other sections</SheetDescription>
-            <nav aria-label="More" className="grid grid-cols-2 gap-2">
+          <SheetContent
+            side="bottom"
+            className="max-h-[85dvh] gap-0 overflow-y-auto rounded-t-3xl border-x-0 bg-card px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+          >
+            <span className="mx-auto mb-4 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/25" aria-hidden />
+            <div className="mb-4 flex items-center gap-3 px-1">
+              <UserAvatar
+                path={profile.avatar_path}
+                name={profile.full_name}
+                email={profile.email}
+                className="size-11"
+                fallbackClassName="bg-primary text-sm text-primary-foreground"
+              />
+              <div className="min-w-0 flex-1">
+                <SheetTitle className="truncate text-[15px] font-semibold">{profile.full_name || 'Your account'}</SheetTitle>
+                <SheetDescription className="truncate text-[13px]">{profile.email}</SheetDescription>
+              </div>
+            </div>
+            <nav aria-label="More" className="grid gap-1 rounded-2xl border p-1.5">
               {more.map((m) => (
                 <NavLink
                   key={m.to}
                   to={m.to}
                   onClick={() => setOpen(false)}
-                  className="flex min-h-12 items-center gap-3 rounded-xl border px-4 text-[13px] font-medium aria-[current=page]:border-foreground/30 aria-[current=page]:bg-muted"
+                  className="flex min-h-13 items-center gap-3 rounded-xl px-3 text-[15px] font-medium transition-colors hover:bg-muted aria-[current=page]:bg-muted"
                 >
-                  <m.icon className="size-4.5 text-muted-foreground" />
-                  {m.label}
+                  <span className="grid size-9 place-items-center rounded-lg bg-muted text-foreground/80" aria-hidden>
+                    <m.icon className="size-4.5" />
+                  </span>
+                  <span className="flex-1">{m.label}</span>
+                  <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
                 </NavLink>
               ))}
             </nav>
-            <div className="flex items-center justify-between gap-3 border-t pt-4">
-              <div className="w-36">
-                <ThemeToggle />
+            <div className="mt-4 grid gap-3">
+              <div className="flex items-center justify-between gap-3 px-1">
+                <span className="text-[13px] font-medium text-muted-foreground">Appearance</span>
+                <div className="w-40">
+                  <ThemeToggle />
+                </div>
               </div>
-              <button type="button" onClick={signOut} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-[13px] font-medium text-destructive hover:bg-destructive/10">
+              <button
+                type="button"
+                onClick={signOut}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border text-[15px] font-medium text-destructive transition-colors hover:bg-destructive/10"
+              >
                 <LogOut className="size-4" /> Sign out
               </button>
             </div>
@@ -398,28 +433,28 @@ export function AppShell() {
     <div className={cn('min-h-dvh md:pl-18', collapsed ? 'lg:pl-18' : 'lg:pl-60')}>
       <Sidebar wide={!collapsed} onToggle={toggleSidebar} />
 
-      <header className="sticky top-0 z-30 flex h-16 items-center gap-3 bg-background/90 px-4 backdrop-blur-md sm:px-6">
+      <header className="px-gutter sticky top-0 z-30 flex h-[calc(4rem+env(safe-area-inset-top))] items-center gap-2 bg-background/90 pt-[env(safe-area-inset-top)] backdrop-blur-md sm:gap-3">
         {nested ? (
           <button
             type="button"
             onClick={goBack}
             aria-label={`Back to ${current?.label}`}
-            className="-ml-1 grid size-8 shrink-0 place-items-center rounded-lg text-foreground hover:bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="-ml-2.5 grid size-11 shrink-0 place-items-center rounded-full text-foreground hover:bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:-ml-1 md:size-9"
           >
-            <ArrowLeft className="size-4.5" />
+            <ArrowLeft className="size-5 md:size-4.5" />
           </button>
         ) : (
-          <Link to={HOME_BY_ROLE[profile.role]} aria-label="Home" className="md:hidden">
-            <BrandMark className="size-8" />
+          <Link to={HOME_BY_ROLE[profile.role]} aria-label="Home" className="-ml-0.5 grid size-11 place-items-center rounded-lg md:hidden">
+            <BrandMark className="size-9" />
           </Link>
         )}
-        <p className="min-w-0 flex-1 truncate text-[15px] font-semibold">{current?.label ?? settings?.property_name ?? 'Rentlio'}</p>
+        <p className="min-w-0 flex-1 truncate text-base font-semibold md:text-[15px]">{current?.label ?? settings?.property_name ?? 'Rentlio'}</p>
         {isLandlord && <SearchButton onOpen={() => setSearching(true)} />}
         {isLandlord && <NotificationsButton />}
         <UserMenu />
       </header>
 
-      <main className="mx-auto w-full max-w-360 px-4 pt-2 pb-28 sm:px-6 md:pb-10">
+      <main className="px-gutter mx-auto w-full max-w-360 pt-2 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-10">
         <Outlet />
       </main>
 

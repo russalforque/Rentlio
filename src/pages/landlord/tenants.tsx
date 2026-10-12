@@ -1,6 +1,7 @@
 import { AlertTriangle, ChevronRight, MailCheck, Search, UserCheck, UserPlus, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { Fab } from '@/components/app/fab'
 import { PageHeader } from '@/components/app/page-header'
 import { FilterChips, Panel, SearchField, StatGrid, StatTile } from '@/components/app/panel'
 import { EmptyState, ErrorState } from '@/components/app/states'
@@ -98,7 +99,7 @@ export function TenantsPage() {
           )
         }
         actions={
-          <Button onClick={() => setInviting(true)}>
+          <Button className="hidden md:inline-flex" onClick={() => setInviting(true)}>
             <UserPlus /> Invite tenant
           </Button>
         }
@@ -180,17 +181,17 @@ export function TenantsPage() {
               <ul className="divide-y border-t md:hidden">
                 {visible.map((t) => (
                   <li key={t.id}>
-                    <Link to={`/tenants/${t.id}`} className="flex items-center gap-3 px-5 py-3.5 active:bg-muted">
-                      <TenantAvatar tenant={t} />
+                    <Link to={`/tenants/${t.id}`} className="flex min-h-18 items-center gap-3 px-5 py-3.5 active:bg-muted">
+                      <TenantAvatar tenant={t} className="size-10" />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-semibold">{t.full_name || t.email}</p>
+                        <p className="truncate text-[15px] font-semibold">{t.full_name || t.email}</p>
                         <div className="mt-1 flex flex-wrap items-center gap-2">
                           <RoomChip room={t.room_number} />
                           <TenantStatusBadge status={t.account_status} />
                         </div>
                       </div>
                       {t.outstanding_balance > 0 && (
-                        <span className="text-right text-[13px] font-semibold text-destructive tabular">
+                        <span className="shrink-0 text-right text-[13px] font-semibold text-destructive tabular">
                           {formatMoney(t.outstanding_balance, currency)}
                           <span className="block text-[11px] font-medium text-muted-foreground">due</span>
                         </span>
@@ -260,6 +261,7 @@ export function TenantsPage() {
         </>
       )}
 
+      {counts.all > 0 && <Fab icon={UserPlus} label="Invite tenant" onClick={() => setInviting(true)} />}
       <InviteTenantDialog open={inviting} onOpenChange={setInviting} />
     </div>
   )

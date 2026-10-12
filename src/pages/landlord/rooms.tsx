@@ -1,6 +1,7 @@
-import { BedDouble, BedSingle, Building2, CircleCheck, DoorOpen, Plus, Tags, TriangleAlert, Wallet, Wrench } from 'lucide-react'
+import { BedDouble, BedSingle, Building2, ChevronRight, CircleCheck, DoorOpen, Plus, Tags, TriangleAlert, Wallet, Wrench } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { PageHeader } from '@/components/app/page-header'
+import { Fab } from '@/components/app/fab'
+import { ActionsMenu, PageHeader } from '@/components/app/page-header'
 import { Callout, FilterChips, InitialsBadge, Panel, SearchField, StatGrid, StatTile, StatusPill, type Tone } from '@/components/app/panel'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
@@ -69,7 +70,7 @@ function RoomCard({ room, beds, currency, onOpen }: RoomCardProps) {
         </p>
       )}
 
-      <div className="mt-auto flex items-end justify-between gap-2 border-t pt-3">
+      <div className="mt-auto flex flex-wrap items-end justify-between gap-x-2 gap-y-1 border-t pt-3">
         <p className="text-[13px] tabular">
           {rent > 0 ? (
             <>
@@ -88,6 +89,50 @@ function RoomCard({ room, beds, currency, onOpen }: RoomCardProps) {
           </span>
         )}
       </div>
+    </button>
+  )
+}
+
+/** Phones: one full-width row per room, the essentials at a glance. */
+function RoomRow({ room, beds, currency, onOpen }: RoomCardProps) {
+  const style = OCCUPANCY_STYLE[room.occupancy]
+  const rent = room.lease_rent ?? room.monthly_rent
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`Room ${room.room_number}, ${style.label}${room.tenant_name ? `, ${room.tenant_name}` : ''}. Edit room`}
+      className="flex min-h-18 w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:bg-muted/60 focus-visible:outline-none"
+    >
+      <span
+        className={cn(
+          'grid size-12 shrink-0 place-items-center rounded-xl border text-[15px] font-semibold tabular',
+          room.occupancy === 'occupied' && 'border-transparent bg-chart-2/12',
+          room.occupancy === 'vacant' && 'border-dashed border-foreground/25',
+          room.occupancy === 'maintenance' && 'border-transparent bg-warning/16',
+        )}
+        aria-hidden
+      >
+        {room.room_number}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] font-semibold">
+          {room.tenant_name ?? (room.occupancy === 'maintenance' ? 'Under maintenance' : 'Vacant')}
+        </span>
+        <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
+          <span className="shrink-0 tabular">
+            {rent > 0 ? `${formatMoney(rent, currency)}/mo` : <span className="font-semibold text-warning-foreground">Set rent</span>}
+          </span>
+          {beds.length > 0 && <span className="truncate">· {beds.map((b) => `${b.quantity} × ${b.bed_type.name}`).join(', ')}</span>}
+        </span>
+      </span>
+      <span className="flex shrink-0 flex-col items-end gap-1">
+        <StatusPill tone={style.tone}>{style.label}</StatusPill>
+        {room.outstanding_balance > 0 && (
+          <span className="text-xs font-semibold text-destructive tabular">{formatMoney(room.outstanding_balance, currency)} due</span>
+        )}
+      </span>
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
     </button>
   )
 }
@@ -152,13 +197,19 @@ export function RoomsPage() {
         }
         actions={
           <>
-            <Button variant="outline" onClick={() => setBedTypesOpen(true)}>
+            <ActionsMenu
+              actions={[
+                { label: 'Bed types', icon: BedSingle, onSelect: () => setBedTypesOpen(true) },
+                { label: 'Set rent for all rooms', icon: Tags, onSelect: () => setBulkOpen(true), disabled: !rooms?.length },
+              ]}
+            />
+            <Button variant="outline" className="hidden sm:inline-flex" onClick={() => setBedTypesOpen(true)}>
               <BedSingle /> Bed types
             </Button>
-            <Button variant="outline" onClick={() => setBulkOpen(true)} disabled={!rooms?.length}>
+            <Button variant="outline" className="hidden sm:inline-flex" onClick={() => setBulkOpen(true)} disabled={!rooms?.length}>
               <Tags /> Set rent
             </Button>
-            <Button onClick={() => setCreating(true)}>
+            <Button className="hidden md:inline-flex" onClick={() => setCreating(true)}>
               <Plus /> Add room
             </Button>
           </>
@@ -255,7 +306,14 @@ export function RoomsPage() {
                   title={floor === null ? 'No floor set' : `Floor ${floor}`}
                   description={`${list.filter((r) => r.occupancy === 'occupied').length} of ${list.length} occupied`}
                 >
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+                  <ul className="-mx-5 divide-y border-t sm:hidden">
+                    {list.map((room) => (
+                      <li key={room.id}>
+                        <RoomRow room={room} beds={roomBeds?.get(room.id) ?? []} currency={currency} onOpen={() => setEditing(room)} />
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="hidden grid-cols-2 gap-3 sm:grid md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                     {list.map((room) => (
                       <RoomCard
                         key={room.id}
@@ -273,6 +331,7 @@ export function RoomsPage() {
         </>
       )}
 
+      {!!rooms?.length && <Fab icon={Plus} label="Add room" onClick={() => setCreating(true)} />}
       <RoomFormDialog open={creating} onOpenChange={setCreating} />
       <RoomFormDialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)} room={editing ?? undefined} />
       <BulkRentDialog open={bulkOpen} onOpenChange={setBulkOpen} rooms={rooms ?? []} />

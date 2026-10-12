@@ -10,7 +10,7 @@ export function PeriodPicker({ value, onChange }: { value: string; onChange: (pe
       <Button variant="outline" size="icon" onClick={() => onChange(shiftPeriod(value, -1))} aria-label="Previous month">
         <ChevronLeft />
       </Button>
-      <span className="min-w-36 text-center font-semibold" aria-live="polite">
+      <span className="min-w-32 text-center text-sm font-semibold sm:min-w-36" aria-live="polite">
         {formatPeriod(value)}
       </span>
       <Button variant="outline" size="icon" onClick={() => onChange(shiftPeriod(value, 1))} aria-label="Next month">

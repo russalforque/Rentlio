@@ -72,30 +72,34 @@ function MeterInputs({
       <legend className="mb-1.5 text-xs font-semibold text-muted-foreground">{label}</legend>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <Label htmlFor={`${idPrefix}-prev`} className="sr-only">
-            {label} previous reading
+          <Label htmlFor={`${idPrefix}-prev`} className="mb-1 block text-[11px] font-medium text-muted-foreground">
+            Previous<span className="sr-only"> {label} reading</span>
           </Label>
           <Input
             id={`${idPrefix}-prev`}
             inputMode="decimal"
-            placeholder="Previous"
+            placeholder="0"
+            enterKeyHint="next"
+            autoComplete="off"
             value={prev}
             onChange={(e) => onPrev(e.target.value)}
-            className="h-9 tabular"
+            className="tabular"
             aria-invalid={!!error}
           />
         </div>
         <div>
-          <Label htmlFor={`${idPrefix}-curr`} className="sr-only">
-            {label} current reading
+          <Label htmlFor={`${idPrefix}-curr`} className="mb-1 block text-[11px] font-medium text-muted-foreground">
+            Current<span className="sr-only"> {label} reading</span>
           </Label>
           <Input
             id={`${idPrefix}-curr`}
             inputMode="decimal"
-            placeholder="Current"
+            placeholder="0"
+            enterKeyHint="next"
+            autoComplete="off"
             value={curr}
             onChange={(e) => onCurr(e.target.value)}
-            className="h-9 font-semibold tabular"
+            className="font-semibold tabular"
             aria-invalid={!!error}
           />
         </div>
@@ -226,7 +230,8 @@ function ReadingGrid({
         </ul>
       )}
 
-      <div className="sticky bottom-0 -mx-4 flex items-center justify-between gap-3 border-t bg-card/95 px-4 py-3 shadow-sm backdrop-blur sm:mx-0 sm:rounded-xl sm:border">
+      {/* Docks above the phone tab bar; at the window edge from tablets up. */}
+      <div className="px-gutter sticky bottom-[calc(57px+env(safe-area-inset-bottom))] z-10 -mx-4 flex items-center justify-between gap-3 border-t bg-card/95 py-3 shadow-sm backdrop-blur sm:mx-0 sm:rounded-xl sm:border sm:px-4 md:bottom-3">
         <p className="text-[13px] text-muted-foreground">
           {changed.length === 0 ? 'No changes' : `${changed.length} ${changed.length === 1 ? 'room' : 'rooms'} changed`}
         </p>

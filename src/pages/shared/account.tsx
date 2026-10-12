@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
-import { Camera, Loader2, Trash2 } from 'lucide-react'
+import { Camera, Loader2, LogOut, Trash2 } from 'lucide-react'
 import { useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -145,7 +145,7 @@ function ProfileCard() {
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit((v) => save.mutate(v))} noValidate>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField id="full_name" label="Full name" error={errors.full_name?.message}>
             <Input id="full_name" autoComplete="name" aria-invalid={!!errors.full_name} {...register('full_name')} />
           </FormField>
@@ -172,7 +172,7 @@ function ProfileCard() {
             />
           </FormField>
         </CardContent>
-        <CardFooter className="mt-6 justify-end border-t pt-6">
+        <CardFooter className="mt-6 justify-end border-t pt-6 max-sm:[&>button]:w-full">
           <Button type="submit" disabled={!isDirty || save.isPending}>
             {save.isPending && <Loader2 className="animate-spin" />}
             Save changes
@@ -211,7 +211,7 @@ function PasswordCard() {
         <CardDescription>At least 8 characters, with letters and numbers.</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit((v) => change.mutate(v))} noValidate>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField id="new-password" label="New password" error={errors.password?.message}>
             <PasswordInput
               id="new-password"
@@ -229,7 +229,7 @@ function PasswordCard() {
             />
           </FormField>
         </CardContent>
-        <CardFooter className="mt-6 justify-end border-t pt-6">
+        <CardFooter className="mt-6 justify-end border-t pt-6 max-sm:[&>button]:w-full">
           <Button type="submit" variant="outline" disabled={change.isPending}>
             {change.isPending && <Loader2 className="animate-spin" />}
             Change password
@@ -241,12 +241,21 @@ function PasswordCard() {
 }
 
 export function AccountPage() {
+  const profile = useProfile()
+  const { signOut } = useAuth()
   return (
-    <div className="space-y-6">
-      <PageHeader title="Account" description="Your profile and sign-in settings." />
+    <div className="mx-auto max-w-3xl space-y-6">
+      <PageHeader
+        title={profile.role === 'tenant' ? 'Profile' : 'Account'}
+        description="Your profile and sign-in settings."
+      />
       <PhotoCard />
       <ProfileCard />
       <PasswordCard />
+      {/* Phones: tenants have no "More" sheet, so sign-out lives here too. */}
+      <Button variant="outline" size="lg" className="w-full text-destructive hover:text-destructive md:hidden" onClick={signOut}>
+        <LogOut /> Sign out
+      </Button>
     </div>
   )
 }

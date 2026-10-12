@@ -40,16 +40,16 @@ export function TenantBillsPage() {
         <ul className="divide-y border-t">
           {data.map((b) => (
             <li key={b.id}>
-              <Link to={`/my/bills/${b.id}`} className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-muted/60">
+              <Link to={`/my/bills/${b.id}`} className="flex min-h-16 items-center gap-3 px-5 py-3.5 transition-colors hover:bg-muted/60 sm:gap-4">
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg border text-muted-foreground" aria-hidden>
                   <ReceiptText className="size-4" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-semibold">{formatPeriod(b.period)}</p>
+                  <p className="truncate text-[15px] font-semibold md:text-[13px]">{formatPeriod(b.period)}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">Due {formatDate(b.due_date)}</p>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-[13px] font-semibold tabular">
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="text-sm font-semibold tabular md:text-[13px]">
                     {formatMoney(b.status === 'paid' ? b.total_amount : b.balance, currency)}
                   </span>
                   <BillStatusBadge status={b.status} overdue={b.is_overdue} />

@@ -44,7 +44,7 @@ export function TenantBillPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="font-display text-[22px] font-semibold sm:text-2xl">{formatPeriod(b.period)}</h1>
+            <h1 className="font-display text-2xl font-semibold">{formatPeriod(b.period)}</h1>
             <BillStatusBadge status={b.status} overdue={b.is_overdue} />
           </div>
           <p className="mt-1 text-[13px] text-muted-foreground">
@@ -52,7 +52,7 @@ export function TenantBillPage() {
           </p>
         </div>
         {b.balance > 0 && (
-          <Button size="lg" onClick={() => setPaying(true)}>
+          <Button size="lg" className="hidden sm:inline-flex" onClick={() => setPaying(true)}>
             <Wallet /> Pay {formatMoney(b.balance, currency)}
           </Button>
         )}
@@ -94,8 +94,8 @@ export function TenantBillPage() {
               {payments.data.map((p) => (
                 <li key={p.id} className="py-3">
                   <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[13px] font-semibold tabular">{formatMoney(p.amount, currency)}</p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold tabular md:text-[13px]">{formatMoney(p.amount, currency)}</p>
                       <p className="text-xs text-muted-foreground">
                         {METHOD_LABEL[p.method]} · {formatDate(p.paid_on)}
                       </p>
@@ -109,6 +109,19 @@ export function TenantBillPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Phones: the pay action stays in reach above the tab bar while reading the bill. */}
+      {b.balance > 0 && (
+        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-1 flex items-center gap-3 rounded-2xl border bg-card/95 p-2 pl-4 shadow-lg backdrop-blur-md sm:hidden">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-muted-foreground">Balance due</p>
+            <p className="truncate text-base font-semibold tabular">{formatMoney(b.balance, currency)}</p>
+          </div>
+          <Button size="lg" onClick={() => setPaying(true)}>
+            <Wallet /> Pay now
+          </Button>
+        </div>
+      )}
 
       <SubmitPaymentDialog bill={b} open={paying} onOpenChange={setPaying} />
     </div>

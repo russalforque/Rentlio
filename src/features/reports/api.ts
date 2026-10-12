@@ -54,3 +54,6 @@ export function useRecentVerifiedPayments(limit = 6) {
     },
   })
 }
+
+/** One row of useOpenBills(). */
+export type OpenBill = NonNullable<ReturnType<typeof useOpenBills>['data']>[number]

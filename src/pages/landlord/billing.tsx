@@ -82,7 +82,7 @@ export function BillingPage() {
           <>
             <Button variant="outline" asChild>
               <Link to={`/billing/readings?period=${period}`}>
-                <Gauge /> Meter readings
+                <Gauge /> Readings
               </Link>
             </Button>
             <Button onClick={() => setConfirming(true)} disabled={generate.isPending}>
@@ -192,19 +192,19 @@ export function BillingPage() {
                   <ul className="divide-y border-t md:hidden">
                     {visible.map((b) => (
                       <li key={b.id}>
-                        <Link to={`/billing/bills/${b.id}`} className="flex items-center gap-3 px-5 py-3 active:bg-muted/60">
+                        <Link to={`/billing/bills/${b.id}`} className="flex min-h-16 items-center gap-3 px-5 py-3 active:bg-muted/60">
                           <div className="grid size-10 shrink-0 place-items-center rounded-lg border bg-muted/60 text-[13px] font-semibold">
                             {b.room_number}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-[13px] font-semibold">{b.tenant_name}</p>
+                            <p className="truncate text-sm font-semibold">{b.tenant_name}</p>
                             <div className="mt-0.5 flex items-center gap-2">
                               <BillStatusBadge status={b.status} overdue={b.is_overdue} />
                               {b.pending_payments > 0 && <span className="text-[11px] font-semibold text-info">Proof to review</span>}
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className="text-[13px] font-semibold tabular">{formatMoney(b.balance > 0 ? b.balance : b.total_amount, currency)}</p>
+                          <div className="shrink-0 text-right">
+                            <p className="text-sm font-semibold tabular">{formatMoney(b.balance > 0 ? b.balance : b.total_amount, currency)}</p>
                             <p className="text-[11px] text-muted-foreground">{b.balance > 0 ? 'due' : 'total'}</p>
                           </div>
                           <ChevronRight className="size-4 shrink-0 text-muted-foreground" />

@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { Callout, Panel, PanelLink, StatGrid, StatTile } from '@/components/app/panel'
+import { Callout, Panel, PanelLink } from '@/components/app/panel'
 import { PageHeader } from '@/components/app/page-header'
 import { ColumnChart } from '@/components/app/column-chart'
 import type { CalendarMark } from '@/components/app/month-calendar'
@@ -130,8 +130,19 @@ export function TenantHomePage() {
   return (
     <div className="space-y-5">
       <PageHeader
+        eyebrow={format(new Date(), 'EEEE, MMMM d')}
         title={`${greeting()}, ${profile.full_name.split(' ')[0] || 'there'}`}
-        description={`${format(new Date(), 'EEEE, MMMM d')} · ${settings?.property_name ?? 'Your rental'}`}
+        description={
+          room ? (
+            <Link to="/my/room" className="inline-flex items-center gap-1.5 font-medium text-foreground/80 hover:text-foreground">
+              <DoorOpen className="size-3.5" aria-hidden />
+              Room {room.rooms?.room_number}
+              <span className="font-normal text-muted-foreground">· {settings?.property_name ?? 'Your rental'}</span>
+            </Link>
+          ) : (
+            settings?.property_name ?? 'Your rental'
+          )
+        }
       />
 
       {recentRejections.map((p) => (
@@ -141,60 +152,21 @@ export function TenantHomePage() {
         </Callout>
       ))}
 
-      <StatGrid>
-        <StatTile
-          label="Amount due"
-          value={bills.isPending ? '—' : formatMoney(totalDue, currency)}
-          icon={Wallet}
-          accent="amber"
-          sub={
-            due ? (
-              <span className={cn('text-xs', due.urgent ? 'font-medium text-destructive' : 'text-muted-foreground')}>{due.text}</span>
-            ) : (
-              <span className="text-xs font-medium text-success">All paid up</span>
-            )
-          }
-        />
-        <StatTile
-          label="Open bills"
-          value={String(open.length)}
-          icon={ReceiptText}
-          accent="violet"
-          to="/my/bills"
-          sub={<span className="text-xs text-muted-foreground">{pending.length ? `${pending.length} payment awaiting check` : 'Nothing pending'}</span>}
-        />
-        <StatTile
-          label="Monthly rent"
-          value={room ? formatMoney(room.monthly_rent, currency) : '—'}
-          icon={DoorOpen}
-          accent="blue"
-          to="/my/room"
-          sub={<span className="text-xs text-muted-foreground">{room ? `Room ${room.rooms?.room_number}` : 'No room yet'}</span>}
-        />
-        <StatTile
-          label="Security deposit"
-          value={formatMoney(deposit.data ?? 0, currency)}
-          icon={PiggyBank}
-          accent="green"
-          sub={<span className="text-xs text-muted-foreground">Held by your landlord</span>}
-        />
-      </StatGrid>
-
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
         {/* Amount due: the one thing a tenant comes here for */}
         <section
           aria-label="Amount due"
-          className={cn('surface order-1 flex flex-col p-5 md:col-span-2 xl:col-span-8', !(totalDue > 0 || bills.isPending) && 'border-success/30')}
+          className={cn('surface order-1 flex flex-col p-5 sm:p-6 md:col-span-2 xl:col-span-8', !(totalDue > 0 || bills.isPending) && 'border-success/30')}
         >
           {bills.isPending ? (
             <Skeleton className="h-48" />
           ) : totalDue > 0 && nextBill && due ? (
             <>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <h2 className="text-[15px] font-semibold">Next payment</h2>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-[13px] font-medium text-muted-foreground">Amount due</h2>
                 <span
                   className={cn(
-                    'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset',
+                    'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset',
                     due.urgent ? 'bg-destructive/8 text-destructive ring-destructive/20' : 'bg-muted text-foreground ring-border',
                   )}
                 >
@@ -202,27 +174,33 @@ export function TenantHomePage() {
                   {due.text}
                 </span>
               </div>
-              <p className="font-display mt-3 text-4xl font-semibold tabular sm:text-[44px]">{formatMoney(totalDue, currency)}</p>
-              <p className="mt-1.5 text-[13px] text-muted-foreground">
-                {open.length > 1 ? `Across ${open.length} open bills · oldest is ` : 'For your '}
-                <span className="font-semibold text-foreground">{formatPeriod(nextBill.period)}</span> bill
+              <p className="font-display mt-2 text-[40px] leading-none font-semibold tabular break-all sm:text-[48px]">
+                {formatMoney(totalDue, currency)}
               </p>
-              {pending.length > 0 && (
-                <p className="mt-3 flex items-center gap-1.5 rounded-lg bg-info/8 px-3 py-2 text-[13px] text-info">
-                  <Hourglass className="size-4 shrink-0" aria-hidden />
-                  {formatMoney(pending.reduce((t, p) => t + p.amount, 0), currency)} sent, waiting for your landlord to verify
-                </p>
-              )}
-              <div className="mt-5">
-                <BillBreakdown bill={nextBill} currency={currency} />
-              </div>
-              <div className="mt-5 flex flex-col gap-2 sm:mt-auto sm:flex-row sm:pt-5">
-                <Button size="lg" onClick={() => setPaying(true)}>
+              <p className="mt-2.5 text-sm text-muted-foreground md:text-[13px]">
+                {open.length > 1 ? `Across ${open.length} open bills · oldest is ` : 'For your '}
+                <span className="font-semibold text-foreground">{formatPeriod(nextBill.period)}</span> bill · due{' '}
+                <span className="font-semibold text-foreground">{formatDate(nextBill.due_date, 'MMM d')}</span>
+              </p>
+              <div className="mt-5 grid gap-2 sm:flex sm:flex-row">
+                <Button size="lg" className="h-13 text-base sm:h-11 sm:text-sm" onClick={() => setPaying(true)}>
                   <Wallet /> Pay {formatPeriod(nextBill.period)}
                 </Button>
                 <Button size="lg" variant="outline" asChild>
-                  <Link to={`/my/bills/${nextBill.id}`}>See full breakdown</Link>
+                  <Link to={`/my/bills/${nextBill.id}`}>
+                    <ReceiptText /> View bill
+                  </Link>
                 </Button>
+              </div>
+              {pending.length > 0 && (
+                <p role="status" className="mt-4 flex items-start gap-2 rounded-lg bg-info/8 px-3 py-2.5 text-[13px] text-info">
+                  <Hourglass className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  {formatMoney(pending.reduce((t, p) => t + p.amount, 0), currency)} sent, waiting for your landlord to verify
+                </p>
+              )}
+              <div className="mt-5 border-t pt-4">
+                <p className="mb-2.5 text-xs font-medium text-muted-foreground">What you're paying for</p>
+                <BillBreakdown bill={nextBill} currency={currency} />
               </div>
             </>
           ) : (
@@ -242,55 +220,8 @@ export function TenantHomePage() {
           )}
         </section>
 
-        {/* Calendar */}
-        <Panel title="Billing calendar" className="order-2 xl:col-span-4">
-          {settings ? (
-            <BillingCalendar billingDay={settings.billing_day} dueDays={settings.due_days} extra={calendarMarks} />
-          ) : (
-            <Skeleton className="h-72" />
-          )}
-        </Panel>
-
-        {/* Bill history */}
-        <Panel
-          title="Your bills"
-          description="Total billed per month"
-          className="order-4 md:col-span-2 xl:order-3 xl:col-span-8"
-          action={<PanelLink to="/my/bills">View all</PanelLink>}
-        >
-          {bills.isPending ? (
-            <Skeleton className="h-56" />
-          ) : history.length === 0 ? (
-            <p className="text-[13px] text-muted-foreground">No bills yet.</p>
-          ) : (
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,240px)]">
-              <ColumnChart
-                ariaLabel="Total billed per month"
-                series={[{ name: 'Total billed', color: 'var(--chart-1)' }]}
-                data={history}
-                height={200}
-                formatValue={(v) => formatMoney(v, currency)}
-                formatTick={formatCompact}
-              />
-              <ul className="divide-y self-start">
-                {(bills.data ?? []).slice(0, 4).map((b) => (
-                  <li key={b.id}>
-                    <Link to={`/my/bills/${b.id}`} className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/60">
-                      <span>
-                        <span className="block text-[13px] font-semibold">{format(parseISO(b.period), 'MMMM')}</span>
-                        <BillStatusBadge status={b.status} overdue={b.is_overdue} className="mt-0.5" />
-                      </span>
-                      <span className="text-[13px] font-semibold tabular">{formatMoney(b.total_amount, currency)}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </Panel>
-
         {/* My room */}
-        <Panel title="My room" className="order-3 xl:order-4 xl:col-span-4" action={<PanelLink to="/my/room">Details</PanelLink>}>
+        <Panel title="My room" className="order-3 xl:order-2 xl:col-span-4" action={<PanelLink to="/my/room">Details</PanelLink>}>
           {tenancy.isPending ? (
             <Skeleton className="h-32" />
           ) : room ? (
@@ -307,44 +238,94 @@ export function TenantHomePage() {
                 </div>
               </div>
               <dl className="mt-auto grid grid-cols-2 gap-2 pt-5">
-                <div className="rounded-xl border px-3 py-2.5">
-                  <dt className="text-[11px] font-medium text-muted-foreground">Monthly rent</dt>
-                  <dd className="mt-0.5 text-sm font-semibold tabular">{formatMoney(room.monthly_rent, currency)}</dd>
+                <div className="min-w-0 rounded-xl border px-3 py-2.5">
+                  <dt className="text-xs font-medium text-muted-foreground">Monthly rent</dt>
+                  <dd className="mt-0.5 truncate text-sm font-semibold tabular">{formatMoney(room.monthly_rent, currency)}</dd>
                 </div>
-                <div className="rounded-xl border px-3 py-2.5">
-                  <dt className="text-[11px] font-medium text-muted-foreground">Bills due</dt>
-                  <dd className="mt-0.5 text-sm font-semibold">
-                    {settings ? `${settings.due_days} days after issue` : '—'}
-                  </dd>
+                <div className="min-w-0 rounded-xl border px-3 py-2.5">
+                  <dt className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                    <PiggyBank className="size-3.5" aria-hidden /> Deposit held
+                  </dt>
+                  <dd className="mt-0.5 truncate text-sm font-semibold tabular">{formatMoney(deposit.data ?? 0, currency)}</dd>
                 </div>
               </dl>
+              {settings && <p className="mt-3 text-xs text-muted-foreground">Bills are due {settings.due_days} days after they are issued.</p>}
             </div>
           ) : (
             <p className="text-[13px] text-muted-foreground">You are not assigned to a room right now.</p>
           )}
         </Panel>
 
+        {/* Bill history */}
+        <Panel
+          title="Your bills"
+          description="Total billed per month"
+          className="order-4 md:col-span-2 xl:order-3 xl:col-span-8"
+          action={<PanelLink to="/my/bills">View all</PanelLink>}
+        >
+          {bills.isPending ? (
+            <Skeleton className="h-56" />
+          ) : history.length === 0 ? (
+            <p className="text-[13px] text-muted-foreground">No bills yet.</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,240px)]">
+              <div className="hidden sm:block">
+                <ColumnChart
+                  ariaLabel="Total billed per month"
+                  series={[{ name: 'Total billed', color: 'var(--chart-1)' }]}
+                  data={history}
+                  height={200}
+                  formatValue={(v) => formatMoney(v, currency)}
+                  formatTick={formatCompact}
+                />
+              </div>
+              <ul className="divide-y self-start">
+                {(bills.data ?? []).slice(0, 4).map((b) => (
+                  <li key={b.id}>
+                    <Link to={`/my/bills/${b.id}`} className="-mx-2 flex min-h-14 items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/60">
+                      <span>
+                        <span className="block text-sm font-semibold md:text-[13px]">{formatPeriod(b.period)}</span>
+                        <BillStatusBadge status={b.status} overdue={b.is_overdue} className="mt-1" />
+                      </span>
+                      <span className="text-sm font-semibold tabular md:text-[13px]">{formatMoney(b.total_amount, currency)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Panel>
+
+        {/* Calendar */}
+        <Panel title="Billing calendar" className="order-5 xl:order-4 xl:col-span-4">
+          {settings ? (
+            <BillingCalendar billingDay={settings.billing_day} dueDays={settings.due_days} extra={calendarMarks} />
+          ) : (
+            <Skeleton className="h-72" />
+          )}
+        </Panel>
+
         {/* Payments */}
-        <Panel title="Recent payments" className="order-5 xl:col-span-6" action={<PanelLink to="/my/payments">View all</PanelLink>}>
+        <Panel title="Recent payments" className="order-2 xl:order-5 xl:col-span-6" action={<PanelLink to="/my/payments">View all</PanelLink>}>
           {payments.isPending ? (
             <Skeleton className="h-32" />
           ) : !payments.data?.length ? (
             <p className="text-[13px] text-muted-foreground">Payments you send will show up here.</p>
           ) : (
             <ul className="divide-y">
-              {payments.data.slice(0, 4).map((p) => (
-                <li key={p.id} className="flex items-center gap-3 py-2.5">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-lg border" aria-hidden>
+              {payments.data.slice(0, 3).map((p) => (
+                <li key={p.id} className="flex items-center gap-3 py-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-lg border" aria-hidden>
                     <Wallet className="size-4 text-muted-foreground" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-semibold">{formatPeriod(p.period)}</span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="block truncate text-sm font-semibold md:text-[13px]">{formatPeriod(p.period)}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
                       {METHOD_LABEL[p.method]} · {formatDate(p.paid_on, 'MMM d')}
                     </span>
                   </span>
                   <span className="flex flex-col items-end gap-1">
-                    <span className="text-[13px] font-semibold tabular">{formatMoney(p.amount, currency)}</span>
+                    <span className="text-sm font-semibold tabular md:text-[13px]">{formatMoney(p.amount, currency)}</span>
                     <PaymentStatusBadge status={p.status} />
                   </span>
                 </li>
@@ -356,12 +337,12 @@ export function TenantHomePage() {
         {/* How to pay */}
         <Panel title="How to pay" className="order-6 xl:col-span-6">
           {settings?.payment_instructions ? (
-            <p className="text-[13px] leading-relaxed whitespace-pre-line">{settings.payment_instructions}</p>
+            <p className="text-sm leading-relaxed whitespace-pre-line md:text-[13px]">{settings.payment_instructions}</p>
           ) : (
             <p className="text-[13px] text-muted-foreground">Your landlord has not added payment instructions yet.</p>
           )}
           {(settings?.contact_phone || settings?.contact_email) && (
-            <div className="mt-auto flex flex-wrap gap-2 pt-5">
+            <div className="mt-auto grid gap-2 pt-5 sm:flex sm:flex-wrap">
               {settings.contact_phone && (
                 <Button variant="outline" size="sm" asChild>
                   <a href={`tel:${settings.contact_phone}`}>

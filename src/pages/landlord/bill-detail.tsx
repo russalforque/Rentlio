@@ -208,7 +208,7 @@ export function BillDetailPage() {
     return (
       <div className="space-y-6">
         <Skeleton className="h-14 w-64" />
-        <div className="grid gap-6 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
           <Skeleton className="h-80 rounded-xl lg:col-span-3" />
           <Skeleton className="h-80 rounded-xl lg:col-span-2" />
         </div>
@@ -285,7 +285,7 @@ export function BillDetailPage() {
         </Callout>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Charges</CardTitle>
