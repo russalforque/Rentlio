@@ -1,0 +1,15 @@
+<!-- Supabase Auth > Email Templates > Invite user. Subject: You're invited to your tenant portal -->
+<div style="font-family:Manrope,Segoe UI,Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1f2430">
+  <h2 style="margin:0 0 12px;font-size:20px">Your tenant account is ready</h2>
+  <p style="margin:0 0 20px;line-height:1.6;color:#4a5160">
+    Your landlord has set up an account for you. Activate it to see your bills, upload proof of payment and
+    keep track of your rent.
+  </p>
+  <p style="margin:0 0 24px">
+    <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite"
+       style="display:inline-block;background:#1f7a5c;color:#fff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:8px">
+      Activate my account
+    </a>
+  </p>
+  <p style="margin:0;font-size:13px;color:#7a8190">This link works once and expires in 24 hours. If you were not expecting this email, you can ignore it.</p>
+</div>
