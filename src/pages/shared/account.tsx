@@ -9,7 +9,7 @@ import { FormField } from '@/components/app/form-field'
 import { PageHeader } from '@/components/app/page-header'
 import { PasswordInput } from '@/components/app/password-input'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { SettingsSection, StatusPill } from '@/components/app/panel'
 import { Input } from '@/components/ui/input'
 import { useRemoveAvatar, useUploadAvatar } from '@/features/account/profile-photo'
 import { UserAvatar } from '@/features/account/user-avatar'
@@ -43,24 +43,28 @@ function PhotoCard() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Profile photo</CardTitle>
-        <CardDescription>
-          {profile.role === 'tenant'
-            ? 'Helps your landlord recognise you. Only you and your landlord can see it.'
-            : 'Shown on your account. Only you can see it.'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <UserAvatar
-          path={profile.avatar_path}
-          name={profile.full_name}
-          email={profile.email}
-          className="size-20"
-          fallbackClassName="bg-primary/10 text-2xl text-primary"
-        />
-        <div className="flex flex-wrap gap-2">
+    <section aria-label="Profile photo" className="surface overflow-hidden">
+      <div className="h-20 bg-gradient-to-r from-chip-violet/15 via-chip-blue/10 to-chart-2/15 sm:h-24" aria-hidden />
+      <div className="flex flex-col gap-4 px-5 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex min-w-0 items-end gap-4">
+          <UserAvatar
+            path={profile.avatar_path}
+            name={profile.full_name}
+            email={profile.email}
+            className="-mt-10 size-20 shrink-0 ring-4 ring-card sm:size-24"
+            fallbackClassName="bg-primary text-2xl text-primary-foreground"
+          />
+          <div className="min-w-0 pb-1">
+            <p className="flex flex-wrap items-center gap-2">
+              <span className="truncate text-lg font-semibold">{profile.full_name || 'Your account'}</span>
+              <StatusPill tone={profile.role === 'tenant' ? 'info' : 'brand'} className="capitalize">
+                {profile.role}
+              </StatusPill>
+            </p>
+            <p className="truncate text-[13px] text-muted-foreground">{profile.email}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 sm:pb-1">
           <input
             ref={fileInput}
             type="file"
@@ -93,8 +97,13 @@ function PhotoCard() {
             </Button>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+      <p className="border-t bg-muted/30 px-5 py-2.5 text-xs text-muted-foreground">
+        {profile.role === 'tenant'
+          ? 'Your photo helps your landlord recognise you. Only you and your landlord can see it.'
+          : 'Your photo is shown on your account. Only you can see it.'}
+      </p>
+    </section>
   )
 }
 
@@ -135,17 +144,18 @@ function ProfileCard() {
   })
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Personal details</CardTitle>
-        <CardDescription>
-          {profile.role === 'tenant'
-            ? 'Your landlord uses these details to reach you.'
-            : 'Shown to tenants as their landlord contact.'}
-        </CardDescription>
-      </CardHeader>
-      <form onSubmit={handleSubmit((v) => save.mutate(v))} noValidate>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <form onSubmit={handleSubmit((v) => save.mutate(v))} noValidate>
+      <SettingsSection
+        title="Personal details"
+        description={profile.role === 'tenant' ? 'Your landlord uses these details to reach you.' : 'Shown to tenants as their landlord contact.'}
+        footer={
+          <Button type="submit" disabled={!isDirty || save.isPending}>
+            {save.isPending && <Loader2 className="animate-spin" />}
+            Save changes
+          </Button>
+        }
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField id="full_name" label="Full name" error={errors.full_name?.message}>
             <Input id="full_name" autoComplete="name" aria-invalid={!!errors.full_name} {...register('full_name')} />
           </FormField>
@@ -171,15 +181,9 @@ function ProfileCard() {
               {...register('emergency_contact_phone')}
             />
           </FormField>
-        </CardContent>
-        <CardFooter className="mt-6 justify-end border-t pt-6 max-sm:[&>button]:w-full">
-          <Button type="submit" disabled={!isDirty || save.isPending}>
-            {save.isPending && <Loader2 className="animate-spin" />}
-            Save changes
-          </Button>
-        </CardFooter>
-      </form>
-    </Card>
+        </div>
+      </SettingsSection>
+    </form>
   )
 }
 
@@ -205,13 +209,18 @@ function PasswordCard() {
   })
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Password</CardTitle>
-        <CardDescription>At least 8 characters, with letters and numbers.</CardDescription>
-      </CardHeader>
-      <form onSubmit={handleSubmit((v) => change.mutate(v))} noValidate>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <form onSubmit={handleSubmit((v) => change.mutate(v))} noValidate>
+      <SettingsSection
+        title="Password"
+        description="At least 8 characters, with letters and numbers."
+        footer={
+          <Button type="submit" variant="outline" disabled={change.isPending}>
+            {change.isPending && <Loader2 className="animate-spin" />}
+            Change password
+          </Button>
+        }
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField id="new-password" label="New password" error={errors.password?.message}>
             <PasswordInput
               id="new-password"
@@ -228,15 +237,9 @@ function PasswordCard() {
               {...register('confirm')}
             />
           </FormField>
-        </CardContent>
-        <CardFooter className="mt-6 justify-end border-t pt-6 max-sm:[&>button]:w-full">
-          <Button type="submit" variant="outline" disabled={change.isPending}>
-            {change.isPending && <Loader2 className="animate-spin" />}
-            Change password
-          </Button>
-        </CardFooter>
-      </form>
-    </Card>
+        </div>
+      </SettingsSection>
+    </form>
   )
 }
 
@@ -244,7 +247,7 @@ export function AccountPage() {
   const profile = useProfile()
   const { signOut } = useAuth()
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="space-y-8">
       <PageHeader
         title={profile.role === 'tenant' ? 'Profile' : 'Account'}
         description="Your profile and sign-in settings."

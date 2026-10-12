@@ -1,5 +1,7 @@
+import { differenceInCalendarMonths, parseISO } from 'date-fns'
 import {
   ArrowRightLeft,
+  CalendarDays,
   DoorOpen,
   History,
   LogOut,
@@ -12,11 +14,13 @@ import {
   Power,
   Send,
   ShieldAlert,
+  TriangleAlert,
   UserX,
+  Wallet,
 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { Callout, StatusPill } from '@/components/app/panel'
+import { Callout, StatGrid, StatTile, StatusPill } from '@/components/app/panel'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/app/confirm-dialog'
 import { EmptyState, ErrorState } from '@/components/app/states'
@@ -350,6 +354,41 @@ export function TenantDetailPage() {
           </DropdownMenu>
         </div>
       </div>
+
+      <StatGrid>
+        <StatTile
+          label="Agreed rent"
+          value={tenant.lease_id ? formatMoney(tenant.lease_rent, currency) : '—'}
+          icon={Wallet}
+          sub={<span className="text-xs text-muted-foreground">{tenant.room_number ? `Room ${tenant.room_number}` : 'No room'}</span>}
+        />
+        <StatTile
+          label="Balance due"
+          value={formatMoney(tenant.outstanding_balance, currency)}
+          icon={TriangleAlert}
+          sub={
+            <span className={cn('text-xs', tenant.outstanding_balance > 0 ? 'font-medium text-destructive' : 'text-muted-foreground')}>
+              {tenant.outstanding_balance > 0 ? 'Unpaid bills' : 'All paid up'}
+            </span>
+          }
+        />
+        <StatTile
+          label="Deposit held"
+          value={formatMoney(tenant.deposit_balance, currency)}
+          icon={PiggyBank}
+          sub={<span className="text-xs text-muted-foreground">Security deposit</span>}
+        />
+        <StatTile
+          label="Tenant since"
+          value={tenant.lease_start_date ? formatDate(tenant.lease_start_date, 'MMM yyyy') : '—'}
+          icon={CalendarDays}
+          sub={
+            <span className="text-xs text-muted-foreground">
+              {tenant.lease_start_date ? `${Math.max(0, differenceInCalendarMonths(new Date(), parseISO(tenant.lease_start_date)))} months` : 'Not housed'}
+            </span>
+          }
+        />
+      </StatGrid>
 
       {tenant.account_status === 'invited' && (
         <Callout tone="info" icon={Mail}>

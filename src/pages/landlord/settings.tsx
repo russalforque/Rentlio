@@ -7,9 +7,9 @@ import { z } from 'zod'
 import { FormField } from '@/components/app/form-field'
 import { NativeSelect } from '@/components/app/native-select'
 import { PageHeader } from '@/components/app/page-header'
+import { SettingsSection } from '@/components/app/panel'
 import { ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -114,13 +114,9 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
   const dueDays = Number(useWatch({ control, name: 'due_days' })) || 0
 
   return (
-    <form onSubmit={handleSubmit((v) => save.mutate(v))} noValidate className="mx-auto max-w-4xl space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Property</CardTitle>
-          <CardDescription>Shown to tenants on their portal and bills.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <form onSubmit={handleSubmit((v) => save.mutate(v))} noValidate className="space-y-8 pb-4 lg:space-y-10">
+      <SettingsSection id="property" title="Property" description="Shown to tenants on their portal and bills.">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField id="property_name" label="Property name" error={errors.property_name?.message}>
             <Input id="property_name" aria-invalid={!!errors.property_name} {...register('property_name')} />
           </FormField>
@@ -145,18 +141,12 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
               ))}
             </NativeSelect>
           </FormField>
-        </CardContent>
-      </Card>
+        </div>
+      </SettingsSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Billing schedule</CardTitle>
-          <CardDescription>
-            Bills are issued on the {ordinal(billingDay)} of each month and due {dueDays}{' '}
-            {dueDays === 1 ? 'day' : 'days'} later.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <SettingsSection id="billing" title="Billing schedule" description={<>Bills are issued on the {ordinal(billingDay)} of each month and due {dueDays}{' '}
+            {dueDays === 1 ? 'day' : 'days'} later.</>}>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField id="billing_day" label="Billing day of month (1–28)" error={errors.billing_day?.message}>
             <Input id="billing_day" inputMode="numeric" aria-invalid={!!errors.billing_day} {...register('billing_day')} />
           </FormField>
@@ -178,17 +168,11 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
               )}
             />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </SettingsSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Utility rates</CardTitle>
-          <CardDescription>
-            A rate is locked into each bill when the charge is first added, so changing it does not alter past bills.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <SettingsSection id="utilities" title="Utility rates" description="A rate is locked into each bill when the charge is first added, so changing it does not alter past bills.">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField id="electricity_rate" label={`Electricity per kWh (${settings.currency_code})`} error={errors.electricity_rate?.message}>
             <Input id="electricity_rate" inputMode="decimal" className="tabular" aria-invalid={!!errors.electricity_rate} {...register('electricity_rate')} />
           </FormField>
@@ -207,15 +191,11 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
               <Input id="water_flat_fee" inputMode="decimal" className="tabular" aria-invalid={!!errors.water_flat_fee} {...register('water_flat_fee')} />
             </FormField>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </SettingsSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Payment instructions</CardTitle>
-          <CardDescription>Shown to tenants when they pay, e.g. your bank or e-wallet details.</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <SettingsSection id="payments" title="Payment instructions" description="Shown to tenants when they pay, e.g. your bank or e-wallet details.">
+        <div>
           <Textarea
             id="payment_instructions"
             aria-label="Payment instructions"
@@ -226,15 +206,11 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
           {errors.payment_instructions && (
             <p className="mt-1.5 text-[13px] text-destructive">{errors.payment_instructions.message}</p>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </SettingsSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Tenant information</CardTitle>
-          <CardDescription>How tenants can reach you, and the house rules shown on their portal.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <SettingsSection id="tenants" title="Tenant information" description="How tenants can reach you, and the house rules shown on their portal.">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FormField id="contact_name" label="Contact name" error={errors.contact_name?.message}>
             <Input id="contact_name" {...register('contact_name')} />
           </FormField>
@@ -249,27 +225,61 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
               <Textarea id="house_rules" rows={5} {...register('house_rules')} />
             </FormField>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </SettingsSection>
 
-      <div className="sticky bottom-[calc(57px+env(safe-area-inset-bottom))] z-10 -mx-4 flex justify-end gap-2 border-t bg-background/90 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 [&>*]:flex-1 sm:[&>*]:flex-none">
-        <Button type="button" variant="ghost" disabled={!isDirty || save.isPending} onClick={() => reset()}>
-          Discard
-        </Button>
-        <Button type="submit" disabled={!isDirty || save.isPending}>
-          {save.isPending && <Loader2 className="animate-spin" />}
-          Save settings
-        </Button>
-      </div>
+      {/* Appears only with unsaved edits; docks above the phone tab bar. */}
+      {isDirty && (
+        <div
+          role="region"
+          aria-label="Unsaved changes"
+          className="sticky bottom-[calc(65px+env(safe-area-inset-bottom))] z-20 flex items-center gap-3 rounded-2xl border bg-card/95 p-2 pl-4 shadow-lg backdrop-blur-md md:bottom-4"
+        >
+          <span className="size-2 shrink-0 rounded-full bg-warning" aria-hidden />
+          <p className="min-w-0 flex-1 truncate text-sm font-medium">Unsaved changes</p>
+          <Button type="button" variant="ghost" disabled={save.isPending} onClick={() => reset()}>
+            Discard
+          </Button>
+          <Button type="submit" disabled={save.isPending}>
+            {save.isPending && <Loader2 className="animate-spin" />}
+            <span className="sm:hidden">Save</span>
+            <span className="hidden sm:inline">Save changes</span>
+          </Button>
+        </div>
+      )}
     </form>
   )
 }
+
+const SECTIONS = [
+  { id: 'property', label: 'Property' },
+  { id: 'billing', label: 'Billing schedule' },
+  { id: 'utilities', label: 'Utility rates' },
+  { id: 'payments', label: 'Payment instructions' },
+  { id: 'tenants', label: 'Tenant information' },
+]
 
 export function SettingsPage() {
   const { data, isPending, error, refetch } = useSettings()
   return (
     <div className="space-y-6">
-      <PageHeader title="Settings" description="Property details, billing schedule and utility rates." />
+      <PageHeader
+        title="Settings"
+        description="Property details, billing schedule and utility rates."
+        tabs={
+          <nav aria-label="Settings sections" className="-mx-4 flex gap-1 overflow-x-auto px-4 scrollbar-none sm:mx-0 sm:px-0">
+            {SECTIONS.map((sec) => (
+              <a
+                key={sec.id}
+                href={`#${sec.id}`}
+                className="inline-flex h-10 shrink-0 items-center rounded-lg border border-transparent px-3.5 text-sm font-medium text-muted-foreground transition-colors hover:border-border hover:bg-card hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:h-8 md:px-3 md:text-[13px]"
+              >
+                {sec.label}
+              </a>
+            ))}
+          </nav>
+        }
+      />
       {error ? (
         <ErrorState error={error} onRetry={() => refetch()} />
       ) : isPending ? (

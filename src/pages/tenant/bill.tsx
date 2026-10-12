@@ -1,7 +1,7 @@
 import { Hourglass, ReceiptText, Wallet } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { Callout } from '@/components/app/panel'
+import { Callout, Meter } from '@/components/app/panel'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,6 +15,7 @@ import { SubmitPaymentDialog } from '@/features/payments/payment-dialogs'
 import { useCurrency } from '@/hooks/use-settings'
 import { getErrorMessage } from '@/lib/errors'
 import { formatDate, formatMoney, formatPeriod } from '@/lib/format'
+import { cn } from '@/lib/utils'
 
 export function TenantBillPage() {
   const { id = '' } = useParams()
@@ -57,6 +58,31 @@ export function TenantBillPage() {
           </Button>
         )}
       </div>
+
+      <section aria-label="Balance" className="surface grid grid-cols-1 gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <div className="min-w-0">
+          <p className="text-[13px] font-medium text-muted-foreground">{b.balance > 0 ? 'Balance due' : 'Paid in full'}</p>
+          <p className={cn('mt-1 text-[32px] leading-none font-semibold tracking-tight', b.is_overdue && b.balance > 0 && 'text-destructive')}>
+            {formatMoney(b.balance, currency)}
+          </p>
+          <p className="mt-2 text-[13px] text-muted-foreground">
+            {formatMoney(b.amount_paid, currency)} paid of {formatMoney(b.total_amount, currency)}
+          </p>
+          <div className="mt-3">
+            <Meter value={b.total_amount > 0 ? (b.amount_paid / b.total_amount) * 100 : 0} label="Share of the bill paid" />
+          </div>
+        </div>
+        <dl className="grid grid-cols-2 gap-x-6 text-sm sm:text-right">
+          <div>
+            <dt className="text-xs text-muted-foreground">Issued</dt>
+            <dd className="mt-0.5 font-medium">{formatDate(b.issue_date, 'MMM d')}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Due</dt>
+            <dd className={cn('mt-0.5 font-medium', b.is_overdue && b.balance > 0 && 'text-destructive')}>{formatDate(b.due_date, 'MMM d')}</dd>
+          </div>
+        </dl>
+      </section>
 
       {pendingTotal > 0 && (
         <Callout tone="info" icon={Hourglass}>

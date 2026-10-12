@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { ColumnChart } from '@/components/app/column-chart'
 import { PageHeader } from '@/components/app/page-header'
-import { Detail, InitialsBadge, Panel, StatGrid, StatTile } from '@/components/app/panel'
+import { Detail, InitialsBadge, Panel, StatGrid, StatGridSkeleton, StatTile } from '@/components/app/panel'
 import { ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -330,9 +330,7 @@ export function ReportsPage() {
     <div className="space-y-5">
       <PageHeader title="Reports" description="Collections, arrears and occupancy. Export any table to CSV." />
       {isPending || arrears.isPending ? (
-        <StatGrid>
-          {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
-        </StatGrid>
+        <StatGridSkeleton />
       ) : (
         <StatGrid>
           <StatTile label="Billed, 12 months" value={formatMoney(totals.billed, currency)} icon={ReceiptText} accent="violet" />

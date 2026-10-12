@@ -2,7 +2,7 @@ import { BedDouble, BedSingle, Building2, ChevronRight, CircleCheck, DoorOpen, P
 import { useMemo, useState } from 'react'
 import { Fab } from '@/components/app/fab'
 import { ActionsMenu, PageHeader } from '@/components/app/page-header'
-import { Callout, FilterChips, InitialsBadge, Panel, SearchField, StatGrid, StatTile, StatusPill, type Tone } from '@/components/app/panel'
+import { Callout, FilterChips, InitialsBadge, Panel, SearchField, StatGrid, StatGridSkeleton, StatTile, StatusPill, type Tone } from '@/components/app/panel'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -220,9 +220,7 @@ export function RoomsPage() {
         <ErrorState error={error} onRetry={() => refetch()} />
       ) : isPending ? (
         <div className="space-y-6">
-          <StatGrid>
-            {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
-          </StatGrid>
+          <StatGridSkeleton />
           <Skeleton className="h-96 rounded-xl" />
         </div>
       ) : counts.all === 0 ? (

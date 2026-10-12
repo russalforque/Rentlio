@@ -1,7 +1,7 @@
-import { ChevronRight, ReceiptText } from 'lucide-react'
+import { CalendarDays, CheckCircle2, ChevronRight, ReceiptText, Wallet } from 'lucide-react'
 import { Link } from 'react-router'
 import { PageHeader } from '@/components/app/page-header'
-import { Panel } from '@/components/app/panel'
+import { Panel, StatGrid, StatTile } from '@/components/app/panel'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BillStatusBadge } from '@/features/billing/bill-status-badge'
@@ -13,21 +13,16 @@ export function TenantBillsPage() {
   const { data, isPending, error, refetch } = useMyBills()
   const currency = useCurrency()
   const outstanding = (data ?? []).reduce((t, b) => t + (b.status === 'paid' ? 0 : b.balance), 0)
+  const open = (data ?? []).filter((b) => b.status === 'unpaid' || b.status === 'partial')
+  const nextDue = [...open].sort((a, b) => a.due_date.localeCompare(b.due_date))[0]
+  const year = String(new Date().getFullYear())
+  const paidThisYear = (data ?? []).filter((b) => b.period.startsWith(year)).reduce((t, b) => t + b.amount_paid, 0)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Bills"
-        description={
-          outstanding > 0 ? (
-            <>
-              Outstanding balance:{' '}
-              <span className="font-semibold text-destructive tabular">{formatMoney(outstanding, currency)}</span>
-            </>
-          ) : (
-            'Your monthly rent and utility bills.'
-          )
-        }
+        description="Your monthly rent and utility bills."
       />
       {error ? (
         <ErrorState error={error} onRetry={() => refetch()} />
@@ -36,6 +31,33 @@ export function TenantBillsPage() {
       ) : data.length === 0 ? (
         <EmptyState icon={ReceiptText} title="No bills yet" description="Bills appear here once your landlord issues them." />
       ) : (
+        <>
+        <StatGrid className="lg:grid-cols-3">
+          <StatTile
+            label="Outstanding"
+            value={formatMoney(outstanding, currency)}
+            icon={Wallet}
+            sub={
+              <span className={outstanding > 0 ? 'text-xs font-medium text-destructive' : 'text-xs text-muted-foreground'}>
+                {open.length ? `${open.length} open ${open.length === 1 ? 'bill' : 'bills'}` : 'All paid up'}
+              </span>
+            }
+          />
+          <StatTile
+            label="Next due"
+            value={nextDue ? formatDate(nextDue.due_date, 'MMM d') : '—'}
+            icon={CalendarDays}
+            sub={<span className="text-xs text-muted-foreground">{nextDue ? `${formatPeriod(nextDue.period)} bill` : 'Nothing due'}</span>}
+          />
+          <div className="col-span-2 grid lg:col-span-1">
+            <StatTile
+              label={`Paid in ${year}`}
+              value={formatMoney(paidThisYear, currency)}
+              icon={CheckCircle2}
+              sub={<span className="text-xs text-muted-foreground">Verified payments</span>}
+            />
+          </div>
+        </StatGrid>
         <Panel title="All bills" description={`${data.length} ${data.length === 1 ? 'bill' : 'bills'}`} flush>
         <ul className="divide-y border-t">
           {data.map((b) => (
@@ -60,6 +82,7 @@ export function TenantBillsPage() {
           ))}
         </ul>
         </Panel>
+        </>
       )}
     </div>
   )

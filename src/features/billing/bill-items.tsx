@@ -32,6 +32,8 @@ interface BillItemsProps {
 }
 
 export function BillItems({ items, currency, total, paid, balance, onEdit, onRemove }: BillItemsProps) {
+  // Room for one action (edit) or two (edit + remove, on extra charges only).
+  const twoActions = !!onRemove && items.some((i) => i.kind === 'other')
   return (
     <div>
       <ul className="divide-y">
@@ -50,7 +52,7 @@ export function BillItems({ items, currency, total, paid, balance, onEdit, onRem
               </div>
               <span className="shrink-0 text-sm font-semibold tabular">{formatMoney(item.amount, currency)}</span>
               {onEdit && (
-                <div className="flex w-20 shrink-0 justify-end md:w-16">
+                <div className={cn('flex shrink-0 justify-end', twoActions ? 'w-20 md:w-16' : 'w-10 md:w-8')}>
                   {editable && (
                     <Button variant="ghost" size="icon" className="size-10 md:size-7" onClick={() => onEdit(item)} aria-label={`Edit ${item.description}`}>
                       <Pencil className="size-3.5" />
@@ -73,7 +75,7 @@ export function BillItems({ items, currency, total, paid, balance, onEdit, onRem
           )
         })}
       </ul>
-      <dl className={cn('mt-2 space-y-1.5 border-t pt-3 text-sm', onEdit && 'pr-20 md:pr-16')}>
+      <dl className={cn('mt-2 space-y-1.5 border-t pt-3 text-sm', onEdit && (twoActions ? 'pr-20 md:pr-16' : 'pr-10 md:pr-8'))}>
         <div className="flex justify-between">
           <dt className="text-muted-foreground">Total</dt>
           <dd className="font-semibold tabular">{formatMoney(total, currency)}</dd>

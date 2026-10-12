@@ -117,27 +117,34 @@ interface StatTileProps {
   label: string
   value: string
   icon: LucideIcon
+  /** Kept for callers; tiles in the strip use a quiet monochrome icon. */
   accent?: Accent
   /** Footer line: a <Trend/> or a short note. */
   sub?: ReactNode
   to?: string
+  /** Optional visual under the figure: a sparkline, meter or progress bar. */
+  children?: ReactNode
 }
 
-/** KPI card: label and icon chip on top, a large figure, a trend or note below. */
-export function StatTile({ label, value, icon, accent = 'violet', sub, to }: StatTileProps) {
+/** KPI cell in a <StatGrid> strip: quiet label and icon, a large figure, a note below. */
+export function StatTile({ label, value, icon: Icon, sub, to, children }: StatTileProps) {
   const body = (
     <>
-      <div className="flex items-start justify-between gap-3">
-        <p className="truncate pt-1 text-[13px] font-medium text-foreground/80">{label}</p>
-        <IconChip icon={icon} accent={accent} className="size-7 rounded-md sm:size-8 sm:rounded-lg [&_svg]:size-3.5 sm:[&_svg]:size-4" />
-      </div>
-      <p className="font-display mt-3 truncate text-xl leading-none font-semibold min-[375px]:text-[22px] sm:text-[28px] lg:text-[30px]">{value}</p>
-      {sub && <div className="mt-2 min-w-0 truncate sm:mt-2.5">{sub}</div>}
+      <span className="flex items-center justify-between gap-2">
+        <span className="truncate text-[13px] font-medium text-muted-foreground">{label}</span>
+        <Icon className="size-4 shrink-0 text-muted-foreground/70 transition-colors group-hover:text-foreground" aria-hidden />
+      </span>
+      <span className="mt-2 block truncate text-[22px] leading-tight font-semibold tracking-tight min-[400px]:text-2xl sm:text-[28px]">{value}</span>
+      {sub && <span className="mt-1.5 block min-w-0 truncate">{sub}</span>}
+      {children && <span className="mt-auto block pt-4">{children}</span>}
     </>
   )
-  const cls = 'surface block min-w-0 p-4 sm:p-5'
+  const cls = 'group flex min-w-0 flex-col bg-card p-4 sm:p-5'
   return to ? (
-    <Link to={to} className={cn(cls, 'transition-colors hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none')}>
+    <Link
+      to={to}
+      className={cn(cls, 'transition-colors hover:bg-muted/40 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset')}
+    >
       {body}
     </Link>
   ) : (
@@ -145,9 +152,90 @@ export function StatTile({ label, value, icon, accent = 'violet', sub, to }: Sta
   )
 }
 
-/** Four stat cards in a responsive row. */
+/** KPI strip: one bordered surface split into cells by hairlines. Two across on phones, four from lg. */
 export function StatGrid({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4', className)}>{children}</div>
+  return (
+    <section
+      aria-label="Key figures"
+      className={cn('grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border shadow-xs lg:grid-cols-4', className)}
+    >
+      {children}
+    </section>
+  )
+}
+
+/** Loading placeholder for a <StatGrid>. */
+export function StatGridSkeleton({ count = 4 }: { count?: number }) {
+  return (
+    <StatGrid>
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="space-y-3 bg-card p-4 sm:p-5">
+          <span className="block h-3.5 w-24 animate-pulse rounded bg-muted" />
+          <span className="block h-7 w-32 animate-pulse rounded bg-muted" />
+          <span className="block h-3 w-20 animate-pulse rounded bg-muted" />
+        </div>
+      ))}
+    </StatGrid>
+  )
+}
+
+/** Thin progress bar for a share, e.g. collected of billed. */
+export function Meter({ value, label, tone = 'success' }: { value: number; label: string; tone?: 'success' | 'info' | 'warning' }) {
+  const v = Math.max(0, Math.min(100, Math.round(value)))
+  return (
+    <span
+      role="meter"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={v}
+      className="block h-1.5 overflow-hidden rounded-full bg-muted"
+    >
+      <span
+        className={cn('block h-full rounded-full', tone === 'success' ? 'bg-chart-2' : tone === 'info' ? 'bg-chart-1' : 'bg-warning')}
+        style={{ width: `${v}%` }}
+      />
+    </span>
+  )
+}
+
+/** Filter/search bar that sits above a list: wraps on phones, one row from sm. */
+export function Toolbar({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn('flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between', className)}>{children}</div>
+}
+
+/**
+ * Settings layout: what a group is for on the left (large screens), the fields
+ * in a card on the right. Stacks on phones and tablets.
+ */
+export function SettingsSection({
+  title,
+  description,
+  children,
+  footer,
+  id,
+}: {
+  title: string
+  description?: ReactNode
+  children: ReactNode
+  footer?: ReactNode
+  id?: string
+}) {
+  const headingId = useId()
+  return (
+    <section id={id} aria-labelledby={headingId} className="grid grid-cols-1 gap-3 scroll-mt-24 lg:grid-cols-[minmax(0,16rem)_minmax(0,1fr)] lg:gap-10">
+      <div className="lg:pt-5">
+        <h2 id={headingId} className="text-[15px] font-semibold">
+          {title}
+        </h2>
+        {description && <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{description}</p>}
+      </div>
+      <div className="surface min-w-0 overflow-hidden">
+        <div className="p-5">{children}</div>
+        {footer && <div className="flex flex-col-reverse gap-2 border-t bg-muted/30 px-5 py-3 sm:flex-row sm:items-center sm:justify-end">{footer}</div>}
+      </div>
+    </section>
+  )
 }
 
 interface SegmentedProps<T extends string> {

@@ -7,10 +7,9 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { ConfirmDialog } from '@/components/app/confirm-dialog'
 import { FormField } from '@/components/app/form-field'
-import { Callout } from '@/components/app/panel'
+import { Callout, Meter, Panel } from '@/components/app/panel'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -46,6 +45,7 @@ import type { Tables } from '@/lib/database.types'
 import { getErrorMessage } from '@/lib/errors'
 import { moneyInput } from '@/lib/form-fields'
 import { formatDate, formatMoney, formatPeriod } from '@/lib/format'
+import { cn } from '@/lib/utils'
 
 // Charge add/edit --------------------------------------------------------------------
 
@@ -229,31 +229,22 @@ export function BillDetailPage() {
   const isVoid = b.status === 'void'
   const canPay = !isVoid && b.balance > 0
 
+  const paidShare = b.total_amount > 0 ? (b.amount_paid / b.total_amount) * 100 : 0
+
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="mb-1 text-[13px] text-muted-foreground tabular">Bill #{b.bill_number}</p>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-[22px] font-semibold sm:text-2xl">
+            <h1 className="font-display text-2xl leading-tight font-semibold">
               Room {b.room_number} · {formatPeriod(b.period)}
             </h1>
             <BillStatusBadge status={b.status} overdue={b.is_overdue} />
           </div>
-          <p className="mt-1 text-[13px] text-muted-foreground">
-            Bill #{b.bill_number} for{' '}
-            <Link to={`/tenants/${b.tenant_id}`} className="font-medium text-foreground underline-offset-2 hover:underline">
-              {b.tenant_name}
-            </Link>{' '}
-            · Issued {formatDate(b.issue_date)} · Due {formatDate(b.due_date)}
-          </p>
         </div>
-        <div className="flex gap-2">
-          {canPay && (
-            <Button onClick={() => setOverlay({ kind: 'record' })}>
-              <Wallet /> Record payment
-            </Button>
-          )}
-          {!isVoid && (
+        {!isVoid && (
+          <div className="flex shrink-0 gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" aria-label="More actions">
@@ -275,8 +266,8 @@ export function BillDetailPage() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {isVoid && (
@@ -285,50 +276,97 @@ export function BillDetailPage() {
         </Callout>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Charges</CardTitle>
-            {!isVoid && (
-              <Button variant="outline" size="sm" onClick={() => setOverlay({ kind: 'charge' })}>
-                <Plus /> Add charge
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent>
-            {items.error ? (
-              <p className="text-sm text-destructive">{getErrorMessage(items.error)}</p>
-            ) : items.isPending ? (
-              <Skeleton className="h-40" />
-            ) : (
-              <BillItems
-                items={items.data}
-                currency={currency}
-                total={b.total_amount}
-                paid={b.amount_paid}
-                balance={isVoid ? 0 : b.balance}
-                onEdit={isVoid ? undefined : (item) => setOverlay({ kind: 'charge', item })}
-                onRemove={isVoid ? undefined : (item) => setOverlay({ kind: 'remove', item })}
-              />
-            )}
-            {!isVoid && !items.data?.some((i) => i.kind === 'electricity') && (
-              <p className="mt-4 rounded-lg border border-dashed px-3 py-2 text-[13px] text-muted-foreground">
-                No electricity charge yet.{' '}
-                <Link to={`/billing/readings?period=${b.period}`} className="font-medium text-foreground underline-offset-2 hover:underline">
-                  Enter this month's meter reading
-                </Link>{' '}
-                and it is added here automatically.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
+        {/* Balance: first on phones, a sticky side card on large screens */}
+        <section aria-label="Balance" className="surface p-5 lg:sticky lg:top-20 lg:order-2">
+          <p className="text-[13px] font-medium text-muted-foreground">{isVoid ? 'Voided bill' : b.balance > 0 ? 'Balance due' : 'Paid in full'}</p>
+          <p className={cn('mt-1 text-[32px] leading-none font-semibold tracking-tight', !isVoid && b.balance > 0 && b.is_overdue && 'text-destructive')}>
+            {formatMoney(isVoid ? 0 : b.balance, currency)}
+          </p>
+          <p className="mt-2 text-[13px] text-muted-foreground">
+            {formatMoney(b.amount_paid, currency)} paid of {formatMoney(b.total_amount, currency)}
+          </p>
+          <div className="mt-3">
+            <Meter value={paidShare} label="Share of the bill paid" />
+          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-3 border-t pt-4 text-sm">
+            <div>
+              <dt className="text-xs text-muted-foreground">Issued</dt>
+              <dd className="mt-0.5 font-medium">{formatDate(b.issue_date)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Due</dt>
+              <dd className={cn('mt-0.5 font-medium', b.is_overdue && !isVoid && 'text-destructive')}>{formatDate(b.due_date)}</dd>
+            </div>
+          </dl>
+          {canPay && (
+            <Button size="lg" className="mt-5 w-full" onClick={() => setOverlay({ kind: 'record' })}>
+              <Wallet /> Record payment
+            </Button>
+          )}
+        </section>
 
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Payments</CardTitle>
-            <CardDescription>Only verified payments reduce the balance.</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <div className="min-w-0 space-y-4 lg:order-1 lg:col-span-2">
+          {/* Invoice */}
+          <section aria-label="Invoice" className="surface overflow-hidden">
+            <dl className="grid grid-cols-2 gap-px border-b bg-border sm:grid-cols-[2fr_1fr_1.4fr_1fr]">
+              {[
+                {
+                  label: 'Billed to',
+                  value: (
+                    <Link to={`/tenants/${b.tenant_id}`} className="underline-offset-2 hover:underline">
+                      {b.tenant_name}
+                    </Link>
+                  ),
+                },
+                { label: 'Room', value: b.room_number },
+                { label: 'Period', value: formatPeriod(b.period) },
+                { label: 'Bill no.', value: `#${b.bill_number}` },
+              ].map((m) => (
+                <div key={m.label} className="min-w-0 bg-card px-5 py-3">
+                  <dt className="text-xs text-muted-foreground">{m.label}</dt>
+                  <dd className="mt-0.5 truncate text-sm font-semibold">{m.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="p-5">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <h2 className="text-[15px] font-semibold">Charges</h2>
+                {!isVoid && (
+                  <Button variant="outline" size="sm" onClick={() => setOverlay({ kind: 'charge' })}>
+                    <Plus /> Add charge
+                  </Button>
+                )}
+              </div>
+              {items.error ? (
+                <p className="text-sm text-destructive">{getErrorMessage(items.error)}</p>
+              ) : items.isPending ? (
+                <Skeleton className="h-40" />
+              ) : (
+                <BillItems
+                  items={items.data}
+                  currency={currency}
+                  total={b.total_amount}
+                  paid={b.amount_paid}
+                  balance={isVoid ? 0 : b.balance}
+                  onEdit={isVoid ? undefined : (item) => setOverlay({ kind: 'charge', item })}
+                  onRemove={isVoid ? undefined : (item) => setOverlay({ kind: 'remove', item })}
+                />
+              )}
+              {!isVoid && !items.data?.some((i) => i.kind === 'electricity') && (
+                <p className="mt-4 rounded-lg border border-dashed px-3 py-2 text-[13px] text-muted-foreground">
+                  No electricity charge yet.{' '}
+                  <Link to={`/billing/readings?period=${b.period}`} className="font-medium text-foreground underline-offset-2 hover:underline">
+                    Enter this month's meter reading
+                  </Link>{' '}
+                  and it is added here automatically.
+                </p>
+              )}
+            </div>
+          </section>
+
+          {/* Payments timeline */}
+          <Panel title="Payment activity" description="Only verified payments reduce the balance.">
             {payments.error ? (
               <p className="text-sm text-destructive">{getErrorMessage(payments.error)}</p>
             ) : payments.isPending ? (
@@ -336,40 +374,50 @@ export function BillDetailPage() {
             ) : payments.data.length === 0 ? (
               <p className="text-sm text-muted-foreground">No payments yet.</p>
             ) : (
-              <ul className="space-y-3">
+              <ol className="relative space-y-4 before:absolute before:top-2 before:bottom-2 before:left-[7px] before:w-px before:bg-border">
                 {payments.data.map((p) => (
-                  <li key={p.id} className="rounded-xl border p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-semibold tabular">{formatMoney(p.amount, currency)}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {METHOD_LABEL[p.method]} · {formatDate(p.paid_on)}
-                          {p.recorded_by_landlord && ' · recorded by you'}
-                        </p>
-                      </div>
-                      <PaymentStatusBadge status={p.status} />
-                    </div>
-                    {p.rejection_reason && (
-                      <p className="mt-2 text-[13px] text-destructive">Rejected: {p.rejection_reason}</p>
-                    )}
-                    <div className="mt-2 flex gap-2">
-                      {p.status === 'pending' && (
-                        <Button size="sm" onClick={() => setOverlay({ kind: 'review', payment: p })}>
-                          Review
-                        </Button>
+                  <li key={p.id} className="relative flex gap-4 pl-0">
+                    <span
+                      className={cn(
+                        'relative z-10 mt-1.5 size-[15px] shrink-0 rounded-full border-[3px] border-card ring-1',
+                        p.status === 'verified' ? 'bg-success ring-success/30' : p.status === 'pending' ? 'bg-info ring-info/30' : 'bg-destructive ring-destructive/30',
                       )}
-                      {p.proof_path && p.status !== 'pending' && (
-                        <Button size="sm" variant="ghost" onClick={() => setOverlay({ kind: 'proof', payment: p })}>
-                          <Eye /> View proof
-                        </Button>
+                      aria-hidden
+                    />
+                    <div className="min-w-0 flex-1 rounded-xl border p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-semibold tabular">{formatMoney(p.amount, currency)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {METHOD_LABEL[p.method]} · {formatDate(p.paid_on)}
+                            {p.reference_number && ` · Ref ${p.reference_number}`}
+                            {p.recorded_by_landlord && ' · recorded by you'}
+                          </p>
+                        </div>
+                        <PaymentStatusBadge status={p.status} />
+                      </div>
+                      {p.rejection_reason && <p className="mt-2 text-[13px] text-destructive">Rejected: {p.rejection_reason}</p>}
+                      {(p.status === 'pending' || p.proof_path) && (
+                        <div className="mt-2 flex gap-2">
+                          {p.status === 'pending' && (
+                            <Button size="sm" onClick={() => setOverlay({ kind: 'review', payment: p })}>
+                              Review
+                            </Button>
+                          )}
+                          {p.proof_path && p.status !== 'pending' && (
+                            <Button size="sm" variant="ghost" className="-ml-2" onClick={() => setOverlay({ kind: 'proof', payment: p })}>
+                              <Eye /> View proof
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </li>
                 ))}
-              </ul>
+              </ol>
             )}
-          </CardContent>
-        </Card>
+          </Panel>
+        </div>
       </div>
 
       {overlay?.kind === 'charge' && <ChargeDialog billId={b.id} item={overlay.item} onClose={close} />}

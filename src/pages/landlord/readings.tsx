@@ -2,6 +2,7 @@ import { Gauge, Loader2, Save } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/app/page-header'
+import { Meter, StatusPill } from '@/components/app/panel'
 import { PeriodPicker } from '@/components/app/period-picker'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
@@ -143,6 +144,13 @@ function ReadingGrid({
     return meterError(d.electricity_previous, d.electricity_current) || (metered && meterError(d.water_previous, d.water_current))
   })
 
+  const billable = rows.filter((r) => r.is_billable)
+  const isRead = (roomId: string) => {
+    const d = drafts[roomId] as Draft
+    return d.electricity_current.trim() !== '' && (!metered || d.water_current.trim() !== '')
+  }
+  const readCount = billable.filter((r) => isRead(r.room_id)).length
+
   const onSave = () => {
     const readings: ReadingInput[] = changed.map((r) => {
       const d = drafts[r.room_id] as Draft
@@ -170,6 +178,24 @@ function ReadingGrid({
 
   return (
     <div className="space-y-4">
+      <section aria-label="Progress" className="surface flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-6 sm:p-5">
+        <div className="shrink-0">
+          <p className="text-[13px] font-medium text-muted-foreground">Rooms read</p>
+          <p className="mt-0.5 text-2xl font-semibold tracking-tight">
+            {readCount}
+            <span className="text-base font-medium text-muted-foreground"> / {billable.length}</span>
+          </p>
+        </div>
+        <div className="min-w-0 flex-1">
+          <Meter value={billable.length ? (readCount / billable.length) * 100 : 0} label="Share of occupied rooms with a reading" />
+          <p className="mt-2 text-xs text-muted-foreground">
+            {readCount === billable.length
+              ? 'Every occupied room has a reading for this month.'
+              : `${billable.length - readCount} occupied ${billable.length - readCount === 1 ? 'room still needs' : 'rooms still need'} a reading.`}
+          </p>
+        </div>
+      </section>
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[13px] text-muted-foreground">
           Type the current meter values. Previous values carry over from last month.
@@ -185,20 +211,27 @@ function ReadingGrid({
       {visible.length === 0 ? (
         <EmptyState icon={Gauge} title="No occupied rooms this month" description="Readings are needed only for occupied rooms." />
       ) : (
-        <ul className="grid gap-3">
+        <ul className="grid grid-cols-1 gap-3">
           {visible.map((r) => {
             const d = drafts[r.room_id] as Draft
             return (
               <li
                 key={r.room_id}
                 className={cn(
-                  'surface grid gap-3 p-4 md:grid-cols-[9rem_1fr_1fr] md:items-start',
+                  'surface grid grid-cols-1 gap-3 p-4 md:grid-cols-[9rem_1fr_1fr] md:items-start',
                   !metered && 'md:grid-cols-[9rem_1fr]',
                 )}
               >
-                <div className="flex items-baseline gap-2 md:block">
-                  <p className="font-display text-lg font-semibold">Room {r.room_number}</p>
-                  <p className="truncate text-[13px] text-muted-foreground">{r.tenant_name ?? 'Vacant'}</p>
+                <div className="flex items-center justify-between gap-2 md:block">
+                  <div className="flex min-w-0 items-baseline gap-2 md:block">
+                    <p className="font-display text-lg font-semibold">Room {r.room_number}</p>
+                    <p className="truncate text-[13px] text-muted-foreground">{r.tenant_name ?? 'Vacant'}</p>
+                  </div>
+                  {r.is_billable && (
+                    <StatusPill tone={isRead(r.room_id) ? 'success' : 'warning'} className="shrink-0 md:mt-2">
+                      {isRead(r.room_id) ? 'Read' : 'Missing'}
+                    </StatusPill>
+                  )}
                 </div>
                 <MeterInputs
                   idPrefix={`e-${r.room_id}`}

@@ -3,7 +3,7 @@ import { CheckCircle2, History as HistoryIcon, Inbox, Wallet } from 'lucide-reac
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { PageHeader } from '@/components/app/page-header'
-import { FilterChips, InitialsBadge, Panel } from '@/components/app/panel'
+import { FilterChips, InitialsBadge, Panel, StatGrid, StatTile } from '@/components/app/panel'
 import { PeriodPicker } from '@/components/app/period-picker'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
@@ -33,11 +33,32 @@ function Queue({ currency }: { currency: string }) {
     )
   }
 
+  const waiting = data.reduce((t, p) => t + p.amount, 0)
+  const oldest = [...data].sort((a, b) => a.created_at.localeCompare(b.created_at))[0]
+
   return (
     <>
+      <StatGrid className="mb-4 lg:grid-cols-2">
+        <StatTile
+          label="Awaiting review"
+          value={String(data.length)}
+          icon={Inbox}
+          sub={
+            <span className="text-xs text-muted-foreground">
+              {oldest ? `Oldest ${formatDistanceToNow(parseISO(oldest.created_at), { addSuffix: true })}` : ''}
+            </span>
+          }
+        />
+        <StatTile
+          label="Amount waiting"
+          value={formatMoney(waiting, currency)}
+          icon={Wallet}
+          sub={<span className="text-xs text-muted-foreground">Not yet in balances</span>}
+        />
+      </StatGrid>
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {data.map((p) => (
-          <li key={p.id} className="surface flex flex-col p-4 sm:p-5">
+          <li key={p.id} className="surface flex flex-col p-4 transition-colors hover:border-foreground/20 sm:p-5">
             <div className="flex items-start gap-3">
               <InitialsBadge text={initials(p.tenant_name)} className="size-9" />
               <div className="min-w-0 flex-1">

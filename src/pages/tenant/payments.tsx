@@ -1,8 +1,8 @@
-import { Eye, Wallet } from 'lucide-react'
+import { CheckCircle2, Eye, Hourglass, Wallet, XCircle } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { PageHeader } from '@/components/app/page-header'
-import { Panel } from '@/components/app/panel'
+import { Panel, StatGrid, StatTile } from '@/components/app/panel'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -17,20 +17,14 @@ export function TenantPaymentsPage() {
   const currency = useCurrency()
   const [viewing, setViewing] = useState<PaymentOverview | null>(null)
   const verified = (data ?? []).filter((p) => p.status === 'verified').reduce((t, p) => t + p.amount, 0)
+  const pending = (data ?? []).filter((p) => p.status === 'pending')
+  const rejected = (data ?? []).filter((p) => p.status === 'rejected').length
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Payment history"
-        description={
-          data?.length ? (
-            <>
-              Total verified: <span className="font-semibold text-foreground tabular">{formatMoney(verified, currency)}</span>
-            </>
-          ) : (
-            'Every payment you have made or submitted.'
-          )
-        }
+        description="Every payment you have made or submitted."
       />
       {error ? (
         <ErrorState error={error} onRetry={() => refetch()} />
@@ -44,6 +38,24 @@ export function TenantPaymentsPage() {
           action={<Button asChild><Link to="/my/bills">Go to bills</Link></Button>}
         />
       ) : (
+        <>
+        <StatGrid className="lg:grid-cols-3">
+          <StatTile label="Verified" value={formatMoney(verified, currency)} icon={CheckCircle2} sub={<span className="text-xs text-muted-foreground">Counted toward your bills</span>} />
+          <StatTile
+            label="Awaiting check"
+            value={formatMoney(pending.reduce((t, p) => t + p.amount, 0), currency)}
+            icon={Hourglass}
+            sub={<span className="text-xs text-muted-foreground">{pending.length} {pending.length === 1 ? 'payment' : 'payments'}</span>}
+          />
+          <div className="col-span-2 grid lg:col-span-1">
+            <StatTile
+              label="Not accepted"
+              value={String(rejected)}
+              icon={XCircle}
+              sub={<span className={rejected ? 'text-xs font-medium text-destructive' : 'text-xs text-muted-foreground'}>{rejected ? 'Please resubmit' : 'None'}</span>}
+            />
+          </div>
+        </StatGrid>
         <Panel title="All payments" description={`${data.length} ${data.length === 1 ? 'payment' : 'payments'}`} flush>
         <ul className="divide-y border-t">
           {data.map((p) => (
@@ -75,6 +87,7 @@ export function TenantPaymentsPage() {
           ))}
         </ul>
         </Panel>
+        </>
       )}
 
       <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>

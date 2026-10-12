@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Fab } from '@/components/app/fab'
 import { PageHeader } from '@/components/app/page-header'
-import { FilterChips, Panel, SearchField, StatGrid, StatTile } from '@/components/app/panel'
+import { FilterChips, Panel, SearchField, StatGrid, StatGridSkeleton, StatTile } from '@/components/app/panel'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -109,9 +109,7 @@ export function TenantsPage() {
         <ErrorState error={error} onRetry={() => refetch()} />
       ) : isPending ? (
         <div className="space-y-4">
-          <StatGrid>
-            {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
-          </StatGrid>
+          <StatGridSkeleton />
           <Skeleton className="h-96 rounded-xl" />
         </div>
       ) : counts.all === 0 ? (

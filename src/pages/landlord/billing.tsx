@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/app/confirm-dialog'
 import { PageHeader } from '@/components/app/page-header'
-import { FilterChips, Panel, StatGrid, StatTile } from '@/components/app/panel'
+import { FilterChips, Panel, Meter, StatGrid, StatGridSkeleton, StatTile, Toolbar } from '@/components/app/panel'
 import { PeriodPicker } from '@/components/app/period-picker'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
@@ -93,23 +93,21 @@ export function BillingPage() {
         }
       />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <Toolbar className="surface px-3 py-2">
         <PeriodPicker value={period} onChange={setPeriod} />
         {lastAuto && (
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <p className="flex items-center gap-1.5 px-1 pb-1 text-xs text-muted-foreground sm:pb-0">
             <Clock className="size-3.5" />
             Last automatic run: {formatDate(lastAuto.ran_at.slice(0, 10))} ({lastAuto.bills_created} bills)
           </p>
         )}
-      </div>
+      </Toolbar>
 
       {error ? (
         <ErrorState error={error} onRetry={() => refetch()} />
       ) : isPending ? (
         <div className="space-y-4">
-          <StatGrid>
-            {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
-          </StatGrid>
+          <StatGridSkeleton />
           <Skeleton className="h-64 rounded-xl" />
         </div>
       ) : (
@@ -133,7 +131,9 @@ export function BillingPage() {
                   {stats.paid} fully paid
                 </span>
               }
-            />
+            >
+              <Meter value={stats.billed > 0 ? (stats.collected / stats.billed) * 100 : 0} label="Share of this month's bills collected" />
+            </StatTile>
             <StatTile
               label="Outstanding"
               value={formatMoney(stats.outstanding, currency)}
