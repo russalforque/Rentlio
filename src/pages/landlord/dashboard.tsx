@@ -108,7 +108,7 @@ export function DashboardPage() {
         <>
           <KpiStrip months={history.months} occupancy={occupancy} open={open.data ?? []} pending={pending.data ?? []} currency={currency} />
 
-          {/* Phones: what needs doing first, charts after. Large screens: an 8/4 grid. */}
+          {/* Phones: what needs doing first, charts after. Two columns: action center and watchlist side by side. Wide: an 8/4 grid. */}
           <div className="grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-12">
             <RevenueCard months={history.months} currency={currency} className="order-4 @xl:col-span-2 @4xl:order-1 @4xl:col-span-8" />
 
@@ -136,7 +136,7 @@ export function DashboardPage() {
               period={period}
               bills={monthBills.data ?? []}
               currency={currency}
-              className="order-2 @xl:col-span-2 @4xl:order-first @4xl:col-span-12"
+              className="order-2 @xl:order-3 @xl:col-span-2 @4xl:order-first @4xl:col-span-12"
             />
 
             <TransactionsCard currency={currency} className="order-3 @xl:col-span-2 @4xl:order-3 @4xl:col-span-8" />
