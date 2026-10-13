@@ -1,4 +1,4 @@
-import { ArrowLeft, Bell, ChevronDown, ChevronRight, LogOut, Monitor, Moon, MoreHorizontal, PanelLeft, Search, Sun, UserRound } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronRight, LogOut, Monitor, Moon, MoreHorizontal, PanelLeft, Search, Sun, UserRound } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
@@ -19,7 +19,10 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { UserAvatar } from '@/features/account/user-avatar'
+import { NotificationBell } from '@/features/notifications/notification-bell'
+import { useNotificationsRealtime } from '@/features/notifications/use-notifications-realtime'
 import { usePendingPayments } from '@/features/payments/api'
+import { usePendingRegistrationCount } from '@/features/registrations/api'
 import { useAuth, useProfile } from '@/hooks/use-auth'
 import { useSettings } from '@/hooks/use-settings'
 import { cn } from '@/lib/utils'
@@ -36,10 +39,8 @@ function readCollapsed() {
   }
 }
 
-/** Only mounted for nav items that show a count, so tenants never run this query. */
-function PendingPaymentsBadge({ variant }: { variant: 'dot' | 'pill' }) {
-  const { data } = usePendingPayments()
-  if (!data?.length) return null
+function CountBadge({ count, label, variant }: { count: number; label: string; variant: 'dot' | 'pill' }) {
+  if (!count) return null
   return (
     <span
       className={cn(
@@ -49,14 +50,27 @@ function PendingPaymentsBadge({ variant }: { variant: 'dot' | 'pill' }) {
           : 'ml-auto bg-destructive/10 px-1.5 py-1 text-destructive',
       )}
     >
-      {data.length}
-      <span className="sr-only"> waiting for verification</span>
+      {count}
+      <span className="sr-only"> {label}</span>
     </span>
   )
 }
 
+/** Only mounted for nav items that show a count, so tenants never run these queries. */
+function PendingPaymentsBadge({ variant }: { variant: 'dot' | 'pill' }) {
+  const { data } = usePendingPayments()
+  return <CountBadge count={data?.length ?? 0} label="waiting for verification" variant={variant} />
+}
+
+function PendingRegistrationsBadge({ variant }: { variant: 'dot' | 'pill' }) {
+  const { data } = usePendingRegistrationCount()
+  return <CountBadge count={data ?? 0} label="waiting for approval" variant={variant} />
+}
+
 function navBadge(item: NavItem, variant: 'dot' | 'pill') {
-  return item.badge === 'pendingPayments' ? <PendingPaymentsBadge variant={variant} /> : null
+  if (item.badge === 'pendingPayments') return <PendingPaymentsBadge variant={variant} />
+  if (item.badge === 'pendingRegistrations') return <PendingRegistrationsBadge variant={variant} />
+  return null
 }
 
 /** Labelled on wide screens; an icon rail with tooltips on tablets or when collapsed. */
@@ -271,18 +285,6 @@ function SearchButton({ onOpen }: { onOpen: () => void }) {
   )
 }
 
-/** Bell: lights up when payment proofs are waiting. */
-function NotificationsButton() {
-  const { data } = usePendingPayments()
-  const count = data?.length ?? 0
-  return (
-    <Link to="/payments" aria-label={count ? `${count} payments to verify` : 'Notifications'} className={iconButton}>
-      <Bell className="size-4" />
-      {count > 0 && <span className="absolute top-2.5 right-3 size-2 md:top-2 md:right-2.5 rounded-full bg-destructive ring-2 ring-card" aria-hidden />}
-    </Link>
-  )
-}
-
 /** Phones: the main sections in a thumb-reachable bar; the rest behind "More". */
 function TabBar({ items, more }: { items: NavItem[]; more: NavItem[] }) {
   const [open, setOpen] = useState(false)
@@ -360,6 +362,7 @@ function TabBar({ items, more }: { items: NavItem[]; more: NavItem[] }) {
                     <m.icon className="size-4.5" />
                   </span>
                   <span className="flex-1">{m.label}</span>
+                  {navBadge(m, 'pill')}
                   <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
                 </NavLink>
               ))}
@@ -390,12 +393,16 @@ export function AppShell() {
   const location = useLocation()
   const navigate = useNavigate()
   const profile = useProfile()
+  const { state } = useAuth()
   const { data: settings } = useSettings()
   const [searching, setSearching] = useState(false)
   const [collapsed, setCollapsed] = useState(readCollapsed)
+  useNotificationsRealtime(state.status === 'signed-in' ? state.session.user.id : '')
   const items = NAV[profile.role]
   const current = items.find((n) => location.pathname.startsWith(n.to))
-  const nested = !!current && location.pathname.replace(/\/$/, '') !== current.to
+  // Pages outside the menu (notifications) still get a title and a way back.
+  const offMenu = location.pathname.startsWith('/notifications')
+  const nested = offMenu || (!!current && location.pathname.replace(/\/$/, '') !== current.to)
   const tabs = items.filter((n) => n.mobileTab)
   const more = items.filter((n) => !n.mobileTab)
   const isLandlord = profile.role === 'landlord'
@@ -414,7 +421,7 @@ export function AppShell() {
   const goBack = () => {
     const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0
     if (idx > 0) navigate(-1)
-    else if (current) navigate(current.to)
+    else navigate(current?.to ?? HOME_BY_ROLE[profile.role])
   }
 
   useEffect(() => {
@@ -438,7 +445,7 @@ export function AppShell() {
           <button
             type="button"
             onClick={goBack}
-            aria-label={`Back to ${current?.label}`}
+            aria-label={current ? `Back to ${current.label}` : 'Back'}
             className="-ml-2.5 grid size-11 shrink-0 place-items-center rounded-full text-foreground hover:bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:-ml-1 md:size-9"
           >
             <ArrowLeft className="size-5 md:size-4.5" />
@@ -448,9 +455,9 @@ export function AppShell() {
             <BrandMark className="size-9" />
           </Link>
         )}
-        <p className="min-w-0 flex-1 truncate text-base font-semibold md:text-[15px]">{current?.label ?? settings?.property_name ?? 'Rentlio'}</p>
+        <p className="min-w-0 flex-1 truncate text-base font-semibold md:text-[15px]">{offMenu ? 'Notifications' : (current?.label ?? settings?.property_name ?? 'Rentlio')}</p>
         {isLandlord && <SearchButton onOpen={() => setSearching(true)} />}
-        {isLandlord && <NotificationsButton />}
+        <NotificationBell className={iconButton} />
         <UserMenu />
       </header>
 

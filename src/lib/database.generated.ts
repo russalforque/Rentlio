@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_audit_log: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          details: Json
+          event: Database["public"]["Enums"]["account_event"]
+          id: number
+          request_id: string | null
+          tenant_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event: Database["public"]["Enums"]["account_event"]
+          id?: never
+          request_id?: string | null
+          tenant_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event?: Database["public"]["Enums"]["account_event"]
+          id?: never
+          request_id?: string | null
+          tenant_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_audit_log_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "registration_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_audit_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_settings: {
         Row: {
           auto_billing_enabled: boolean
@@ -26,9 +74,14 @@ export type Database = {
           electricity_rate: number
           house_rules: string | null
           id: boolean
+          online_payments_enabled: boolean
           payment_instructions: string | null
           property_address: string | null
           property_name: string
+          reminder_days_after: number
+          reminder_days_before: number
+          reminder_on_due_date: boolean
+          rent_reminders_enabled: boolean
           timezone: string
           updated_at: string
           water_billing_mode: Database["public"]["Enums"]["water_billing_mode"]
@@ -46,9 +99,14 @@ export type Database = {
           electricity_rate?: number
           house_rules?: string | null
           id?: boolean
+          online_payments_enabled?: boolean
           payment_instructions?: string | null
           property_address?: string | null
           property_name?: string
+          reminder_days_after?: number
+          reminder_days_before?: number
+          reminder_on_due_date?: boolean
+          rent_reminders_enabled?: boolean
           timezone?: string
           updated_at?: string
           water_billing_mode?: Database["public"]["Enums"]["water_billing_mode"]
@@ -66,9 +124,14 @@ export type Database = {
           electricity_rate?: number
           house_rules?: string | null
           id?: boolean
+          online_payments_enabled?: boolean
           payment_instructions?: string | null
           property_address?: string | null
           property_name?: string
+          reminder_days_after?: number
+          reminder_days_before?: number
+          reminder_on_due_date?: boolean
+          rent_reminders_enabled?: boolean
           timezone?: string
           updated_at?: string
           water_billing_mode?: Database["public"]["Enums"]["water_billing_mode"]
@@ -218,11 +281,14 @@ export type Database = {
           bill_number: number
           created_at: string
           due_date: string
+          finalized_at: string | null
+          finalized_by: string | null
           id: string
           issue_date: string
           lease_id: string
           notes: string | null
           period: string
+          revision: number
           room_id: string
           status: Database["public"]["Enums"]["bill_status"]
           tenant_id: string
@@ -237,11 +303,14 @@ export type Database = {
           bill_number?: never
           created_at?: string
           due_date: string
+          finalized_at?: string | null
+          finalized_by?: string | null
           id?: string
           issue_date: string
           lease_id: string
           notes?: string | null
           period: string
+          revision?: number
           room_id: string
           status?: Database["public"]["Enums"]["bill_status"]
           tenant_id: string
@@ -256,11 +325,14 @@ export type Database = {
           bill_number?: never
           created_at?: string
           due_date?: string
+          finalized_at?: string | null
+          finalized_by?: string | null
           id?: string
           issue_date?: string
           lease_id?: string
           notes?: string | null
           period?: string
+          revision?: number
           room_id?: string
           status?: Database["public"]["Enums"]["bill_status"]
           tenant_id?: string
@@ -578,16 +650,251 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          announcements: boolean
+          general_updates: boolean
+          payment_updates: boolean
+          rent_reminders: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          announcements?: boolean
+          general_updates?: boolean
+          payment_updates?: boolean
+          rent_reminders?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          announcements?: boolean
+          general_updates?: boolean
+          payment_updates?: boolean
+          rent_reminders?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          category: Database["public"]["Enums"]["notification_category"]
+          created_at: string
+          deduplication_key: string
+          id: string
+          is_read: boolean
+          message: string
+          read_at: string | null
+          recipient_user_id: string
+          related_entity_id: string | null
+          related_entity_type: string | null
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["notification_category"]
+          created_at?: string
+          deduplication_key: string
+          id?: string
+          is_read?: boolean
+          message: string
+          read_at?: string | null
+          recipient_user_id: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["notification_category"]
+          created_at?: string
+          deduplication_key?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          read_at?: string | null
+          recipient_user_id?: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          title?: string
+          type?: Database["public"]["Enums"]["notification_type"]
+        }
+        Relationships: []
+      }
+      payment_allocations: {
+        Row: {
+          amount: number
+          bill_id: string
+          bill_item_id: string
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["bill_item_kind"]
+          payment_id: string
+        }
+        Insert: {
+          amount: number
+          bill_id: string
+          bill_item_id: string
+          created_at?: string
+          id?: string
+          kind: Database["public"]["Enums"]["bill_item_kind"]
+          payment_id: string
+        }
+        Update: {
+          amount?: number
+          bill_id?: string
+          bill_item_id?: string
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["bill_item_kind"]
+          payment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_allocations_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bill_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_allocations_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_allocations_bill_item_id_fkey"
+            columns: ["bill_item_id"]
+            isOneToOne: false
+            referencedRelation: "bill_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_allocations_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payment_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_allocations_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_checkouts: {
+        Row: {
+          amount: number
+          bill_id: string
+          checkout_url: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          currency_code: string
+          expires_at: string
+          failure_reason: string | null
+          id: string
+          payment_id: string | null
+          provider: string
+          provider_session_id: string | null
+          status: Database["public"]["Enums"]["checkout_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          bill_id: string
+          checkout_url?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          currency_code: string
+          expires_at?: string
+          failure_reason?: string | null
+          id?: string
+          payment_id?: string | null
+          provider?: string
+          provider_session_id?: string | null
+          status?: Database["public"]["Enums"]["checkout_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          bill_id?: string
+          checkout_url?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          currency_code?: string
+          expires_at?: string
+          failure_reason?: string | null
+          id?: string
+          payment_id?: string | null
+          provider?: string
+          provider_session_id?: string | null
+          status?: Database["public"]["Enums"]["checkout_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_checkouts_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bill_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_checkouts_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_checkouts_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payment_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_checkouts_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_checkouts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           amount: number
           bill_id: string
+          client_request_id: string | null
           created_at: string
           id: string
           method: Database["public"]["Enums"]["payment_method"]
           notes: string | null
           paid_on: string
           proof_path: string | null
+          provider: string | null
+          provider_payment_id: string | null
+          receipt_number: number | null
           reference_number: string | null
           rejection_reason: string | null
           reviewed_at: string | null
@@ -600,12 +907,16 @@ export type Database = {
         Insert: {
           amount: number
           bill_id: string
+          client_request_id?: string | null
           created_at?: string
           id?: string
           method: Database["public"]["Enums"]["payment_method"]
           notes?: string | null
           paid_on: string
           proof_path?: string | null
+          provider?: string | null
+          provider_payment_id?: string | null
+          receipt_number?: number | null
           reference_number?: string | null
           rejection_reason?: string | null
           reviewed_at?: string | null
@@ -618,12 +929,16 @@ export type Database = {
         Update: {
           amount?: number
           bill_id?: string
+          client_request_id?: string | null
           created_at?: string
           id?: string
           method?: Database["public"]["Enums"]["payment_method"]
           notes?: string | null
           paid_on?: string
           proof_path?: string | null
+          provider?: string | null
+          provider_payment_id?: string | null
+          receipt_number?: number | null
           reference_number?: string | null
           rejection_reason?: string | null
           reviewed_at?: string | null
@@ -718,7 +1033,7 @@ export type Database = {
           activated_at: string | null
           avatar_path: string | null
           created_at: string
-          email: string
+          email: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           full_name: string
@@ -727,28 +1042,16 @@ export type Database = {
           is_active: boolean
           phone: string | null
           role: Database["public"]["Enums"]["user_role"]
+          suspended_at: string | null
+          suspension_reason: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           activated_at?: string | null
           avatar_path?: string | null
           created_at?: string
-          email: string
-          emergency_contact_name?: string | null
-          emergency_contact_phone?: string | null
-          full_name?: string
-          id: string
-          invited_at?: string | null
-          is_active?: boolean
-          phone?: string | null
-          role?: Database["public"]["Enums"]["user_role"]
-          updated_at?: string
-        }
-        Update: {
-          activated_at?: string | null
-          avatar_path?: string | null
-          created_at?: string
-          email?: string
+          email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           full_name?: string
@@ -757,9 +1060,109 @@ export type Database = {
           is_active?: boolean
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
+          suspended_at?: string | null
+          suspension_reason?: string | null
           updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          activated_at?: string | null
+          avatar_path?: string | null
+          created_at?: string
+          email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          full_name?: string
+          id?: string
+          invited_at?: string | null
+          is_active?: boolean
+          phone?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          suspended_at?: string | null
+          suspension_reason?: string | null
+          updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
+      }
+      registration_requests: {
+        Row: {
+          created_at: string
+          email: string
+          email_verified_at: string | null
+          full_name: string
+          id: string
+          identity_check: Database["public"]["Enums"]["identity_check"] | null
+          phone: string | null
+          requested_room: string | null
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source: Database["public"]["Enums"]["registration_source"]
+          status: Database["public"]["Enums"]["registration_status"]
+          tenant_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          email_verified_at?: string | null
+          full_name?: string
+          id?: string
+          identity_check?: Database["public"]["Enums"]["identity_check"] | null
+          phone?: string | null
+          requested_room?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source?: Database["public"]["Enums"]["registration_source"]
+          status?: Database["public"]["Enums"]["registration_status"]
+          tenant_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          email_verified_at?: string | null
+          full_name?: string
+          id?: string
+          identity_check?: Database["public"]["Enums"]["identity_check"] | null
+          phone?: string | null
+          requested_room?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source?: Database["public"]["Enums"]["registration_source"]
+          status?: Database["public"]["Enums"]["registration_status"]
+          tenant_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registration_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registration_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registration_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_overview"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       room_beds: {
         Row: {
@@ -940,14 +1343,24 @@ export type Database = {
           bill_number: number | null
           created_at: string | null
           due_date: string | null
+          electricity_amount: number | null
+          electricity_paid: number | null
+          finalized_at: string | null
           id: string | null
+          is_finalized: boolean | null
           is_overdue: boolean | null
           issue_date: string | null
           lease_id: string | null
+          missing_charges: string[] | null
           notes: string | null
+          other_amount: number | null
+          other_paid: number | null
           pending_amount: number | null
           pending_payments: number | null
           period: string | null
+          rent_amount: number | null
+          rent_paid: number | null
+          revision: number | null
           room_id: string | null
           room_number: string | null
           status: Database["public"]["Enums"]["bill_status"] | null
@@ -957,6 +1370,8 @@ export type Database = {
           total_amount: number | null
           void_reason: string | null
           voided_at: string | null
+          water_amount: number | null
+          water_paid: number | null
         }
         Relationships: [
           {
@@ -1063,6 +1478,8 @@ export type Database = {
           paid_on: string | null
           period: string | null
           proof_path: string | null
+          provider: string | null
+          receipt_number: number | null
           recorded_by_landlord: boolean | null
           reference_number: string | null
           rejection_reason: string | null
@@ -1196,6 +1613,9 @@ export type Database = {
           phone: string | null
           room_id: string | null
           room_number: string | null
+          has_portal_access: boolean | null
+          suspended_at: string | null
+          suspension_reason: string | null
         }
         Relationships: [
           {
@@ -1221,6 +1641,16 @@ export type Database = {
       _generate_bills: { Args: { p_period: string }; Returns: number }
       _refresh_bill: { Args: { p_bill_id: string }; Returns: undefined }
       _sync_bill_utilities: { Args: { p_bill_id: string }; Returns: undefined }
+      _link_invited_user: {
+        Args: {
+          p_actor_id: string
+          p_full_name?: string
+          p_phone?: string
+          p_tenant_id?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       add_bill_charge: {
         Args: { p_amount: number; p_bill_id: string; p_description: string }
         Returns: string
@@ -1236,16 +1666,53 @@ export type Database = {
         }
         Returns: string
       }
+      approve_registration: {
+        Args: {
+          p_identity_check: Database["public"]["Enums"]["identity_check"]
+          p_note: string
+          p_request_id: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
+      bill_missing_charges: { Args: { p_bill_id: string }; Returns: string[] }
+      bootstrap_landlord: { Args: { p_email: string }; Returns: string }
+      cancel_online_payment: {
+        Args: { p_checkout_id: string }
+        Returns: Database["public"]["Tables"]["payment_checkouts"]["Row"]
+      }
+      create_manual_tenant: {
+        Args: {
+          p_deposit_amount?: number
+          p_full_name: string
+          p_monthly_rent?: number
+          p_phone?: string
+          p_room_id?: string
+          p_start_date?: string
+        }
+        Returns: string
+      }
+      current_profile_id: { Args: never; Returns: string }
+      current_tenant_id: { Args: never; Returns: string }
       end_lease: {
         Args: { p_end_date: string; p_lease_id: string }
         Returns: undefined
       }
+      finalize_bill: {
+        Args: { p_bill_id: string; p_skip_missing?: boolean }
+        Returns: undefined
+      }
+      finalize_bills: { Args: { p_period: string }; Returns: number }
       generate_bills: { Args: { p_period: string }; Returns: number }
       is_landlord: { Args: never; Returns: boolean }
       mark_account_activated: { Args: never; Returns: undefined }
+      mark_all_notifications_read: { Args: never; Returns: number }
+      mark_notifications_read: { Args: { p_ids: string[] }; Returns: number }
       meter_reading_sheet: {
         Args: { p_period: string }
         Returns: {
+          bill_finalized: boolean
+          bill_id: string
           electricity_current: number
           electricity_previous: number
           floor: number
@@ -1258,6 +1725,18 @@ export type Database = {
           water_previous: number
         }[]
       }
+      my_registration: {
+        Args: never
+        Returns: {
+          email: string
+          email_verified: boolean
+          full_name: string
+          rejection_reason: string
+          requested_room: string
+          status: Database["public"]["Enums"]["registration_status"]
+          submitted_at: string
+        }[]
+      }
       move_tenant: {
         Args: {
           p_lease_id: string
@@ -1267,6 +1746,7 @@ export type Database = {
         }
         Returns: string
       }
+      payment_receipt: { Args: { p_payment_id: string }; Returns: Json }
       property_today: { Args: never; Returns: string }
       record_deposit_transaction: {
         Args: {
@@ -1291,10 +1771,16 @@ export type Database = {
           p_paid_on: string
           p_proof_path?: string
           p_reference_number?: string
+          p_request_id?: string
         }
         Returns: string
       }
       remove_bill_charge: { Args: { p_item_id: string }; Returns: undefined }
+      reopen_bill: { Args: { p_bill_id: string }; Returns: undefined }
+      reject_registration: {
+        Args: { p_reason: string; p_request_id: string }
+        Returns: undefined
+      }
       review_payment: {
         Args: {
           p_amount?: number
@@ -1305,9 +1791,21 @@ export type Database = {
         Returns: undefined
       }
       run_scheduled_billing: { Args: never; Returns: number }
+      send_announcement: {
+        Args: { p_message: string; p_title: string }
+        Returns: number
+      }
+      set_portal_suspended: {
+        Args: { p_reason?: string; p_suspended: boolean; p_tenant_id: string }
+        Returns: undefined
+      }
       set_room_beds: {
         Args: { p_beds: Json; p_room_id: string }
         Returns: undefined
+      }
+      start_online_payment: {
+        Args: { p_amount: number; p_bill_id: string }
+        Returns: Database["public"]["Tables"]["payment_checkouts"]["Row"]
       }
       set_tenant_active: {
         Args: { p_active: boolean; p_tenant_id: string }
@@ -1322,6 +1820,7 @@ export type Database = {
           p_paid_on: string
           p_proof_path: string
           p_reference_number?: string
+          p_request_id?: string
         }
         Returns: string
       }
@@ -1339,19 +1838,66 @@ export type Database = {
       }
     }
     Enums: {
+      account_event:
+        | "login_created"
+        | "email_verified"
+        | "registration_approved"
+        | "registration_rejected"
+        | "account_linked"
+        | "portal_invited"
+        | "manual_tenant_created"
+        | "account_suspended"
+        | "account_unsuspended"
       bill_item_kind: "rent" | "electricity" | "water" | "other"
       bill_status: "unpaid" | "partial" | "paid" | "void"
       billing_trigger: "schedule" | "manual"
+      checkout_status:
+        | "creating"
+        | "open"
+        | "paid"
+        | "expired"
+        | "failed"
+        | "cancelled"
       deposit_txn_type: "received" | "deduction" | "refund"
+      identity_check: "existing_record" | "in_person" | "invitation"
       lease_status: "active" | "ended"
+      notification_category: "payment" | "billing" | "account" | "rental" | "system"
+      notification_type:
+        | "registration_submitted"
+        | "payment_submitted"
+        | "tenant_activated"
+        | "move_in_today"
+        | "move_out_today"
+        | "bills_due_soon"
+        | "bills_overdue"
+        | "bills_generated"
+        | "billing_failed"
+        | "system_error"
+        | "registration_approved"
+        | "registration_rejected"
+        | "bill_issued"
+        | "bill_voided"
+        | "rent_due_soon"
+        | "rent_due_today"
+        | "rent_overdue"
+        | "payment_rejected"
+        | "lease_started"
+        | "lease_updated"
+        | "lease_ended"
+        | "announcement"
+        | "payment_verified"
+        | "payment_recorded"
       payment_method:
         | "cash"
         | "bank_transfer"
         | "gcash"
         | "maya"
         | "check"
+        | "card"
         | "other"
       payment_status: "pending" | "verified" | "rejected"
+      registration_source: "self_signup" | "invitation"
+      registration_status: "pending" | "approved" | "rejected"
       user_role: "landlord" | "tenant"
       water_billing_mode: "metered" | "flat"
     }
@@ -1481,20 +2027,63 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      account_event: [
+        "login_created",
+        "email_verified",
+        "registration_approved",
+        "registration_rejected",
+        "account_linked",
+        "portal_invited",
+        "manual_tenant_created",
+        "account_suspended",
+        "account_unsuspended",
+      ],
       bill_item_kind: ["rent", "electricity", "water", "other"],
       bill_status: ["unpaid", "partial", "paid", "void"],
       billing_trigger: ["schedule", "manual"],
+      checkout_status: ["creating", "open", "paid", "expired", "failed", "cancelled"],
       deposit_txn_type: ["received", "deduction", "refund"],
+      identity_check: ["existing_record", "in_person", "invitation"],
       lease_status: ["active", "ended"],
+      notification_category: ["payment", "billing", "account", "rental", "system"],
+      notification_type: [
+        "registration_submitted",
+        "payment_submitted",
+        "tenant_activated",
+        "move_in_today",
+        "move_out_today",
+        "bills_due_soon",
+        "bills_overdue",
+        "bills_generated",
+        "billing_failed",
+        "system_error",
+        "registration_approved",
+        "registration_rejected",
+        "bill_issued",
+        "bill_voided",
+        "rent_due_soon",
+        "rent_due_today",
+        "rent_overdue",
+        "payment_rejected",
+        "lease_started",
+        "lease_updated",
+        "lease_ended",
+        "announcement",
+        "payment_verified",
+        "payment_recorded",
+      ],
       payment_method: [
         "cash",
         "bank_transfer",
         "gcash",
         "maya",
         "check",
+        "card",
         "other",
       ],
       payment_status: ["pending", "verified", "rejected"],
+      registration_source: ["self_signup", "invitation"],
+      registration_status: ["pending", "approved", "rejected"],
       user_role: ["landlord", "tenant"],
       water_billing_mode: ["metered", "flat"],
     },

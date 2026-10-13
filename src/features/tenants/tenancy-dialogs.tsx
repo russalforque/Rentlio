@@ -131,7 +131,7 @@ export function AssignRoomDialog({ tenant, open, onOpenChange }: DialogProps) {
         </FormField>
         <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2">
           <FormField id="assign-start" label="Move-in date" error={errors.start_date?.message}>
-            <Input id="assign-start" type="date" {...register('start_date')} />
+            <Input id="assign-start" type="date" aria-invalid={!!errors.start_date} {...register('start_date')} />
           </FormField>
           <FormField id="assign-rent" label="Agreed rent" error={errors.monthly_rent?.message}>
             <Input id="assign-rent" inputMode="decimal" className="tabular" aria-invalid={!!errors.monthly_rent} {...register('monthly_rent')} />
@@ -143,7 +143,7 @@ export function AssignRoomDialog({ tenant, open, onOpenChange }: DialogProps) {
           error={errors.deposit_amount?.message}
           hint="Kept separate from rent."
         >
-          <Input id="assign-deposit" inputMode="decimal" className="tabular" {...register('deposit_amount')} />
+          <Input id="assign-deposit" inputMode="decimal" className="tabular" aria-invalid={!!errors.deposit_amount} {...register('deposit_amount')} />
         </FormField>
         <SubmitButton pending={assign.isPending}>Assign room</SubmitButton>
       </form>
@@ -208,7 +208,7 @@ export function MoveRoomDialog({ tenant, open, onOpenChange }: DialogProps) {
         </FormField>
         <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2">
           <FormField id="move-date" label="Move date" error={errors.move_date?.message}>
-            <Input id="move-date" type="date" {...register('move_date')} />
+            <Input id="move-date" type="date" aria-invalid={!!errors.move_date} {...register('move_date')} />
           </FormField>
           <FormField id="move-rent" label="New rent" error={errors.monthly_rent?.message}>
             <Input id="move-rent" inputMode="decimal" className="tabular" aria-invalid={!!errors.monthly_rent} {...register('monthly_rent')} />
@@ -259,7 +259,7 @@ export function EndLeaseDialog({ tenant, open, onOpenChange }: DialogProps) {
     >
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid gap-4">
         <FormField id="end-date" label="Move-out date" error={errors.end_date?.message}>
-          <Input id="end-date" type="date" {...register('end_date')} />
+          <Input id="end-date" type="date" aria-invalid={!!errors.end_date} {...register('end_date')} />
         </FormField>
         {(tenant.outstanding_balance > 0 || tenant.deposit_balance > 0) && (
           <Alert>
@@ -339,7 +339,7 @@ const depositSchema = z
   .object({
     type: z.enum(['received', 'deduction', 'refund']),
     amount: moneyInput('Amount').refine((v) => v > 0, 'Amount must be greater than zero'),
-    date: dateInput(),
+    date: dateInput().refine((v) => v <= todayISO(), 'The date cannot be in the future'),
     notes: optionalText(500),
   })
   .refine((v) => v.type === 'received' || v.notes !== null, {
@@ -404,7 +404,7 @@ export function DepositDialog({ tenant, leaseId, open, onOpenChange }: DialogPro
             <Input id="deposit-amount" inputMode="decimal" className="tabular" aria-invalid={!!errors.amount} {...register('amount')} />
           </FormField>
           <FormField id="deposit-date" label="Date" error={errors.date?.message}>
-            <Input id="deposit-date" type="date" {...register('date')} />
+            <Input id="deposit-date" type="date" max={todayISO()} aria-invalid={!!errors.date} {...register('date')} />
           </FormField>
         </div>
         <FormField id="deposit-notes" label="Notes" error={errors.notes?.message}>
@@ -471,7 +471,9 @@ export function EditTenantDialog({ tenant, open, onOpenChange }: DialogProps) {
           </FormField>
         </div>
         <p className="text-[13px] text-muted-foreground">
-          Login email: {tenant.email}. Invited {formatDate(tenant.invited_at?.slice(0, 10))}.
+          {tenant.email
+            ? <>Login email: {tenant.email}.{tenant.invited_at && <> Invited {formatDate(tenant.invited_at.slice(0, 10))}.</>}</>
+            : 'No portal access. Use “Enable portal access” on the tenant page to add an email.'}
         </p>
         <SubmitButton pending={update.isPending}>Save details</SubmitButton>
       </form>

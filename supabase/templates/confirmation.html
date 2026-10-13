@@ -1,0 +1,15 @@
+<!-- Supabase Auth > Email Templates > Confirm signup. Subject: Confirm your email for Rentlio -->
+<div style="font-family:Manrope,Segoe UI,Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#1f2430">
+  <h2 style="margin:0 0 12px;font-size:20px">Confirm your email</h2>
+  <p style="margin:0 0 20px;line-height:1.6;color:#4a5160">
+    Thanks for registering. Confirm this address so your landlord can review your request. You will be able to see
+    your bills and payments once they approve it.
+  </p>
+  <p style="margin:0 0 24px">
+    <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup"
+       style="display:inline-block;background:#1f7a5c;color:#fff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:8px">
+      Confirm my email
+    </a>
+  </p>
+  <p style="margin:0;font-size:13px;color:#7a8190">This link works once and expires in 24 hours. If you did not register, you can ignore this email.</p>
+</div>

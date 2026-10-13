@@ -1,9 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2, Send } from 'lucide-react'
+import { Loader2, Send, UserPlus, UserRound, Wifi } from 'lucide-react'
+import { useState } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { ChoiceCards } from '@/components/app/choice-cards'
 import { FormField } from '@/components/app/form-field'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,13 +23,17 @@ import { todayISO } from '@/lib/dates'
 import { getErrorMessage } from '@/lib/errors'
 import { optionalMoneyInput } from '@/lib/form-fields'
 import { phoneText } from '@/lib/validation'
-import { useInviteTenant, useVacantRooms } from './api'
+import { useCreateManualTenant, useInviteTenant, useVacantRooms } from './api'
 import { RoomPicker } from './room-picker'
+
+type AccountType = 'manual' | 'portal'
 
 const schema = z
   .object({
+    account: z.enum(['manual', 'portal']),
     full_name: z.string().trim().min(1, 'Enter the tenant name').max(120),
-    email: z.email('Enter a valid email address').trim().toLowerCase(),
+    // Only required (and validated) for portal access.
+    email: z.string().trim().toLowerCase(),
     phone: phoneText,
     assign: z.boolean(),
     room_id: z.string(),
@@ -36,6 +42,9 @@ const schema = z
     deposit_amount: optionalMoneyInput(),
   })
   .superRefine((v, ctx) => {
+    if (v.account === 'portal' && !z.email().safeParse(v.email).success) {
+      ctx.addIssue({ code: 'custom', path: ['email'], message: 'Enter a valid email address' })
+    }
     if (!v.assign) return
     if (!v.room_id) ctx.addIssue({ code: 'custom', path: ['room_id'], message: 'Choose a room' })
     if (!/^\d{4}-\d{2}-\d{2}$/.test(v.start_date)) {
@@ -46,21 +55,23 @@ const schema = z
 type Input = z.input<typeof schema>
 type Output = z.output<typeof schema>
 
-export function InviteTenantDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function AddTenantDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
-        {open && <InviteForm onDone={() => onOpenChange(false)} />}
+        {open && <AddTenantForm onDone={() => onOpenChange(false)} />}
       </DialogContent>
     </Dialog>
   )
 }
 
-function InviteForm({ onDone }: { onDone: () => void }) {
+function AddTenantForm({ onDone }: { onDone: () => void }) {
   const navigate = useNavigate()
   const invite = useInviteTenant()
+  const createManual = useCreateManualTenant()
   const { data: vacant } = useVacantRooms()
   const hasVacancy = (vacant?.length ?? 0) > 0
+  const [account, setAccount] = useState<AccountType>('manual')
 
   const {
     register,
@@ -71,6 +82,7 @@ function InviteForm({ onDone }: { onDone: () => void }) {
   } = useForm<Input, unknown, Output>({
     resolver: zodResolver(schema),
     defaultValues: {
+      account: 'manual',
       full_name: '',
       email: '',
       phone: '',
@@ -82,23 +94,36 @@ function InviteForm({ onDone }: { onDone: () => void }) {
     },
   })
   const assign = useWatch({ control, name: 'assign' }) && hasVacancy
+  const pending = invite.isPending || createManual.isPending
 
-  const onSubmit = (v: Output) =>
+  const chooseAccount = (next: AccountType) => {
+    setAccount(next)
+    setValue('account', next)
+  }
+
+  const onSubmit = (v: Output) => {
+    const assignment =
+      v.assign && hasVacancy
+        ? { room_id: v.room_id, start_date: v.start_date, monthly_rent: v.monthly_rent, deposit_amount: v.deposit_amount }
+        : null
+
+    if (v.account === 'manual') {
+      createManual.mutate(
+        { full_name: v.full_name, phone: v.phone, assignment },
+        {
+          onSuccess: (tenantId) => {
+            toast.success(assignment ? `${v.full_name} was added and housed` : `${v.full_name} was added`)
+            onDone()
+            navigate(`/tenants/${tenantId}`)
+          },
+          onError: (err) => toast.error(getErrorMessage(err)),
+        },
+      )
+      return
+    }
+
     invite.mutate(
-      {
-        full_name: v.full_name,
-        email: v.email,
-        phone: v.phone,
-        assignment:
-          v.assign && hasVacancy
-            ? {
-                room_id: v.room_id,
-                start_date: v.start_date,
-                monthly_rent: v.monthly_rent,
-                deposit_amount: v.deposit_amount,
-              }
-            : null,
-      },
+      { full_name: v.full_name, email: v.email, phone: v.phone, tenant_id: null, assignment },
       {
         onSuccess: (result) => {
           if (result.assignment_error) {
@@ -112,28 +137,51 @@ function InviteForm({ onDone }: { onDone: () => void }) {
         onError: (err) => toast.error(getErrorMessage(err)),
       },
     )
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid gap-5">
       <DialogHeader>
-        <DialogTitle>Invite a tenant</DialogTitle>
-        <DialogDescription>
-          They will get an email with a secure link to set their password and activate their account.
-        </DialogDescription>
+        <DialogTitle>Add a tenant</DialogTitle>
+        <DialogDescription>Billing and room occupancy work the same either way.</DialogDescription>
       </DialogHeader>
+
+      <ChoiceCards<AccountType>
+        label="Account type"
+        value={account}
+        onChange={chooseAccount}
+        options={[
+          {
+            value: 'manual',
+            icon: UserRound,
+            title: 'No portal access',
+            description: 'No email needed. You record their payments, e.g. cash.',
+          },
+          {
+            value: 'portal',
+            icon: Wifi,
+            title: 'With portal access',
+            description: 'We email an invite so they can see bills and pay online.',
+          },
+        ]}
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <FormField id="full_name" label="Full name" error={errors.full_name?.message}>
-            <Input id="full_name" autoFocus aria-invalid={!!errors.full_name} {...register('full_name')} />
+            <Input id="full_name" autoComplete="off" aria-invalid={!!errors.full_name} {...register('full_name')} />
           </FormField>
         </div>
-        <FormField id="invite-email" label="Email" error={errors.email?.message}>
-          <Input id="invite-email" type="email" inputMode="email" aria-invalid={!!errors.email} {...register('email')} />
-        </FormField>
-        <FormField id="invite-phone" label="Phone (optional)" error={errors.phone?.message}>
-          <Input id="invite-phone" type="tel" aria-invalid={!!errors.phone} {...register('phone')} />
-        </FormField>
+        {account === 'portal' && (
+          <FormField id="tenant-email" label="Email" error={errors.email?.message}>
+            <Input id="tenant-email" type="email" inputMode="email" autoComplete="off" aria-invalid={!!errors.email} {...register('email')} />
+          </FormField>
+        )}
+        <div className={account === 'manual' ? 'sm:col-span-2' : undefined}>
+          <FormField id="tenant-phone" label="Phone (optional)" error={errors.phone?.message}>
+            <Input id="tenant-phone" type="tel" autoComplete="off" aria-invalid={!!errors.phone} {...register('phone')} />
+          </FormField>
+        </div>
       </div>
 
       <div className="rounded-lg border">
@@ -141,7 +189,7 @@ function InviteForm({ onDone }: { onDone: () => void }) {
           <div>
             <Label htmlFor="assign">Assign a room now</Label>
             <p className="mt-0.5 text-[13px] text-muted-foreground">
-              {hasVacancy ? 'You can also do this later from the tenant page.' : 'There are no vacant rooms right now.'}
+              {hasVacancy ? 'Starts monthly billing. You can also do this later.' : 'There are no vacant rooms right now.'}
             </p>
           </div>
           <Controller
@@ -202,9 +250,9 @@ function InviteForm({ onDone }: { onDone: () => void }) {
       </div>
 
       <DialogFooter>
-        <Button type="submit" disabled={invite.isPending}>
-          {invite.isPending ? <Loader2 className="animate-spin" /> : <Send />}
-          Send invitation
+        <Button type="submit" className="w-full sm:w-auto" disabled={pending}>
+          {pending ? <Loader2 className="animate-spin" /> : account === 'portal' ? <Send /> : <UserPlus />}
+          {account === 'portal' ? 'Add and send invitation' : 'Add tenant'}
         </Button>
       </DialogFooter>
     </form>

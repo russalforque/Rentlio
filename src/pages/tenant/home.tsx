@@ -25,7 +25,7 @@ import type { CalendarMark } from '@/components/app/month-calendar'
 import { ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { type BillOverview, useBillItems } from '@/features/billing/api'
+import type { BillOverview } from '@/features/billing/api'
 import { BillingCalendar } from '@/features/billing/billing-calendar'
 import { BillStatusBadge } from '@/features/billing/bill-status-badge'
 import { METHOD_LABEL, useMyPayments } from '@/features/payments/api'
@@ -58,26 +58,32 @@ const KIND: Record<Enums<'bill_item_kind'>, { icon: LucideIcon; label: string }>
   other: { icon: Plus, label: 'Other' },
 }
 
-/** What makes up the bill being paid: one compact tile per charge type. */
+/** What makes up the consolidated bill: one tile per charge type, with what is still owed on it. */
 function BillBreakdown({ bill, currency }: { bill: BillOverview; currency: string }) {
-  const { data, isPending } = useBillItems(bill.id)
-  if (isPending) return <Skeleton className="h-16 rounded-xl" />
-  if (!data?.length) return null
-  const byKind = new Map<Enums<'bill_item_kind'>, number>()
-  for (const item of data) byKind.set(item.kind, (byKind.get(item.kind) ?? 0) + item.amount)
+  const rows: [Enums<'bill_item_kind'>, number, number][] = [
+    ['rent', bill.rent_amount, bill.rent_paid],
+    ['electricity', bill.electricity_amount, bill.electricity_paid],
+    ['water', bill.water_amount, bill.water_paid],
+    ['other', bill.other_amount, bill.other_paid],
+  ]
   return (
     <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {[...byKind].map(([kind, amount]) => {
-        const { icon: Icon, label } = KIND[kind]
-        return (
-          <div key={kind} className="rounded-xl border px-3 py-2.5">
-            <dt className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-              <Icon className="size-3.5" aria-hidden /> {label}
-            </dt>
-            <dd className="mt-0.5 text-sm font-semibold tabular">{formatMoney(amount, currency)}</dd>
-          </div>
-        )
-      })}
+      {rows
+        .filter(([kind, amount]) => kind !== 'other' || amount > 0)
+        .map(([kind, amount, paid]) => {
+          const { icon: Icon, label } = KIND[kind]
+          return (
+            <div key={kind} className="rounded-xl border px-3 py-2.5">
+              <dt className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                <Icon className="size-3.5" aria-hidden /> {label}
+              </dt>
+              <dd className="mt-0.5 text-sm font-semibold tabular">{formatMoney(amount, currency)}</dd>
+              <dd className={cn('text-[11px] tabular', paid >= amount && amount > 0 ? 'text-success' : 'text-muted-foreground')}>
+                {amount === 0 ? 'Not charged' : paid >= amount ? 'Paid' : paid > 0 ? `${formatMoney(amount - paid, currency)} left` : 'Unpaid'}
+              </dd>
+            </div>
+          )
+        })}
     </dl>
   )
 }
@@ -163,7 +169,9 @@ export function TenantHomePage() {
           ) : totalDue > 0 && nextBill && due ? (
             <>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-[13px] font-medium text-muted-foreground">Amount due</h2>
+                <h2 className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
+                  Amount due <BillStatusBadge status={nextBill.status} overdue={nextBill.is_overdue} />
+                </h2>
                 <span
                   className={cn(
                     'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset',
@@ -326,7 +334,13 @@ export function TenantHomePage() {
                   </span>
                   <span className="flex flex-col items-end gap-1">
                     <span className="text-sm font-semibold tabular md:text-[13px]">{formatMoney(p.amount, currency)}</span>
-                    <PaymentStatusBadge status={p.status} />
+                    {p.status === 'verified' ? (
+                      <Link to={`/receipts/${p.id}`} className="text-xs font-medium text-success underline-offset-2 hover:underline">
+                        Receipt
+                      </Link>
+                    ) : (
+                      <PaymentStatusBadge status={p.status} />
+                    )}
                   </span>
                 </li>
               ))}

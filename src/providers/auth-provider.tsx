@@ -2,15 +2,36 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import type { Session } from '@supabase/supabase-js'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { AuthContext, type AuthState, type Profile } from './auth-context'
+import { AuthContext, type AuthState, type BlockedReason, type Profile, type Registration } from './auth-context'
 
-async function fetchProfile(userId: string): Promise<Profile | null> {
-  const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle()
-  if (error) throw error
-  return data
+interface Account {
+  profile: Profile | null
+  /** Only fetched when the login has no tenant record yet. */
+  registration: Registration | null
 }
 
-type Loaded = { userId: string; profile: Profile | null; error: null } | { userId: string; profile: null; error: unknown }
+/** The login's record (linked by user_id), or else its registration request. */
+async function fetchAccount(userId: string): Promise<Account> {
+  const { data: profile, error } = await supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle()
+  if (error) throw error
+  if (profile) return { profile, registration: null }
+  const { data: rows, error: regError } = await supabase.rpc('my_registration')
+  if (regError) throw regError
+  return { profile: null, registration: rows[0] ?? null }
+}
+
+function blockedReason({ profile, registration }: Account): BlockedReason | null {
+  if (profile) {
+    if (!profile.is_active) return 'inactive'
+    if (profile.suspended_at) return 'suspended'
+    return null
+  }
+  if (registration?.status === 'pending') return 'pending'
+  if (registration?.status === 'rejected') return 'rejected'
+  return 'unknown'
+}
+
+type Loaded = { userId: string; account: Account; error: null } | { userId: string; account: null; error: unknown }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
@@ -33,16 +54,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!userId) return
     let cancelled = false
-    fetchProfile(userId)
-      .then((profile) => !cancelled && setLoaded({ userId, profile, error: null }))
-      .catch((error: unknown) => !cancelled && setLoaded({ userId, profile: null, error }))
+    fetchAccount(userId)
+      .then((account) => !cancelled && setLoaded({ userId, account, error: null }))
+      .catch((error: unknown) => !cancelled && setLoaded({ userId, account: null, error }))
     return () => {
       cancelled = true
     }
   }, [userId, attempt])
 
   const refreshProfile = useCallback(async () => {
-    if (userId) setLoaded({ userId, profile: await fetchProfile(userId), error: null })
+    if (userId) setLoaded({ userId, account: await fetchAccount(userId), error: null })
   }, [userId])
 
   const retry = useCallback(() => {
@@ -59,10 +80,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (session === undefined) return { status: 'loading', session: null, profile: null }
     if (session === null) return { status: 'signed-out', session: null, profile: null }
     if (!loaded || loaded.userId !== session.user.id) return { status: 'loading', session: null, profile: null }
-    if (loaded.error) return { status: 'error', session, profile: null, error: loaded.error }
-    const { profile } = loaded
-    if (profile === null || !profile.is_active) return { status: 'blocked', session, profile }
-    return { status: 'signed-in', session, profile }
+    if (loaded.account === null) return { status: 'error', session, profile: null, error: loaded.error }
+    const { account } = loaded
+    const reason = blockedReason(account)
+    if (reason || !account.profile) {
+      return { status: 'blocked', session, profile: account.profile, reason: reason ?? 'unknown', registration: account.registration }
+    }
+    return { status: 'signed-in', session, profile: account.profile }
   }, [session, loaded])
 
   const value = useMemo(

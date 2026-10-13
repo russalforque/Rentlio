@@ -32,6 +32,7 @@ const router = createBrowserRouter([
             children: [
               page('/login', () => import('@/pages/auth/login'), (m) => m.LoginPage),
               page('/forgot-password', () => import('@/pages/auth/forgot-password'), (m) => m.ForgotPasswordPage),
+              page('/register', () => import('@/pages/auth/register'), (m) => m.RegisterPage),
             ],
           },
           page('/set-password', () => import('@/pages/auth/set-password'), (m) => m.SetPasswordPage),
@@ -40,10 +41,13 @@ const router = createBrowserRouter([
       {
         element: <RequireRole />,
         children: [
+          // Standalone so it prints as a clean page; RLS limits it to the caller's own receipts.
+          page('/receipts/:id', () => import('@/pages/shared/receipt'), (m) => m.ReceiptPage),
           {
             element: <AppShell />,
             children: [
               page('/account', () => import('@/pages/shared/account'), (m) => m.AccountPage),
+              page('/notifications', () => import('@/pages/shared/notifications'), (m) => m.NotificationsPage),
               {
                 element: <RequireRole role="landlord" />,
                 children: [
@@ -51,6 +55,7 @@ const router = createBrowserRouter([
                   page('/rooms', () => import('@/pages/landlord/rooms'), (m) => m.RoomsPage),
                   page('/tenants', () => import('@/pages/landlord/tenants'), (m) => m.TenantsPage),
                   page('/tenants/:id', () => import('@/pages/landlord/tenant-detail'), (m) => m.TenantDetailPage),
+                  page('/registrations', () => import('@/pages/landlord/registrations'), (m) => m.RegistrationsPage),
                   page('/billing', () => import('@/pages/landlord/billing'), (m) => m.BillingPage),
                   page('/billing/readings', () => import('@/pages/landlord/readings'), (m) => m.ReadingsPage),
                   page('/billing/bills/:id', () => import('@/pages/landlord/bill-detail'), (m) => m.BillDetailPage),
@@ -80,7 +85,7 @@ const router = createBrowserRouter([
 
 export default function App() {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
       {isSupabaseConfigured ? (
         <QueryClientProvider client={queryClient}>
           <AuthProvider>

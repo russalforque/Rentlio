@@ -55,7 +55,9 @@ function MeterInputs({
   onPrev,
   onCurr,
   idPrefix,
+  disabled,
 }: {
+  disabled?: boolean
   label: string
   unit: string
   rate: number
@@ -83,6 +85,7 @@ function MeterInputs({
             enterKeyHint="next"
             autoComplete="off"
             value={prev}
+            disabled={disabled}
             onChange={(e) => onPrev(e.target.value)}
             className="tabular"
             aria-invalid={!!error}
@@ -99,6 +102,7 @@ function MeterInputs({
             enterKeyHint="next"
             autoComplete="off"
             value={curr}
+            disabled={disabled}
             onChange={(e) => onCurr(e.target.value)}
             className="font-semibold tabular"
             aria-invalid={!!error}
@@ -170,7 +174,7 @@ function ReadingGrid({
       { period, readings },
       {
         onSuccess: (count) =>
-          toast.success(`Saved readings for ${count} ${count === 1 ? 'room' : 'rooms'}. Existing bills were updated.`),
+          toast.success(`Saved readings for ${count} ${count === 1 ? 'room' : 'rooms'}. Draft bills were updated.`),
         onError: (err) => toast.error(getErrorMessage(err)),
       },
     )
@@ -227,14 +231,22 @@ function ReadingGrid({
                     <p className="font-display text-lg font-semibold">Room {r.room_number}</p>
                     <p className="truncate text-[13px] text-muted-foreground">{r.tenant_name ?? 'Vacant'}</p>
                   </div>
-                  {r.is_billable && (
-                    <StatusPill tone={isRead(r.room_id) ? 'success' : 'warning'} className="shrink-0 md:mt-2">
-                      {isRead(r.room_id) ? 'Read' : 'Missing'}
+                  {r.bill_finalized ? (
+                    // The month's bill is sent; reopen it from the bill page to correct the reading.
+                    <StatusPill tone="neutral" className="shrink-0 md:mt-2">
+                      Bill sent
                     </StatusPill>
+                  ) : (
+                    r.is_billable && (
+                      <StatusPill tone={isRead(r.room_id) ? 'success' : 'warning'} className="shrink-0 md:mt-2">
+                        {isRead(r.room_id) ? 'Read' : 'Missing'}
+                      </StatusPill>
+                    )
                   )}
                 </div>
                 <MeterInputs
                   idPrefix={`e-${r.room_id}`}
+                  disabled={r.bill_finalized}
                   label="Electricity (kWh)"
                   unit="kWh"
                   rate={settings.electricity_rate}
@@ -247,6 +259,7 @@ function ReadingGrid({
                 {metered && (
                   <MeterInputs
                     idPrefix={`w-${r.room_id}`}
+                    disabled={r.bill_finalized}
                     label="Water (m³)"
                     unit="m³"
                     rate={settings.water_rate}
@@ -287,7 +300,7 @@ export function ReadingsPage() {
     <div className="space-y-5">
       <PageHeader
         title="Meter readings"
-        description={`Electricity${settings.data?.water_billing_mode === 'metered' ? ' and water' : ''} for ${formatPeriod(period)}. Bills for this month update automatically when you save.`}
+        description={`Electricity${settings.data?.water_billing_mode === 'metered' ? ' and water' : ''} for ${formatPeriod(period)}. Draft bills update when you save; bills already sent are locked.`}
       />
       <PeriodPicker value={period} onChange={setPeriod} />
       {error ? (

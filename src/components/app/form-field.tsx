@@ -9,14 +9,17 @@ interface FormFieldProps {
   children: ReactNode
 }
 
-/** Label + control + hint/error, with the error wired to aria-describedby by id. */
+/**
+ * Label + control + hint/error. The error is announced to screen readers when
+ * it appears (role="alert") and wraps rather than widening the layout.
+ */
 export function FormField({ id, label, error, hint, children }: FormFieldProps) {
   return (
-    <div className="grid content-start gap-1.5">
+    <div className="grid min-w-0 content-start gap-1.5">
       <Label htmlFor={id}>{label}</Label>
       {children}
       {error ? (
-        <p id={`${id}-error`} className="text-[13px] text-destructive">
+        <p id={`${id}-error`} role="alert" className="text-[13px] wrap-anywhere text-destructive">
           {error}
         </p>
       ) : (

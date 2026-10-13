@@ -99,16 +99,20 @@ async function throwing<T>(promise: PromiseLike<{ data: T; error: unknown }>): P
   return data
 }
 
+export interface RoomAssignmentInput {
+  room_id: string
+  start_date: string
+  monthly_rent: number | null
+  deposit_amount: number | null
+}
+
 export interface InviteTenantInput {
   email: string
   full_name: string
   phone: string | null
-  assignment: {
-    room_id: string
-    start_date: string
-    monthly_rent: number | null
-    deposit_amount: number | null
-  } | null
+  /** An existing tenant record without a login, to give portal access to. */
+  tenant_id: string | null
+  assignment: RoomAssignmentInput | null
 }
 
 export interface InviteTenantResult {
@@ -122,6 +126,35 @@ export function useInviteTenant() {
   return useMutation({
     mutationFn: (input: InviteTenantInput) =>
       invokeFunction<InviteTenantResult>('invite-tenant', { ...input }),
+    onSuccess: invalidate,
+  })
+}
+
+/** A tenant with no login, housed in the same transaction when a room is given. */
+export function useCreateManualTenant() {
+  const invalidate = useInvalidateTenancy()
+  return useMutation({
+    mutationFn: (input: { full_name: string; phone: string | null; assignment: RoomAssignmentInput | null }) =>
+      throwing(
+        supabase.rpc('create_manual_tenant', {
+          p_full_name: input.full_name,
+          p_phone: input.phone,
+          p_room_id: input.assignment?.room_id ?? null,
+          p_start_date: input.assignment?.start_date ?? null,
+          p_monthly_rent: input.assignment?.monthly_rent ?? null,
+          p_deposit_amount: input.assignment?.deposit_amount ?? null,
+        }),
+      ),
+    onSuccess: invalidate,
+  })
+}
+
+/** Blocks or restores a tenant's portal sign-in data access; the tenancy is unaffected. */
+export function useSetPortalSuspended() {
+  const invalidate = useInvalidateTenancy()
+  return useMutation({
+    mutationFn: ({ tenantId, suspended, reason }: { tenantId: string; suspended: boolean; reason: string | null }) =>
+      throwing(supabase.rpc('set_portal_suspended', { p_tenant_id: tenantId, p_suspended: suspended, p_reason: reason })),
     onSuccess: invalidate,
   })
 }

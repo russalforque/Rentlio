@@ -12,8 +12,9 @@ import { formatDate, formatMoney, formatPeriod } from '@/lib/format'
 export function TenantBillsPage() {
   const { data, isPending, error, refetch } = useMyBills()
   const currency = useCurrency()
-  const outstanding = (data ?? []).reduce((t, b) => t + (b.status === 'paid' ? 0 : b.balance), 0)
+  // Only open bills count: a voided bill keeps its old balance but is not owed.
   const open = (data ?? []).filter((b) => b.status === 'unpaid' || b.status === 'partial')
+  const outstanding = open.reduce((t, b) => t + b.balance, 0)
   const nextDue = [...open].sort((a, b) => a.due_date.localeCompare(b.due_date))[0]
   const year = String(new Date().getFullYear())
   const paidThisYear = (data ?? []).filter((b) => b.period.startsWith(year)).reduce((t, b) => t + b.amount_paid, 0)

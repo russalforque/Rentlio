@@ -1,7 +1,9 @@
 import { differenceInCalendarMonths, parseISO } from 'date-fns'
 import {
   ArrowRightLeft,
+  Ban,
   CalendarDays,
+  KeyRound,
   DoorOpen,
   History,
   LogOut,
@@ -14,7 +16,9 @@ import {
   Power,
   Send,
   ShieldAlert,
+  ShieldCheck,
   TriangleAlert,
+  UserRound,
   UserX,
   Wallet,
 } from 'lucide-react'
@@ -38,10 +42,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   useDepositLedger,
   useManageTenant,
+  useSetPortalSuspended,
   useTenant,
   useTenantLeases,
   type TenantOverview,
 } from '@/features/tenants/api'
+import { EnablePortalDialog, SuspendPortalDialog } from '@/features/tenants/portal-access-dialogs'
 import {
   AssignRoomDialog,
   DepositDialog,
@@ -56,7 +62,18 @@ import { getErrorMessage } from '@/lib/errors'
 import { formatDate, formatMoney } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-type DialogName = 'edit' | 'assign' | 'move' | 'end' | 'rent' | 'deposit' | 'deactivate' | 'reactivate'
+type DialogName =
+  | 'edit'
+  | 'assign'
+  | 'move'
+  | 'end'
+  | 'rent'
+  | 'deposit'
+  | 'deactivate'
+  | 'reactivate'
+  | 'enable-portal'
+  | 'suspend'
+  | 'restore'
 
 function Detail({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -249,6 +266,7 @@ export function TenantDetailPage() {
   const { data: tenant, isPending, error, refetch } = useTenant(id)
   const { data: leases } = useTenantLeases(id)
   const manage = useManageTenant()
+  const portal = useSetPortalSuspended()
   const currency = useCurrency()
   const [dialog, setDialog] = useState<DialogName | null>(null)
   const close = (o: boolean) => !o && setDialog(null)
@@ -270,7 +288,7 @@ export function TenantDetailPage() {
       <EmptyState
         icon={UserX}
         title="Tenant not found"
-        description="This tenant does not exist or was never invited."
+        description="This tenant record does not exist."
         action={<Button asChild variant="outline"><Link to="/tenants">Back to tenants</Link></Button>}
       />
     )
@@ -308,7 +326,7 @@ export function TenantDetailPage() {
               <TenantStatusBadge status={tenant.account_status} />
             </div>
             <p className="truncate text-[13px] text-muted-foreground">
-              {tenant.room_number ? `Room ${tenant.room_number}` : 'No room assigned'} · {tenant.email}
+              {tenant.room_number ? `Room ${tenant.room_number}` : 'No room assigned'} · {tenant.email ?? 'No portal access'}
             </p>
           </div>
         </div>
@@ -330,6 +348,11 @@ export function TenantDetailPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
+              {tenant.account_status === 'no_portal' && (
+                <DropdownMenuItem onSelect={() => setDialog('enable-portal')}>
+                  <KeyRound /> Enable portal access
+                </DropdownMenuItem>
+              )}
               {tenant.account_status === 'invited' && (
                 <DropdownMenuItem
                   disabled={manage.isPending}
@@ -338,9 +361,19 @@ export function TenantDetailPage() {
                   <Send /> Resend invitation
                 </DropdownMenuItem>
               )}
+              {(tenant.account_status === 'active' || tenant.account_status === 'invited') && (
+                <DropdownMenuItem onSelect={() => setDialog('suspend')}>
+                  <Ban /> Suspend portal access
+                </DropdownMenuItem>
+              )}
+              {tenant.account_status === 'suspended' && (
+                <DropdownMenuItem onSelect={() => setDialog('restore')}>
+                  <ShieldCheck /> Restore portal access
+                </DropdownMenuItem>
+              )}
               {tenant.is_active ? (
                 <>
-                  {tenant.account_status === 'invited' && <DropdownMenuSeparator />}
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem variant="destructive" onSelect={() => setDialog('deactivate')}>
                     <Power /> Deactivate account
                   </DropdownMenuItem>
@@ -396,9 +429,39 @@ export function TenantDetailPage() {
           activated their account yet. You can still assign a room and bill them.
         </Callout>
       )}
+      {tenant.account_status === 'no_portal' && (
+        <Callout
+          tone="neutral"
+          icon={UserRound}
+          action={
+            <Button variant="outline" size="sm" onClick={() => setDialog('enable-portal')}>
+              <KeyRound /> Enable portal access
+            </Button>
+          }
+        >
+          <span className="font-semibold">No portal access.</span> {tenant.full_name.split(' ')[0] || 'This tenant'} is billed
+          as normal; record their payments from each bill. Add an email any time to give them a login.
+        </Callout>
+      )}
+      {tenant.account_status === 'suspended' && (
+        <Callout
+          tone="warning"
+          icon={Ban}
+          action={
+            <Button variant="outline" size="sm" onClick={() => setDialog('restore')}>
+              <ShieldCheck /> Restore access
+            </Button>
+          }
+        >
+          <span className="font-semibold">Portal access suspended</span>
+          {tenant.suspended_at && ` since ${formatDate(tenant.suspended_at.slice(0, 10))}`}. Billing and the tenancy
+          continue.{tenant.suspension_reason && <> Reason: “{tenant.suspension_reason}”</>}
+        </Callout>
+      )}
       {tenant.account_status === 'inactive' && (
         <Callout tone="neutral" icon={ShieldAlert}>
-          This account is deactivated. The tenant cannot sign in. Their bills and payment history are kept.
+          This tenant is deactivated{tenant.has_portal_access ? ' and cannot sign in' : ''}. Their bills and payment
+          history are kept.
         </Callout>
       )}
 
@@ -420,10 +483,14 @@ export function TenantDetailPage() {
             <CardContent>
               <dl className="grid gap-4 text-sm">
                 <Detail label="Email">
-                  <a href={`mailto:${tenant.email}`} className="inline-flex items-center gap-1.5 break-all underline-offset-2 hover:underline">
-                    <Mail className="size-3.5 shrink-0 text-muted-foreground" />
-                    {tenant.email}
-                  </a>
+                  {tenant.email ? (
+                    <a href={`mailto:${tenant.email}`} className="inline-flex items-center gap-1.5 break-all underline-offset-2 hover:underline">
+                      <Mail className="size-3.5 shrink-0 text-muted-foreground" />
+                      {tenant.email}
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground">— No portal access</span>
+                  )}
                 </Detail>
                 <Detail label="Phone">
                   {tenant.phone ? (
@@ -473,11 +540,11 @@ export function TenantDetailPage() {
       <ConfirmDialog
         open={dialog === 'deactivate'}
         onOpenChange={close}
-        title="Deactivate account?"
+        title={tenant.has_portal_access ? 'Deactivate account?' : 'Deactivate tenant?'}
         description={
           tenant.lease_id
             ? `${tenant.full_name} still has room ${tenant.room_number}. End the tenancy first, then deactivate.`
-            : `${tenant.full_name} will no longer be able to sign in. Their bills, payments and deposit records are kept, and you can reactivate later.`
+            : `${tenant.has_portal_access ? `${tenant.full_name} will no longer be able to sign in. ` : ''}Their bills, payments and deposit records are kept, and you can reactivate later.`
         }
         confirmLabel={tenant.lease_id ? 'End tenancy first' : 'Deactivate'}
         destructive={!tenant.lease_id}
@@ -486,11 +553,37 @@ export function TenantDetailPage() {
           tenant.lease_id ? setDialog('end') : runAction('deactivate', `${tenant.full_name}'s account was deactivated`)
         }
       />
+      {dialog === 'enable-portal' && <EnablePortalDialog tenant={tenant} open onOpenChange={close} />}
+      {dialog === 'suspend' && <SuspendPortalDialog tenant={tenant} open onOpenChange={close} />}
+      <ConfirmDialog
+        open={dialog === 'restore'}
+        onOpenChange={close}
+        title="Restore portal access?"
+        description={`${tenant.full_name} will see their room, bills and payments again.`}
+        confirmLabel="Restore access"
+        pending={portal.isPending}
+        onConfirm={() =>
+          portal.mutate(
+            { tenantId: tenant.id, suspended: false, reason: null },
+            {
+              onSuccess: () => {
+                toast.success(`${tenant.full_name}'s portal access was restored`)
+                setDialog(null)
+              },
+              onError: (err) => toast.error(getErrorMessage(err)),
+            },
+          )
+        }
+      />
       <ConfirmDialog
         open={dialog === 'reactivate'}
         onOpenChange={close}
-        title="Reactivate account?"
-        description={`${tenant.full_name} will be able to sign in again.`}
+        title={tenant.has_portal_access ? 'Reactivate account?' : 'Reactivate tenant?'}
+        description={
+          tenant.has_portal_access
+            ? `${tenant.full_name} will be able to sign in again.`
+            : `${tenant.full_name} can be assigned a room again.`
+        }
         confirmLabel="Reactivate"
         pending={manage.isPending}
         onConfirm={() => runAction('reactivate', `${tenant.full_name}'s account was reactivated`)}

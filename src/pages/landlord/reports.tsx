@@ -30,14 +30,19 @@ function useMonths() {
   const months = useMemo(() => {
     const rows = Array.from({ length: MONTHS }, (_, i) => {
       const period = shiftPeriod(from, i)
-      return { period, billed: 0, collected: 0, outstanding: 0, bills: 0 }
+      return { period, billed: 0, collected: 0, outstanding: 0, bills: 0, rent: 0, electricity: 0, water: 0, other: 0 }
     })
+    // Drafts have not been sent to tenants, so they are neither billed nor owed yet.
     for (const b of query.data ?? []) {
-      const row = rows.find((r) => r.period === b.period)
+      const row = b.is_finalized ? rows.find((r) => r.period === b.period) : undefined
       if (!row) continue
       row.billed += b.total_amount
       row.collected += b.amount_paid
       row.outstanding += b.balance
+      row.rent += b.rent_paid
+      row.electricity += b.electricity_paid
+      row.water += b.water_paid
+      row.other += b.other_paid
       row.bills++
     }
     return rows
@@ -55,8 +60,19 @@ function CollectionsCard({ currency }: { currency: string }) {
   const exportCsv = () =>
     downloadCsv(
       `collections-${from.slice(0, 7)}-to-${currentPeriod().slice(0, 7)}.csv`,
-      ['Month', 'Bills', 'Billed', 'Collected', 'Outstanding', 'Collection rate'],
-      months.map((m) => [m.period.slice(0, 7), m.bills, m.billed.toFixed(2), m.collected.toFixed(2), m.outstanding.toFixed(2), rate(m.collected, m.billed)]),
+      ['Month', 'Bills', 'Billed', 'Collected', 'Rent collected', 'Electricity collected', 'Water collected', 'Other collected', 'Outstanding', 'Collection rate'],
+      months.map((m) => [
+        m.period.slice(0, 7),
+        m.bills,
+        m.billed.toFixed(2),
+        m.collected.toFixed(2),
+        m.rent.toFixed(2),
+        m.electricity.toFixed(2),
+        m.water.toFixed(2),
+        m.other.toFixed(2),
+        m.outstanding.toFixed(2),
+        rate(m.collected, m.billed),
+      ]),
     )
 
   return (

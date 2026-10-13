@@ -9,6 +9,8 @@
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test": "npm run test:unit && npm run test:db",
+    "test:unit": "node --test \"tests/unit/*.test.ts\"",
     "test:db": "node supabase/tests/db.test.mjs",
     "db:types": "supabase gen types typescript --linked --schema public > src/lib/database.generated.ts"
   },

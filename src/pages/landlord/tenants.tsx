@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronRight, MailCheck, Search, UserCheck, UserPlus, Users } from 'lucide-react'
+import { AlertTriangle, ChevronRight, Search, UserCheck, UserPlus, UserRound, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Fab } from '@/components/app/fab'
@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { UserAvatar } from '@/features/account/user-avatar'
 import { useTenants, type TenantOverview } from '@/features/tenants/api'
-import { InviteTenantDialog } from '@/features/tenants/invite-tenant-dialog'
+import { AddTenantDialog } from '@/features/tenants/add-tenant-dialog'
 import { TenantStatusBadge } from '@/features/tenants/tenant-status-badge'
 import { useCurrency } from '@/hooks/use-settings'
 import { formatMoney } from '@/lib/format'
@@ -52,7 +52,7 @@ export function TenantsPage() {
   const [inviting, setInviting] = useState(false)
 
   const counts = useMemo(() => {
-    const c = { all: 0, active: 0, invited: 0, inactive: 0, owing: 0, owed: 0, housed: 0 }
+    const c = { all: 0, active: 0, invited: 0, no_portal: 0, suspended: 0, inactive: 0, owing: 0, owed: 0, housed: 0 }
     for (const t of tenants ?? []) {
       c.all++
       c[t.account_status]++
@@ -72,7 +72,7 @@ export function TenantsPage() {
         (filter === 'all' || t.account_status === filter) &&
         (!q ||
           t.full_name.toLowerCase().includes(q) ||
-          t.email.toLowerCase().includes(q) ||
+          (t.email ?? '').toLowerCase().includes(q) ||
           (t.room_number ?? '').toLowerCase().includes(q) ||
           (t.phone ?? '').includes(q)),
     )
@@ -82,7 +82,7 @@ export function TenantsPage() {
     <div className="space-y-5">
       <PageHeader
         title="Tenants overview"
-        description="Invite tenants, assign rooms and manage tenancies."
+        description="Add tenants, assign rooms and manage tenancies."
         tabs={
           counts.all > 0 && (
             <FilterChips
@@ -91,8 +91,10 @@ export function TenantsPage() {
               onChange={setFilter}
               options={[
                 { value: 'all', label: 'View all', count: counts.all },
-                { value: 'active', label: 'Active', count: counts.active },
+                { value: 'active', label: 'Portal active', count: counts.active },
+                { value: 'no_portal', label: 'No portal', count: counts.no_portal },
                 { value: 'invited', label: 'Invite pending', count: counts.invited },
+                ...(counts.suspended ? [{ value: 'suspended' as const, label: 'Suspended', count: counts.suspended }] : []),
                 { value: 'inactive', label: 'Inactive', count: counts.inactive },
               ]}
             />
@@ -100,7 +102,7 @@ export function TenantsPage() {
         }
         actions={
           <Button className="hidden md:inline-flex" onClick={() => setInviting(true)}>
-            <UserPlus /> Invite tenant
+            <UserPlus /> Add tenant
           </Button>
         }
       />
@@ -116,8 +118,8 @@ export function TenantsPage() {
         <EmptyState
           icon={Users}
           title="No tenants yet"
-          description="Invite your first tenant. They will receive an email to activate their account."
-          action={<Button onClick={() => setInviting(true)}><UserPlus /> Invite tenant</Button>}
+          description="Add your first tenant. Email is optional: tenants without one simply have no portal access."
+          action={<Button onClick={() => setInviting(true)}><UserPlus /> Add tenant</Button>}
         />
       ) : (
         <>
@@ -130,18 +132,22 @@ export function TenantsPage() {
               sub={<span className="text-xs text-muted-foreground">{counts.housed} with a room</span>}
             />
             <StatTile
-              label="Active"
+              label="Portal active"
               value={String(counts.active)}
               icon={UserCheck}
               accent="green"
-              sub={<span className="text-xs text-muted-foreground">Signed in at least once</span>}
+              sub={
+                <span className="text-xs text-muted-foreground">
+                  {counts.invited ? `${counts.invited} invite${counts.invited === 1 ? '' : 's'} pending` : 'Signed in at least once'}
+                </span>
+              }
             />
             <StatTile
-              label="Invite pending"
-              value={String(counts.invited)}
-              icon={MailCheck}
+              label="No portal access"
+              value={String(counts.no_portal)}
+              icon={UserRound}
               accent="blue"
-              sub={<span className="text-xs text-muted-foreground">Not activated yet</span>}
+              sub={<span className="text-xs text-muted-foreground">You record their payments</span>}
             />
             <StatTile
               label="Balance due"
@@ -226,7 +232,7 @@ export function TenantsPage() {
                             <TenantAvatar tenant={t} />
                             <span className="min-w-0">
                               <span className="block truncate font-semibold">{t.full_name || '—'}</span>
-                              <span className="block truncate text-xs text-muted-foreground">{t.email}</span>
+                              <span className="block truncate text-xs text-muted-foreground">{t.email ?? t.phone ?? 'No email'}</span>
                             </span>
                           </Link>
                         </TableCell>
@@ -259,8 +265,8 @@ export function TenantsPage() {
         </>
       )}
 
-      {counts.all > 0 && <Fab icon={UserPlus} label="Invite tenant" onClick={() => setInviting(true)} />}
-      <InviteTenantDialog open={inviting} onOpenChange={setInviting} />
+      {counts.all > 0 && <Fab icon={UserPlus} label="Add tenant" onClick={() => setInviting(true)} />}
+      <AddTenantDialog open={inviting} onOpenChange={setInviting} />
     </div>
   )
 }

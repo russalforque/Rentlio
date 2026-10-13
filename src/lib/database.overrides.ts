@@ -9,6 +9,44 @@
 import type { Database as Generated, Json } from './database.generated'
 
 type E = Generated['public']['Enums']
+type Checkout = Generated['public']['Tables']['payment_checkouts']['Row']
+
+/** What payment_receipt() returns for a verified payment the caller may see. */
+export interface PaymentReceipt {
+  receipt_number: number
+  payment: {
+    id: string
+    amount: number
+    method: E['payment_method']
+    paid_on: string
+    reference_number: string | null
+    provider: string | null
+    verified_at: string
+    recorded_by_landlord: boolean
+  }
+  bill: { id: string; bill_number: number; period: string; issue_date: string; due_date: string; total_amount: number }
+  tenant_name: string
+  room_number: string
+  property: {
+    name: string
+    address: string | null
+    currency_code: string
+    contact_name: string | null
+    contact_phone: string | null
+    contact_email: string | null
+  }
+  /** Every charge on the bill: what was paid before this payment, what this payment paid, what is left. */
+  lines: {
+    kind: E['bill_item_kind']
+    description: string
+    amount: number
+    paid_before: number
+    applied: number
+    remaining: number
+  }[]
+  balance_before: number
+  balance_after: number
+}
 
 export type ViewRows = {
   bill_overview: {
@@ -29,12 +67,28 @@ export type ViewRows = {
       room_id: string
       room_number: string
       status: E['bill_status']
-      tenant_email: string
+      tenant_email: string | null
       tenant_id: string
       tenant_name: string
       total_amount: number
       void_reason: string | null
       voided_at: string | null
+      /** Draft bills are invisible to tenants and cannot take payments. */
+      is_finalized: boolean
+      finalized_at: string | null
+      /** Times finalized; above 1 means it was corrected after being issued. */
+      revision: number
+      /** Required charges a draft still lacks: 'rent' | 'electricity' | 'water'. */
+      missing_charges: string[]
+      rent_amount: number
+      electricity_amount: number
+      water_amount: number
+      other_amount: number
+      /** Collected per charge type, from payment_allocations (see the allocation policy). */
+      rent_paid: number
+      electricity_paid: number
+      water_paid: number
+      other_paid: number
     }
     Relationships: []
   }
@@ -62,6 +116,10 @@ export type ViewRows = {
       submitted_by: string
       tenant_id: string
       tenant_name: string
+      /** Set once verified. */
+      receipt_number: number | null
+      /** 'paymongo' for provider-verified online payments. */
+      provider: string | null
     }
     Relationships: []
   }
@@ -77,15 +135,17 @@ export type ViewRows = {
   }
   tenant_overview: {
     Row: {
-      account_status: 'invited' | 'active' | 'inactive'
+      /** no_portal: a manual tenant with no login. */
+      account_status: 'no_portal' | 'invited' | 'active' | 'suspended' | 'inactive'
       activated_at: string | null
       avatar_path: string | null
       created_at: string
       deposit_balance: number
-      email: string
+      email: string | null
       emergency_contact_name: string | null
       emergency_contact_phone: string | null
       full_name: string
+      has_portal_access: boolean
       id: string
       invited_at: string | null
       is_active: boolean
@@ -96,6 +156,8 @@ export type ViewRows = {
       phone: string | null
       room_id: string | null
       room_number: string | null
+      suspended_at: string | null
+      suspension_reason: string | null
     }
     Relationships: []
   }
@@ -135,8 +197,34 @@ export type FunctionOverrides = {
     }
     Returns: string
   }
+  approve_registration: {
+    Args: {
+      p_request_id: string
+      p_tenant_id: string | null
+      p_identity_check: E['identity_check']
+      p_note: string
+    }
+    Returns: string
+  }
+  create_manual_tenant: {
+    Args: {
+      p_full_name: string
+      p_phone?: string | null
+      p_room_id?: string | null
+      p_start_date?: string | null
+      p_monthly_rent?: number | null
+      p_deposit_amount?: number | null
+    }
+    Returns: string
+  }
+  cancel_online_payment: { Args: { p_checkout_id: string }; Returns: Checkout }
   end_lease: { Args: { p_lease_id: string; p_end_date: string }; Returns: undefined }
+  finalize_bill: { Args: { p_bill_id: string; p_skip_missing?: boolean }; Returns: undefined }
+  finalize_bills: { Args: { p_period: string }; Returns: number }
   generate_bills: { Args: { p_period: string }; Returns: number }
+  payment_receipt: { Args: { p_payment_id: string }; Returns: PaymentReceipt | null }
+  reopen_bill: { Args: { p_bill_id: string }; Returns: undefined }
+  start_online_payment: { Args: { p_bill_id: string; p_amount: number }; Returns: Checkout }
   is_landlord: { Args: never; Returns: boolean }
   meter_reading_sheet: {
     Args: { p_period: string }
@@ -151,11 +239,26 @@ export type FunctionOverrides = {
       electricity_current: number | null
       water_previous: number | null
       water_current: number | null
+      bill_id: string | null
+      /** The room's bill for the month is finalized, so its reading is locked. */
+      bill_finalized: boolean
     }[]
   }
   move_tenant: {
     Args: { p_lease_id: string; p_room_id: string; p_move_date: string; p_monthly_rent?: number | null }
     Returns: string
+  }
+  my_registration: {
+    Args: never
+    Returns: {
+      status: E['registration_status']
+      full_name: string
+      email: string
+      requested_room: string | null
+      submitted_at: string
+      email_verified: boolean
+      rejection_reason: string | null
+    }[]
   }
   mark_account_activated: { Args: never; Returns: undefined }
   property_today: { Args: never; Returns: string }
@@ -179,12 +282,19 @@ export type FunctionOverrides = {
       p_reference_number?: string | null
       p_notes?: string | null
       p_proof_path?: string | null
+      /** Idempotency key: resubmitting the same request returns the first payment. */
+      p_request_id?: string | null
     }
     Returns: string
   }
+  reject_registration: { Args: { p_request_id: string; p_reason: string }; Returns: undefined }
   remove_bill_charge: { Args: { p_item_id: string }; Returns: undefined }
   review_payment: {
     Args: { p_payment_id: string; p_approve: boolean; p_amount?: number | null; p_reason?: string | null }
+    Returns: undefined
+  }
+  set_portal_suspended: {
+    Args: { p_tenant_id: string; p_suspended: boolean; p_reason?: string | null }
     Returns: undefined
   }
   set_tenant_active: { Args: { p_tenant_id: string; p_active: boolean }; Returns: undefined }
@@ -197,6 +307,7 @@ export type FunctionOverrides = {
       p_proof_path: string
       p_reference_number?: string | null
       p_notes?: string | null
+      p_request_id?: string | null
     }
     Returns: string
   }

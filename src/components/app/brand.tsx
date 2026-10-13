@@ -1,6 +1,16 @@
 import { cn } from '@/lib/utils'
 
-/** Logo: a roofline over a lit window, on an ink tile. */
+/** The Rentlio mark (a house outline with an open door), traced from public/image.png. Fills with currentColor. */
+export function LogoGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="160 150 930 930" className={className} fill="currentColor" aria-hidden>
+      <path d="M369 905V577L585 408Q625 382 665 408L872 580V905A95 95 0 0 0 1062 905V567Q1062 523 1025 492L708 230Q628 171 548 228L222 490Q188 517 188 560V905A90.5 90.5 0 0 0 369 905Z" />
+      <path d="M527 666L710 594Q753 578 753 624V1000Q753 1036 718 1030L527 991Q497 985 497 961V704Q497 677 527 666Z" />
+    </svg>
+  )
+}
+
+/** Logo: the mark on an ink tile. */
 export function BrandMark({ className, inverted }: { className?: string; inverted?: boolean }) {
   return (
     <span
@@ -10,11 +20,7 @@ export function BrandMark({ className, inverted }: { className?: string; inverte
         className,
       )}
     >
-      <svg viewBox="0 0 24 24" className="size-[58%]" fill="none" aria-hidden>
-        <path d="M3.5 11 12 4l8.5 7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M6 10v9.5h12V10" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
-        <rect x="9.6" y="12.4" width="4.8" height="4.8" rx="1" fill="var(--highlight)" />
-      </svg>
+      <LogoGlyph className="size-[64%]" />
     </span>
   )
 }

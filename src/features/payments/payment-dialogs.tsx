@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft, Check, CheckCircle2, ChevronRight, HandCoins, Loader2, type LucideIcon, Mail, Phone, Send, Smartphone, X } from 'lucide-react'
+import { ArrowLeft, Check, CheckCircle2, ChevronRight, HandCoins, Loader2, Lock, type LucideIcon, Mail, Phone, Send, ShieldCheck, Smartphone, X } from 'lucide-react'
 import { useState } from 'react'
 import { useForm, useWatch, type UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -18,7 +18,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrency, useSettings } from '@/hooks/use-settings'
-import type { Enums } from '@/lib/database.types'
 import { todayISO } from '@/lib/dates'
 import { getErrorMessage } from '@/lib/errors'
 import { dateInput, moneyInput } from '@/lib/form-fields'
@@ -26,15 +25,15 @@ import { formatDate, formatMoney, formatPeriod } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { optionalText } from '@/lib/validation'
 import {
+  MANUAL_METHODS,
   METHOD_LABEL,
   useRecordPayment,
   useReviewPayment,
+  useStartOnlinePayment,
   useSubmitPayment,
   type PaymentOverview,
 } from './api'
 import { ProofFileInput, ProofPreview } from './components'
-
-const METHODS = Object.entries(METHOD_LABEL) as [Enums<'payment_method'>, string][]
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -222,6 +221,8 @@ interface BillRef {
   balance: number
   period: string
   room_number: string
+  /** Sent by the tenant, not yet verified: it cannot be paid twice. */
+  pending_amount?: number
 }
 
 function PaymentFields({
@@ -270,7 +271,7 @@ function PaymentFields({
       <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2">
         <FormField id="pay-method" label="Method">
           <NativeSelect id="pay-method" {...register('method')}>
-            {METHODS.map(([value, label]) => (
+            {MANUAL_METHODS.map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
@@ -311,6 +312,8 @@ export function RecordPaymentDialog({
 function RecordForm({ bill, onDone }: { bill: BillRef; onDone: () => void }) {
   const currency = useCurrency()
   const record = useRecordPayment()
+  // One per dialog: a double click or a retry after a lost response records the payment once.
+  const [requestId] = useState(() => crypto.randomUUID())
   const [receipt, setReceipt] = useState<File | null>(null)
   const form = useForm<PaymentInput, unknown, PaymentOutput>({
     resolver: zodResolver(paymentSchema(bill.balance)),
@@ -328,6 +331,7 @@ function RecordForm({ bill, onDone }: { bill: BillRef; onDone: () => void }) {
         reference: v.reference,
         notes: v.notes,
         receipt,
+        requestId,
       },
       {
         onSuccess: () => {
@@ -377,14 +381,15 @@ export function SubmitPaymentDialog({
 }
 
 /** Methods a tenant can pay with remotely and prove with a screenshot. */
-const ONLINE_METHODS: { value: Enums<'payment_method'>; label: string; note: string }[] = [
+const PROOF_METHODS: { value: PaymentOutput['method']; label: string; note: string }[] = [
   { value: 'gcash', label: 'GCash', note: 'E-wallet' },
   { value: 'maya', label: 'Maya', note: 'E-wallet' },
   { value: 'bank_transfer', label: 'Bank transfer', note: 'Online or OTC' },
   { value: 'other', label: 'Other', note: 'Any other way' },
 ]
 
-type Step = 'choose' | 'online' | 'in-person' | 'sent'
+/** online: the provider's hosted checkout. proof: paid elsewhere, upload a screenshot for the landlord. */
+type Step = 'choose' | 'online' | 'proof' | 'in-person' | 'sent'
 
 /** Where the tenant is in the flow: shown as a small "Step 1 of 2" line. */
 function StepLabel({ n, of }: { n: number; of: number }) {
@@ -407,17 +412,105 @@ function AmountSummary({ bill, currency }: { bill: BillRef; currency: string }) 
   )
 }
 
+/** Hosted checkout at the payment provider. The payment is recorded when the provider confirms it, not here. */
+function OnlineCheckout({ bill, owed, currency, onBack, onUseProof }: {
+  bill: BillRef
+  owed: number
+  currency: string
+  onBack: () => void
+  onUseProof: () => void
+}) {
+  const start = useStartOnlinePayment()
+  const [amount, setAmount] = useState(String(owed))
+  const [error, setError] = useState<string | null>(null)
+
+  const go = () => {
+    const raw = amount.replace(/,/g, '').trim()
+    const value = Number(raw)
+    if (!/^\d+(\.\d{1,2})?$/.test(raw) || value <= 0) return setError('Enter a valid amount')
+    if (value > owed) return setError(`You owe ${formatMoney(owed, currency)} on this bill`)
+    start.mutate(
+      { billId: bill.id, amount: value },
+      {
+        // Leaves the app; the provider sends the tenant back to this bill afterwards.
+        onSuccess: ({ checkout_url }) => window.location.assign(checkout_url),
+        onError: (err) => toast.error(getErrorMessage(err)),
+      },
+    )
+  }
+
+  return (
+    <div className="grid gap-5">
+      <DialogHeader>
+        <StepLabel n={2} of={2} />
+        <DialogTitle>Pay online</DialogTitle>
+        <DialogDescription>
+          You'll finish on a secure payment page. Your bill updates on its own once the payment goes through.
+        </DialogDescription>
+      </DialogHeader>
+      <AmountSummary bill={bill} currency={currency} />
+      <FormField
+        id="online-amount"
+        label="Amount to pay"
+        error={error ?? undefined}
+        hint={
+          <button type="button" className="py-1 underline-offset-2 hover:underline" onClick={() => (setAmount(String(owed)), setError(null))}>
+            Pay the full {formatMoney(owed, currency)}
+          </button>
+        }
+      >
+        <Input
+          id="online-amount"
+          inputMode="decimal"
+          autoComplete="off"
+          className="text-lg font-semibold tabular md:text-sm"
+          value={amount}
+          aria-invalid={!!error}
+          onChange={(e) => (setAmount(e.target.value), setError(null))}
+        />
+      </FormField>
+      <ul className="flex flex-wrap gap-1.5" aria-label="Accepted payment methods">
+        {['GCash', 'Maya', 'Card', 'QR Ph'].map((m) => (
+          <li key={m} className="rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground">
+            {m}
+          </li>
+        ))}
+      </ul>
+      <p className="flex items-start gap-2 text-xs text-muted-foreground">
+        <ShieldCheck className="mt-px size-4 shrink-0" aria-hidden />
+        Payments are processed by PayMongo. Rentlio never sees your card or wallet details.
+      </p>
+      <DialogFooter className="flex-row">
+        <Button type="button" variant="outline" onClick={onBack} disabled={start.isPending} aria-label="Back">
+          <ArrowLeft /> <span className="hidden sm:inline">Back</span>
+        </Button>
+        <Button className="flex-1 sm:flex-none" onClick={go} disabled={start.isPending}>
+          {start.isPending ? <Loader2 className="animate-spin" /> : <Lock />}
+          {start.isPending ? 'Opening checkout…' : 'Continue to payment'}
+        </Button>
+      </DialogFooter>
+      <button type="button" onClick={onUseProof} className="-mt-2 text-center text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+        Already paid by bank transfer? Upload proof instead
+      </button>
+    </div>
+  )
+}
+
 function SubmitForm({ bill, onDone }: { bill: BillRef; onDone: () => void }) {
   const currency = useCurrency()
   const { data: settings } = useSettings()
   const submit = useSubmitPayment()
+  const [requestId] = useState(() => crypto.randomUUID())
   const [step, setStep] = useState<Step>('choose')
   const [sentAmount, setSentAmount] = useState(0)
   const [proof, setProof] = useState<File | null>(null)
   const [proofError, setProofError] = useState<string | undefined>()
+  // Payments already sent and waiting for verification cannot be paid again.
+  const owed = Math.max(0, Math.round((bill.balance - (bill.pending_amount ?? 0)) * 100) / 100)
+  const onlineEnabled = !!settings?.online_payments_enabled
   const form = useForm<PaymentInput, unknown, PaymentOutput>({
-    resolver: zodResolver(paymentSchema(bill.balance)),
-    defaultValues: { amount: String(bill.balance), method: 'gcash', paid_on: todayISO(), reference: '', notes: '' },
+    resolver: zodResolver(paymentSchema(owed)),
+    defaultValues: { amount: String(owed), method: 'gcash', paid_on: todayISO(), reference: '', notes: '' },
   })
   const method = useWatch({ control: form.control, name: 'method' })
 
@@ -436,6 +529,7 @@ function SubmitForm({ bill, onDone }: { bill: BillRef; onDone: () => void }) {
         reference: v.reference,
         notes: v.notes,
         proof,
+        requestId,
       },
       {
         onSuccess: () => {
@@ -475,12 +569,22 @@ function SubmitForm({ bill, onDone }: { bill: BillRef; onDone: () => void }) {
           <DialogDescription>Choose how you'd like to pay. You can pay part now and the rest later.</DialogDescription>
         </DialogHeader>
         <AmountSummary bill={bill} currency={currency} />
+        {owed < bill.balance && (
+          <p className="-mt-2 text-[13px] text-muted-foreground">
+            {formatMoney(bill.balance - owed, currency)} you sent is waiting for verification, so{' '}
+            <b className="text-foreground tabular">{formatMoney(owed, currency)}</b> is left to pay.
+          </p>
+        )}
         <div className="grid gap-3" role="list">
           <ChoiceCard
             icon={Smartphone}
             title="Pay online"
-            note="GCash, Maya or bank transfer, then upload a screenshot as proof."
-            onClick={() => setStep('online')}
+            note={
+              onlineEnabled
+                ? 'GCash, Maya, card or QR Ph. Confirmed instantly.'
+                : 'GCash, Maya or bank transfer, then upload a screenshot as proof.'
+            }
+            onClick={() => setStep(onlineEnabled ? 'online' : 'proof')}
           />
           <ChoiceCard
             icon={HandCoins}
@@ -539,11 +643,23 @@ function SubmitForm({ bill, onDone }: { bill: BillRef; onDone: () => void }) {
     )
   }
 
+  if (step === 'online') {
+    return (
+      <OnlineCheckout
+        bill={bill}
+        owed={owed}
+        currency={currency}
+        onBack={() => setStep('choose')}
+        onUseProof={() => setStep('proof')}
+      />
+    )
+  }
+
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="grid gap-5">
       <DialogHeader>
         <StepLabel n={2} of={2} />
-        <DialogTitle>Pay online</DialogTitle>
+        <DialogTitle>{onlineEnabled ? 'Upload proof of payment' : 'Pay online'}</DialogTitle>
         <DialogDescription>Send the payment with your app, then tell us what you sent and attach the proof.</DialogDescription>
       </DialogHeader>
       <AmountSummary bill={bill} currency={currency} />
@@ -551,7 +667,7 @@ function SubmitForm({ bill, onDone }: { bill: BillRef; onDone: () => void }) {
       <fieldset className="grid gap-2">
         <legend className="mb-2 text-sm font-medium">Payment method</legend>
         <div role="radiogroup" aria-label="Payment method" className="grid grid-cols-2 gap-2">
-          {ONLINE_METHODS.map((m) => {
+          {PROOF_METHODS.map((m) => {
             const active = method === m.value
             return (
               <button
@@ -582,7 +698,7 @@ function SubmitForm({ bill, onDone }: { bill: BillRef; onDone: () => void }) {
           <p className="whitespace-pre-line text-muted-foreground">{settings.payment_instructions}</p>
         </div>
       )}
-      <PaymentFields form={form} currency={currency} balance={bill.balance} hideMethod />
+      <PaymentFields form={form} currency={currency} balance={owed} hideMethod />
       <ProofFileInput
         file={proof}
         required
@@ -593,7 +709,7 @@ function SubmitForm({ bill, onDone }: { bill: BillRef; onDone: () => void }) {
         }}
       />
       <DialogFooter className="flex-row">
-        <Button type="button" variant="outline" onClick={() => setStep('choose')} disabled={submit.isPending} aria-label="Back">
+        <Button type="button" variant="outline" onClick={() => setStep(onlineEnabled ? 'online' : 'choose')} disabled={submit.isPending} aria-label="Back">
           <ArrowLeft /> <span className="hidden sm:inline">Back</span>
         </Button>
         <Button type="submit" className="flex-1 sm:flex-none" disabled={submit.isPending}>

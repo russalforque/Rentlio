@@ -157,6 +157,35 @@ export function useRemoveCharge() {
   })
 }
 
+/** Sends a draft to the tenant. skipMissing finalizes even without an electricity or water charge. */
+export function useFinalizeBill() {
+  const invalidate = useInvalidateBilling()
+  return useMutation({
+    mutationFn: (a: { billId: string; skipMissing?: boolean }) =>
+      call(supabase.rpc('finalize_bill', { p_bill_id: a.billId, p_skip_missing: a.skipMissing ?? false })),
+    onSuccess: invalidate,
+  })
+}
+
+/** Finalizes every complete draft for the month; resolves to how many were sent. */
+export function useFinalizeBills() {
+  const invalidate = useInvalidateBilling()
+  return useMutation({
+    mutationFn: (period: string) => call(supabase.rpc('finalize_bills', { p_period: period })),
+    onSuccess: invalidate,
+  })
+}
+
+export function useReopenBill() {
+  const invalidate = useInvalidateBilling()
+  return useMutation({
+    mutationFn: (billId: string) => call(supabase.rpc('reopen_bill', { p_bill_id: billId })),
+    onSuccess: invalidate,
+  })
+}
+
+export const CHARGE_LABEL: Record<string, string> = { rent: 'Rent', electricity: 'Electricity', water: 'Water' }
+
 export function useVoidBill() {
   const invalidate = useInvalidateBilling()
   return useMutation({

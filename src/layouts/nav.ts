@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   ReceiptText,
   Settings,
+  UserCheck,
   UserRound,
   Users,
   Wallet,
@@ -19,7 +20,7 @@ export interface NavItem {
   /** Sidebar section heading. */
   group?: string
   /** Shows a live count next to the label. */
-  badge?: 'pendingPayments'
+  badge?: 'pendingPayments' | 'pendingRegistrations'
   /** Included in the phone bottom bar. */
   mobileTab?: boolean
   /** Pinned to the bottom of the sidebar instead of the main list. */
@@ -31,6 +32,7 @@ export const NAV: Record<Enums<'user_role'>, NavItem[]> = {
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Menu', mobileTab: true },
     { to: '/rooms', label: 'Rooms', icon: DoorOpen, group: 'Menu', mobileTab: true },
     { to: '/tenants', label: 'Tenants', icon: Users, group: 'Menu', mobileTab: true },
+    { to: '/registrations', label: 'Registrations', icon: UserCheck, group: 'Menu', badge: 'pendingRegistrations' },
     { to: '/billing', label: 'Billing', icon: ReceiptText, group: 'Finance' },
     { to: '/payments', label: 'Payments', icon: Wallet, group: 'Finance', badge: 'pendingPayments', mobileTab: true },
     { to: '/reports', label: 'Reports', icon: BarChart3, group: 'Finance' },

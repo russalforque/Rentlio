@@ -3,6 +3,8 @@
 //   resend_invite - email a fresh activation link to a tenant who has not activated
 //   deactivate    - block sign-in (tenancy must already be ended); history is kept
 //   reactivate    - restore sign-in
+// tenant_id is the tenant record. Manual tenants (no login) only get the
+// database change; there is no sign-in to block.
 import { z } from 'zod'
 import { dbError, requireLandlord } from '../_shared/auth.ts'
 import { confirmRedirect, HttpError, json, readJson, serve } from '../_shared/http.ts'
@@ -24,7 +26,7 @@ serve(async (req) => {
 
   const { data: tenant, error: tenantError } = await userClient
     .from('profiles')
-    .select('id, role, email, full_name, phone, is_active, activated_at')
+    .select('id, user_id, role, email, full_name, phone, is_active, activated_at')
     .eq('id', tenant_id)
     .maybeSingle()
   if (tenantError) throw dbError(tenantError)
@@ -32,6 +34,7 @@ serve(async (req) => {
 
   switch (action) {
     case 'resend_invite': {
+      if (!tenant.user_id || !tenant.email) throw new HttpError(409, 'This tenant has no portal access. Enable it first.')
       if (tenant.activated_at) throw new HttpError(409, 'This tenant has already activated their account.')
       if (!tenant.is_active) throw new HttpError(409, 'Reactivate this account before resending the invitation.')
       const { error } = await admin.auth.admin.inviteUserByEmail(tenant.email, {
@@ -55,7 +58,8 @@ serve(async (req) => {
       // Database first: it refuses while the tenant still has an active lease.
       const { error } = await userClient.rpc('set_tenant_active', { p_tenant_id: tenant_id, p_active: false })
       if (error) throw dbError(error)
-      const { error: banError } = await admin.auth.admin.updateUserById(tenant_id, { ban_duration: BAN_FOREVER })
+      if (!tenant.user_id) return json({ ok: true })
+      const { error: banError } = await admin.auth.admin.updateUserById(tenant.user_id, { ban_duration: BAN_FOREVER })
       if (banError) {
         // Keep account state consistent with what Auth allows.
         await userClient.rpc('set_tenant_active', { p_tenant_id: tenant_id, p_active: true })
@@ -66,7 +70,9 @@ serve(async (req) => {
     }
 
     case 'reactivate': {
-      const { error: unbanError } = await admin.auth.admin.updateUserById(tenant_id, { ban_duration: 'none' })
+      const { error: unbanError } = tenant.user_id
+        ? await admin.auth.admin.updateUserById(tenant.user_id, { ban_duration: 'none' })
+        : { error: null }
       if (unbanError) {
         console.error(unbanError)
         throw new HttpError(502, 'Could not restore the sign-in. Please try again.')

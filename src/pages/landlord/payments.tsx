@@ -73,6 +73,10 @@ function Queue({ currency }: { currency: string }) {
               {METHOD_LABEL[p.method]} · paid {formatDate(p.paid_on)} · sent{' '}
               {formatDistanceToNow(parseISO(p.created_at), { addSuffix: true })}
             </p>
+            {p.provider && p.notes && (
+              // Money already arrived online but could not be applied as-is.
+              <p className="mt-2 rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning-foreground">{p.notes}</p>
+            )}
             <Button className="mt-4 w-full" onClick={() => setReviewing(p)}>
               Review
             </Button>
@@ -161,13 +165,22 @@ function History({ currency }: { currency: string }) {
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     {METHOD_LABEL[p.method]}
-                    {p.reference_number && (
+                    {p.provider ? (
+                      <span className="block text-xs text-muted-foreground">Paid online</span>
+                    ) : p.reference_number && (
                       <span className="block text-xs text-muted-foreground">Ref {p.reference_number}</span>
                     )}
                   </TableCell>
                   <TableCell className="text-right font-semibold tabular">{formatMoney(p.amount, currency)}</TableCell>
                   <TableCell className="pr-5">
-                    <PaymentStatusBadge status={p.status} />
+                    <span className="flex items-center gap-3">
+                      <PaymentStatusBadge status={p.status} />
+                      {p.status === 'verified' && (
+                        <Link to={`/receipts/${p.id}`} className="text-xs font-medium underline-offset-2 hover:underline">
+                          Receipt
+                        </Link>
+                      )}
+                    </span>
                   </TableCell>
                 </TableRow>
               ))}

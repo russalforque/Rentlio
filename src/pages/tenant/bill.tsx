@@ -1,15 +1,15 @@
-import { Hourglass, ReceiptText, Wallet } from 'lucide-react'
-import { useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { CheckCircle2, FileText, Hourglass, ReceiptText, Wallet, XCircle } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useParams, useSearchParams } from 'react-router'
 import { Callout, Meter } from '@/components/app/panel'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useBill, useBillItems } from '@/features/billing/api'
+import { useBill, useBillItems, useInvalidateBilling } from '@/features/billing/api'
 import { BillItems } from '@/features/billing/bill-items'
 import { BillStatusBadge } from '@/features/billing/bill-status-badge'
-import { METHOD_LABEL, useBillPayments } from '@/features/payments/api'
+import { METHOD_LABEL, useBillAllocations, useBillPayments, useCancelOnlinePayment } from '@/features/payments/api'
 import { PaymentStatusBadge } from '@/features/payments/components'
 import { SubmitPaymentDialog } from '@/features/payments/payment-dialogs'
 import { useCurrency } from '@/hooks/use-settings'
@@ -17,13 +17,45 @@ import { getErrorMessage } from '@/lib/errors'
 import { formatDate, formatMoney, formatPeriod } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+/**
+ * The provider sends the tenant back with ?checkout=success|cancelled. The
+ * return trip proves nothing: the payment is recorded only when the provider's
+ * webhook confirms it, so on success we refresh for a short while until it lands.
+ */
+function useCheckoutReturn() {
+  const [params, setParams] = useSearchParams()
+  const cancel = useCancelOnlinePayment()
+  const invalidate = useInvalidateBilling()
+  const [outcome] = useState(() => params.get('checkout'))
+  const handled = useRef(false)
+
+  useEffect(() => {
+    if (handled.current || !outcome) return
+    handled.current = true
+    const ref = params.get('ref')
+    if (outcome === 'cancelled' && ref) cancel.mutate(ref)
+    setParams({}, { replace: true })
+  }, [outcome, params, setParams, cancel])
+
+  useEffect(() => {
+    if (outcome !== 'success') return
+    const timer = setInterval(() => void invalidate(), 4000)
+    const stop = setTimeout(() => clearInterval(timer), 60_000)
+    return () => (clearInterval(timer), clearTimeout(stop))
+  }, [outcome, invalidate])
+
+  return outcome
+}
+
 export function TenantBillPage() {
   const { id = '' } = useParams()
   const currency = useCurrency()
   const bill = useBill(id)
   const items = useBillItems(id)
   const payments = useBillPayments(id)
+  const allocations = useBillAllocations(id)
   const [paying, setPaying] = useState(false)
+  const checkout = useCheckoutReturn()
 
   if (bill.error) return <ErrorState error={bill.error} onRetry={() => bill.refetch()} />
   if (bill.isPending) return <Skeleton className="h-96 rounded-xl" />
@@ -84,6 +116,19 @@ export function TenantBillPage() {
         </dl>
       </section>
 
+      {checkout === 'success' && (
+        <Callout tone="success" icon={CheckCircle2} role="status">
+          {b.balance > 0 && b.status === 'unpaid'
+            ? 'Payment received by the payment provider. Your balance updates here as soon as they confirm it, usually within a minute.'
+            : 'Thank you! Your payment is confirmed and your receipt is ready below.'}
+        </Callout>
+      )}
+      {checkout === 'cancelled' && (
+        <Callout tone="neutral" icon={XCircle} role="status">
+          Payment cancelled. Nothing was charged. You can pay again any time.
+        </Callout>
+      )}
+
       {pendingTotal > 0 && (
         <Callout tone="info" icon={Hourglass}>
           You sent <b className="tabular">{formatMoney(pendingTotal, currency)}</b>. It will be deducted from the balance once your
@@ -101,7 +146,19 @@ export function TenantBillPage() {
           ) : items.isPending ? (
             <Skeleton className="h-40" />
           ) : (
-            <BillItems items={items.data} currency={currency} total={b.total_amount} paid={b.amount_paid} balance={b.balance} />
+            <BillItems
+              items={items.data}
+              currency={currency}
+              total={b.total_amount}
+              paid={b.amount_paid}
+              balance={b.balance}
+              paidByItem={allocations.data}
+            />
+          )}
+          {b.amount_paid > 0 && b.balance > 0 && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Partial payments go to electricity first, then water, then other charges, then rent.
+            </p>
           )}
         </CardContent>
       </Card>
@@ -129,6 +186,13 @@ export function TenantBillPage() {
                     <PaymentStatusBadge status={p.status} />
                   </div>
                   {p.rejection_reason && <p className="mt-1.5 text-[13px] text-destructive">Reason: {p.rejection_reason}</p>}
+                  {p.status === 'verified' && (
+                    <Button variant="ghost" size="sm" className="mt-1 -ml-3" asChild>
+                      <Link to={`/receipts/${p.id}`}>
+                        <FileText /> Receipt
+                      </Link>
+                    </Button>
+                  )}
                 </li>
               ))}
             </ul>

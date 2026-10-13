@@ -1,4 +1,4 @@
-import { CheckCircle2, Eye, Hourglass, Wallet, XCircle } from 'lucide-react'
+import { CheckCircle2, Eye, FileText, Hourglass, Wallet, XCircle } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { PageHeader } from '@/components/app/page-header'
@@ -68,7 +68,7 @@ export function TenantPaymentsPage() {
                       {formatPeriod(p.period)} bill
                     </Link>{' '}
                     · {METHOD_LABEL[p.method]} · {formatDate(p.paid_on)}
-                    {p.reference_number && ` · Ref ${p.reference_number}`}
+                    {p.provider ? ' · paid online' : p.reference_number && ` · Ref ${p.reference_number}`}
                   </p>
                 </div>
                 <PaymentStatusBadge status={p.status} />
@@ -78,10 +78,21 @@ export function TenantPaymentsPage() {
                   Not accepted: {p.rejection_reason}
                 </p>
               )}
-              {p.proof_path && (
-                <Button variant="ghost" size="sm" className="mt-1 -ml-3" onClick={() => setViewing(p)}>
-                  <Eye /> View receipt
-                </Button>
+              {(p.status === 'verified' || p.proof_path) && (
+                <div className="mt-1 -ml-3 flex flex-wrap gap-1">
+                  {p.status === 'verified' && (
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link to={`/receipts/${p.id}`}>
+                        <FileText /> Receipt
+                      </Link>
+                    </Button>
+                  )}
+                  {p.proof_path && (
+                    <Button variant="ghost" size="sm" onClick={() => setViewing(p)}>
+                      <Eye /> View proof
+                    </Button>
+                  )}
+                </div>
               )}
             </li>
           ))}

@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Ban, Eye, Gauge, Loader2, MoreHorizontal, Plus, ReceiptText, Wallet } from 'lucide-react'
+import { Ban, Check, CircleDashed, Eye, FileText, Gauge, Loader2, Lock, MoreHorizontal, PencilLine, Plus, ReceiptText, Send, Wallet } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useParams } from 'react-router'
@@ -28,16 +28,20 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  CHARGE_LABEL,
   useAddCharge,
   useBill,
   useBillItems,
+  useFinalizeBill,
   useRemoveCharge,
+  useReopenBill,
   useUpdateBillItem,
   useVoidBill,
+  type BillOverview,
 } from '@/features/billing/api'
 import { BillItems } from '@/features/billing/bill-items'
 import { BillStatusBadge } from '@/features/billing/bill-status-badge'
-import { METHOD_LABEL, useBillPayments, type PaymentOverview } from '@/features/payments/api'
+import { METHOD_LABEL, useBillAllocations, useBillPayments, type PaymentOverview } from '@/features/payments/api'
 import { PaymentStatusBadge, ProofPreview } from '@/features/payments/components'
 import { RecordPaymentDialog, ReviewPaymentDialog } from '@/features/payments/payment-dialogs'
 import { useCurrency } from '@/hooks/use-settings'
@@ -183,6 +187,66 @@ function ProofDialog({ payment, onClose }: { payment: PaymentOverview; onClose: 
   )
 }
 
+/**
+ * A draft is the month's consolidated bill being put together: rent is already
+ * on it, utilities arrive with the meter readings. Finalizing locks the charges
+ * and sends it to the tenant.
+ */
+function DraftPanel({ bill, items, onFinalize }: { bill: BillOverview; items: Tables<'bill_items'>[]; onFinalize: () => void }) {
+  const has = (kind: string) => items.some((i) => i.kind === kind)
+  const rows = (['rent', 'electricity', 'water'] as const).map((kind) => ({
+    kind,
+    state: bill.missing_charges.includes(kind) ? 'missing' : has(kind) ? 'ready' : 'none',
+  }))
+  const ready = bill.missing_charges.length === 0
+  return (
+    <section aria-label="Draft bill" className="surface border-chip-violet/25 p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-semibold">Draft · not sent to {bill.tenant_name} yet</h2>
+          <p className="mt-1 text-[13px] text-muted-foreground">
+            {ready
+              ? 'Every required charge is in. Finalize to lock the charges and send the bill.'
+              : 'Add the missing charges, then finalize to send one bill with everything on it.'}
+          </p>
+        </div>
+        <Button className="shrink-0" onClick={onFinalize} variant={ready ? 'default' : 'outline'}>
+          <Send /> Finalize and send
+        </Button>
+      </div>
+      <ul className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {rows.map((r) => (
+          <li
+            key={r.kind}
+            className={cn(
+              'flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-sm',
+              r.state === 'missing' && 'border-dashed',
+            )}
+          >
+            {r.state === 'missing' ? (
+              <CircleDashed className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            ) : (
+              <Check className="size-4 shrink-0 text-success" aria-hidden />
+            )}
+            <span className="font-medium">{CHARGE_LABEL[r.kind]}</span>
+            <span className="ml-auto text-xs text-muted-foreground">
+              {r.state === 'missing' ? (
+                <Link to={`/billing/readings?period=${bill.period}`} className="font-medium text-foreground underline-offset-2 hover:underline">
+                  Add reading
+                </Link>
+              ) : r.state === 'ready' ? (
+                'Added'
+              ) : (
+                'Not billed'
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 // Page ---------------------------------------------------------------------------------
 
 type Overlay =
@@ -192,6 +256,8 @@ type Overlay =
   | { kind: 'record' }
   | { kind: 'review'; payment: PaymentOverview }
   | { kind: 'proof'; payment: PaymentOverview }
+  | { kind: 'finalize'; missing: string[] }
+  | { kind: 'reopen' }
 
 export function BillDetailPage() {
   const { id = '' } = useParams()
@@ -199,9 +265,24 @@ export function BillDetailPage() {
   const bill = useBill(id)
   const items = useBillItems(id)
   const payments = useBillPayments(id)
+  const allocations = useBillAllocations(id)
   const remove = useRemoveCharge()
+  const finalize = useFinalizeBill()
+  const reopen = useReopenBill()
   const [overlay, setOverlay] = useState<Overlay | null>(null)
   const close = () => setOverlay(null)
+
+  const doFinalize = (skipMissing: boolean) =>
+    finalize.mutate(
+      { billId: id, skipMissing },
+      {
+        onSuccess: () => {
+          toast.success(`Bill sent to ${bill.data?.tenant_name ?? 'the tenant'}`)
+          close()
+        },
+        onError: (err) => toast.error(getErrorMessage(err)),
+      },
+    )
 
   if (bill.error) return <ErrorState error={bill.error} onRetry={() => bill.refetch()} />
   if (bill.isPending) {
@@ -227,7 +308,10 @@ export function BillDetailPage() {
   }
 
   const isVoid = b.status === 'void'
-  const canPay = !isVoid && b.balance > 0
+  const isDraft = !isVoid && !b.is_finalized
+  const canPay = !isVoid && !isDraft && b.balance > 0
+  // Charges that money has been applied to never change, so only a bill with no payments can reopen.
+  const canReopen = b.is_finalized && b.amount_paid === 0 && b.pending_payments === 0
 
   const paidShare = b.total_amount > 0 ? (b.amount_paid / b.total_amount) * 100 : 0
 
@@ -240,7 +324,7 @@ export function BillDetailPage() {
             <h1 className="font-display text-2xl leading-tight font-semibold">
               Room {b.room_number} · {formatPeriod(b.period)}
             </h1>
-            <BillStatusBadge status={b.status} overdue={b.is_overdue} />
+            <BillStatusBadge status={b.status} overdue={b.is_overdue} draft={isDraft} />
           </div>
         </div>
         {!isVoid && (
@@ -252,11 +336,17 @@ export function BillDetailPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem asChild>
-                  <Link to={`/billing/readings?period=${b.period}`}>
-                    <Gauge /> Edit meter readings
-                  </Link>
-                </DropdownMenuItem>
+                {isDraft ? (
+                  <DropdownMenuItem asChild>
+                    <Link to={`/billing/readings?period=${b.period}`}>
+                      <Gauge /> Edit meter readings
+                    </Link>
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem disabled={!canReopen} onSelect={() => setOverlay({ kind: 'reopen' })}>
+                    <PencilLine /> {canReopen ? 'Reopen to edit charges' : 'Locked (has payments)'}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   variant="destructive"
                   disabled={b.amount_paid > 0}
@@ -276,10 +366,22 @@ export function BillDetailPage() {
         </Callout>
       )}
 
+      {isDraft && items.data && (
+        <DraftPanel
+          bill={b}
+          items={items.data}
+          onFinalize={() =>
+            b.missing_charges.length ? setOverlay({ kind: 'finalize', missing: b.missing_charges }) : doFinalize(false)
+          }
+        />
+      )}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
         {/* Balance: first on phones, a sticky side card on large screens */}
         <section aria-label="Balance" className="surface p-5 lg:sticky lg:top-20 lg:order-2">
-          <p className="text-[13px] font-medium text-muted-foreground">{isVoid ? 'Voided bill' : b.balance > 0 ? 'Balance due' : 'Paid in full'}</p>
+          <p className="text-[13px] font-medium text-muted-foreground">
+            {isVoid ? 'Voided bill' : isDraft ? 'Draft total' : b.balance > 0 ? 'Balance due' : 'Paid in full'}
+          </p>
           <p className={cn('mt-1 text-[32px] leading-none font-semibold tracking-tight', !isVoid && b.balance > 0 && b.is_overdue && 'text-destructive')}>
             {formatMoney(isVoid ? 0 : b.balance, currency)}
           </p>
@@ -299,6 +401,13 @@ export function BillDetailPage() {
               <dd className={cn('mt-0.5 font-medium', b.is_overdue && !isVoid && 'text-destructive')}>{formatDate(b.due_date)}</dd>
             </div>
           </dl>
+          {b.finalized_at && !isVoid && (
+            <p className="mt-4 flex items-center gap-1.5 border-t pt-3 text-xs text-muted-foreground">
+              <Lock className="size-3.5 shrink-0" aria-hidden />
+              Sent {formatDate(b.finalized_at.slice(0, 10))}
+              {b.revision > 1 && ' · corrected after issue'}
+            </p>
+          )}
           {canPay && (
             <Button size="lg" className="mt-5 w-full" onClick={() => setOverlay({ kind: 'record' })}>
               <Wallet /> Record payment
@@ -332,7 +441,7 @@ export function BillDetailPage() {
             <div className="p-5">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <h2 className="text-[15px] font-semibold">Charges</h2>
-                {!isVoid && (
+                {isDraft && (
                   <Button variant="outline" size="sm" onClick={() => setOverlay({ kind: 'charge' })}>
                     <Plus /> Add charge
                   </Button>
@@ -349,11 +458,12 @@ export function BillDetailPage() {
                   total={b.total_amount}
                   paid={b.amount_paid}
                   balance={isVoid ? 0 : b.balance}
-                  onEdit={isVoid ? undefined : (item) => setOverlay({ kind: 'charge', item })}
-                  onRemove={isVoid ? undefined : (item) => setOverlay({ kind: 'remove', item })}
+                  paidByItem={allocations.data}
+                  onEdit={isDraft ? (item) => setOverlay({ kind: 'charge', item }) : undefined}
+                  onRemove={isDraft ? (item) => setOverlay({ kind: 'remove', item }) : undefined}
                 />
               )}
-              {!isVoid && !items.data?.some((i) => i.kind === 'electricity') && (
+              {isDraft && !items.data?.some((i) => i.kind === 'electricity') && (
                 <p className="mt-4 rounded-lg border border-dashed px-3 py-2 text-[13px] text-muted-foreground">
                   No electricity charge yet.{' '}
                   <Link to={`/billing/readings?period=${b.period}`} className="font-medium text-foreground underline-offset-2 hover:underline">
@@ -390,18 +500,28 @@ export function BillDetailPage() {
                           <p className="font-semibold tabular">{formatMoney(p.amount, currency)}</p>
                           <p className="text-xs text-muted-foreground">
                             {METHOD_LABEL[p.method]} · {formatDate(p.paid_on)}
-                            {p.reference_number && ` · Ref ${p.reference_number}`}
+                            {p.provider ? ' · paid online' : p.reference_number && ` · Ref ${p.reference_number}`}
                             {p.recorded_by_landlord && ' · recorded by you'}
                           </p>
                         </div>
                         <PaymentStatusBadge status={p.status} />
                       </div>
                       {p.rejection_reason && <p className="mt-2 text-[13px] text-destructive">Rejected: {p.rejection_reason}</p>}
-                      {(p.status === 'pending' || p.proof_path) && (
-                        <div className="mt-2 flex gap-2">
+                      {p.provider && p.status === 'pending' && p.notes && (
+                        <p className="mt-2 text-[13px] text-warning-foreground">{p.notes}</p>
+                      )}
+                      {(p.status === 'pending' || p.proof_path || p.status === 'verified') && (
+                        <div className="mt-2 flex flex-wrap gap-2">
                           {p.status === 'pending' && (
                             <Button size="sm" onClick={() => setOverlay({ kind: 'review', payment: p })}>
                               Review
+                            </Button>
+                          )}
+                          {p.status === 'verified' && (
+                            <Button size="sm" variant="ghost" className="-ml-2" asChild>
+                              <Link to={`/receipts/${p.id}`}>
+                                <FileText /> Receipt
+                              </Link>
                             </Button>
                           )}
                           {p.proof_path && p.status !== 'pending' && (
@@ -436,6 +556,32 @@ export function BillDetailPage() {
           remove.mutate(overlay.item.id, {
             onSuccess: () => {
               toast.success('Charge removed')
+              close()
+            },
+            onError: (err) => toast.error(getErrorMessage(err)),
+          })
+        }
+      />
+      <ConfirmDialog
+        open={overlay?.kind === 'finalize'}
+        onOpenChange={(o) => !o && close()}
+        title={`Send without ${overlay?.kind === 'finalize' ? overlay.missing.map((m) => CHARGE_LABEL[m]?.toLowerCase() ?? m).join(' and ') : ''}?`}
+        description="This bill has no meter reading for that charge this month. Finalize it anyway if the room has no separate meter or nothing is owed for it. The charges are locked once sent."
+        confirmLabel="Finalize without it"
+        pending={finalize.isPending}
+        onConfirm={() => doFinalize(true)}
+      />
+      <ConfirmDialog
+        open={overlay?.kind === 'reopen'}
+        onOpenChange={(o) => !o && close()}
+        title="Reopen this bill?"
+        description={`It goes back to draft and disappears from ${b.tenant_name}'s portal until you finalize it again. They are notified when the corrected bill is sent.`}
+        confirmLabel="Reopen"
+        pending={reopen.isPending}
+        onConfirm={() =>
+          reopen.mutate(b.id, {
+            onSuccess: () => {
+              toast.success('Bill reopened as a draft')
               close()
             },
             onError: (err) => toast.error(getErrorMessage(err)),

@@ -13,6 +13,7 @@ import { SettingsSection, StatusPill } from '@/components/app/panel'
 import { Input } from '@/components/ui/input'
 import { useRemoveAvatar, useUploadAvatar } from '@/features/account/profile-photo'
 import { UserAvatar } from '@/features/account/user-avatar'
+import { NotificationPreferencesSection } from '@/features/notifications/preferences-section'
 import { useAuth, useProfile } from '@/hooks/use-auth'
 import { getErrorMessage } from '@/lib/errors'
 import { supabase } from '@/lib/supabase'
@@ -160,7 +161,7 @@ function ProfileCard() {
             <Input id="full_name" autoComplete="name" aria-invalid={!!errors.full_name} {...register('full_name')} />
           </FormField>
           <FormField id="email" label="Email" hint="Contact your landlord to change your login email.">
-            <Input id="email" value={profile.email} readOnly disabled />
+            <Input id="email" value={profile.email ?? ''} readOnly disabled />
           </FormField>
           <FormField id="phone" label="Phone" error={errors.phone?.message}>
             <Input id="phone" type="tel" autoComplete="tel" aria-invalid={!!errors.phone} {...register('phone')} />
@@ -187,22 +188,42 @@ function ProfileCard() {
   )
 }
 
+const changePasswordSchema = z
+  .object({ current: z.string().min(1, 'Enter your current password'), next: newPasswordSchema })
+  .transform(({ current, next }) => ({ current, ...next }))
+type ChangePasswordInput = { current: string; next: z.input<typeof newPasswordSchema> }
+type ChangePasswordOutput = z.output<typeof changePasswordSchema>
+
 function PasswordCard() {
-  type Values = z.infer<typeof newPasswordSchema>
+  const profile = useProfile()
   const {
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
-  } = useForm<Values>({ resolver: zodResolver(newPasswordSchema) })
+  } = useForm<ChangePasswordInput, unknown, ChangePasswordOutput>({ resolver: zodResolver(changePasswordSchema) })
 
   const change = useMutation({
-    mutationFn: async ({ password }: Values) => {
+    mutationFn: async ({ current, password }: ChangePasswordOutput) => {
+      // Re-check the current password so an unattended signed-in device cannot be
+      // used to take over the account. This also counts as a fresh sign-in for
+      // Supabase's "secure password change" setting.
+      const { error: verifyError } = await supabase.auth.signInWithPassword({ email: profile.email ?? '', password: current })
+      if (verifyError) {
+        if (verifyError.code === 'invalid_credentials') {
+          setError('current', { message: 'Your current password is incorrect' })
+          return false
+        }
+        throw verifyError
+      }
       const { error } = await supabase.auth.updateUser({ password })
       if (error) throw error
+      return true
     },
-    onSuccess: () => {
-      reset({ password: '', confirm: '' })
+    onSuccess: (changed) => {
+      if (!changed) return
+      reset({ current: '', next: { password: '', confirm: '' } })
       toast.success('Password changed')
     },
     onError: (err) => toast.error(getErrorMessage(err)),
@@ -221,20 +242,30 @@ function PasswordCard() {
         }
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField id="new-password" label="New password" error={errors.password?.message}>
+          <div className="sm:col-span-2">
+            <FormField id="current-password" label="Current password" error={errors.current?.message}>
+              <PasswordInput
+                id="current-password"
+                autoComplete="current-password"
+                aria-invalid={!!errors.current}
+                {...register('current')}
+              />
+            </FormField>
+          </div>
+          <FormField id="new-password" label="New password" error={errors.next?.password?.message}>
             <PasswordInput
               id="new-password"
               autoComplete="new-password"
-              aria-invalid={!!errors.password}
-              {...register('password')}
+              aria-invalid={!!errors.next?.password}
+              {...register('next.password')}
             />
           </FormField>
-          <FormField id="confirm-password" label="Confirm new password" error={errors.confirm?.message}>
+          <FormField id="confirm-password" label="Confirm new password" error={errors.next?.confirm?.message}>
             <PasswordInput
               id="confirm-password"
               autoComplete="new-password"
-              aria-invalid={!!errors.confirm}
-              {...register('confirm')}
+              aria-invalid={!!errors.next?.confirm}
+              {...register('next.confirm')}
             />
           </FormField>
         </div>
@@ -254,6 +285,7 @@ export function AccountPage() {
       />
       <PhotoCard />
       <ProfileCard />
+      <NotificationPreferencesSection />
       <PasswordCard />
       {/* Phones: tenants have no "More" sheet, so sign-out lives here too. */}
       <Button variant="outline" size="lg" className="w-full text-destructive hover:text-destructive md:hidden" onClick={signOut}>

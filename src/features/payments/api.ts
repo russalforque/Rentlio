@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useInvalidateBilling } from '@/features/billing/api'
 import type { Enums, Views } from '@/lib/database.types'
+import { invokeFunction } from '@/lib/functions'
 import { STORAGE_BUCKETS, supabase } from '@/lib/supabase'
 
 export type PaymentOverview = Views<'payment_overview'>
@@ -10,6 +11,8 @@ export const paymentKeys = {
   pending: () => [...paymentKeys.all, 'pending'] as const,
   history: (period: string) => [...paymentKeys.all, 'history', period] as const,
   forBill: (billId: string) => [...paymentKeys.all, 'bill', billId] as const,
+  allocations: (billId: string) => [...paymentKeys.all, 'allocations', billId] as const,
+  receipt: (paymentId: string) => [...paymentKeys.all, 'receipt', paymentId] as const,
   mine: () => [...paymentKeys.all, 'mine'] as const,
   proof: (path: string) => [...paymentKeys.all, 'proof', path] as const,
 }
@@ -20,8 +23,14 @@ export const METHOD_LABEL: Record<Enums<'payment_method'>, string> = {
   gcash: 'GCash',
   maya: 'Maya',
   check: 'Check',
+  card: 'Card',
   other: 'Other',
 }
+
+/** Methods the landlord can record by hand; card payments only arrive through the online checkout. */
+export const MANUAL_METHODS = (Object.entries(METHOD_LABEL) as [Enums<'payment_method'>, string][]).filter(
+  ([m]) => m !== 'card',
+)
 
 // Queries --------------------------------------------------------------------------
 
@@ -70,6 +79,32 @@ export function useBillPayments(billId: string) {
         .select('*')
         .eq('bill_id', billId)
         .order('created_at', { ascending: false })
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+/** How much of each charge on a bill has been paid, keyed by bill item id. */
+export function useBillAllocations(billId: string) {
+  return useQuery({
+    queryKey: paymentKeys.allocations(billId),
+    queryFn: async () => {
+      const { data, error } = await supabase.from('payment_allocations').select('bill_item_id, amount').eq('bill_id', billId)
+      if (error) throw error
+      const paid = new Map<string, number>()
+      for (const a of data) paid.set(a.bill_item_id, (paid.get(a.bill_item_id) ?? 0) + a.amount)
+      return paid
+    },
+  })
+}
+
+/** The receipt for one verified payment, or null if it does not exist or is not the caller's. */
+export function usePaymentReceipt(paymentId: string) {
+  return useQuery({
+    queryKey: paymentKeys.receipt(paymentId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('payment_receipt', { p_payment_id: paymentId })
       if (error) throw error
       return data
     },
@@ -167,6 +202,8 @@ export function useRecordPayment() {
       reference: string | null
       notes: string | null
       receipt: File | null
+      /** One per form: a retried submit returns the payment already recorded. */
+      requestId: string
     }) => {
       const proofPath = a.receipt ? await uploadProof(a.tenantId, a.receipt) : null
       return call(
@@ -178,6 +215,7 @@ export function useRecordPayment() {
           p_reference_number: a.reference,
           p_notes: a.notes,
           p_proof_path: proofPath,
+          p_request_id: a.requestId,
         }),
       )
     },
@@ -197,6 +235,7 @@ export function useSubmitPayment() {
       reference: string | null
       notes: string | null
       proof: File
+      requestId: string
     }) => {
       const proofPath = await uploadProof(a.tenantId, a.proof)
       return call(
@@ -208,9 +247,30 @@ export function useSubmitPayment() {
           p_proof_path: proofPath,
           p_reference_number: a.reference,
           p_notes: a.notes,
+          p_request_id: a.requestId,
         }),
       )
     },
     onSuccess: invalidate,
+  })
+}
+
+// Online payments (provider checkout) ------------------------------------------------------
+
+/** Opens (or reuses) the provider's hosted checkout for a bill; resolves to the page to send the tenant to. */
+export function useStartOnlinePayment() {
+  return useMutation({
+    mutationFn: (a: { billId: string; amount: number }) =>
+      invokeFunction<{ checkout_url: string }>('online-payment', { action: 'start', bill_id: a.billId, amount: a.amount }),
+  })
+}
+
+/** The tenant came back from the checkout without paying. */
+export function useCancelOnlinePayment() {
+  const invalidate = useInvalidateBilling()
+  return useMutation({
+    mutationFn: (checkoutId: string) =>
+      invokeFunction<{ status: string }>('online-payment', { action: 'cancel', checkout_id: checkoutId }),
+    onSettled: invalidate,
   })
 }

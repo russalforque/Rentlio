@@ -6,7 +6,7 @@ import { useAvatarUrl } from './profile-photo'
 interface UserAvatarProps {
   path: string | null | undefined
   name: string | null | undefined
-  email: string
+  email?: string | null
   className?: string
   fallbackClassName?: string
 }
@@ -18,7 +18,7 @@ export function UserAvatar({ path, name, email, className, fallbackClassName }: 
     <Avatar className={className}>
       {url && <AvatarImage src={url} alt="" className="object-cover" />}
       <AvatarFallback className={cn('font-semibold', fallbackClassName)}>
-        {initials(name, email[0]?.toUpperCase())}
+        {initials(name, email?.[0]?.toUpperCase())}
       </AvatarFallback>
     </Avatar>
   )

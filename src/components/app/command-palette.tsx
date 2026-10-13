@@ -39,11 +39,11 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
     const people: Command[] = (tenants ?? []).map((t) => ({
       id: `t-${t.id}`,
       group: 'Tenants',
-      label: t.full_name || t.email,
+      label: t.full_name || t.email || 'Unnamed tenant',
       hint: t.room_number ? `Room ${t.room_number}` : 'No room',
       icon: UserRound,
       to: `/tenants/${t.id}`,
-      keywords: `${t.email} ${t.phone ?? ''} ${t.room_number ?? ''}`,
+      keywords: `${t.email ?? ''} ${t.phone ?? ''} ${t.room_number ?? ''}`,
     }))
     const places: Command[] = (rooms ?? []).map((r) => ({
       id: `r-${r.id}`,

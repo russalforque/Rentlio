@@ -20,6 +20,16 @@ export const optionalText = (max: number) =>
     .max(max, `Use at most ${max} characters`)
     .transform((v) => (v === '' ? null : v))
 
-export const phoneText = optionalText(40).refine((v) => v === null || /^[+\d][\d\s()-]{5,}$/.test(v), {
-  message: 'Enter a valid phone number',
+/**
+ * Philippine mobile and landline numbers (0917 123 4567, +63 917 123 4567,
+ * (02) 8123 4567, (032) 123 4567) or any international number written with a
+ * leading +. Spaces, dots, hyphens and parentheses are ignored. Mirrors
+ * public._valid_phone() in the database, which enforces the same rule.
+ */
+export function isValidPhone(value: string): boolean {
+  return /^((\+?63|0)\d{9,10}|\+[1-9]\d{7,14})$/.test(value.replace(/[\s().-]/g, ''))
+}
+
+export const phoneText = optionalText(40).refine((v) => v === null || isValidPhone(v), {
+  message: 'Enter a valid phone number, e.g. 0917 123 4567 or +63 917 123 4567',
 })

@@ -23,6 +23,9 @@ export function getErrorMessage(err: unknown, fallback = 'Something went wrong. 
     if (err.code === 'weak_password') return 'That password is too weak. Use at least 8 characters with letters and numbers.'
     if (err.code === 'otp_expired') return 'This link has expired or was already used.'
     if (err.code === 'over_email_send_rate_limit') return 'Too many emails sent. Please wait a few minutes and try again.'
+    if (err.code === 'email_not_confirmed') return 'Confirm your email address first. Check your inbox for the link we sent.'
+    if (err.code === 'signup_disabled' || err.code === 'email_provider_disabled') return 'Registration is closed. Ask your landlord for an invitation.'
+    if (err.code === 'over_request_rate_limit') return 'Too many attempts. Please wait a few minutes and try again.'
     return err.message || fallback
   }
   if (isPostgrestError(err)) {
@@ -43,7 +46,17 @@ export function getErrorMessage(err: unknown, fallback = 'Something went wrong. 
       case '23503':
         return 'This record is linked to existing history and cannot be removed.'
       case '23514':
-        return 'Some values are out of the allowed range.'
+        return err.message?.includes('_not_nan')
+          ? 'Enter a number.'
+          : 'Some values are out of the allowed range.'
+      case '22003':
+        return 'That number is too large.'
+      case '22P02':
+      case '22007':
+      case '22008':
+        return 'Some values are not in the expected format. Check the numbers and dates you entered.'
+      case '23502':
+        return 'A required field is missing.'
       case 'PGRST301':
       case 'PGRST303':
         return 'Your session has expired. Please sign in again.'

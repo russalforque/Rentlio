@@ -42,7 +42,12 @@ const schema = z.object({
   water_rate: rate('water rate'),
   water_flat_fee: rate('flat water fee'),
   auto_billing_enabled: z.boolean(),
+  rent_reminders_enabled: z.boolean(),
+  reminder_days_before: intInput(0, 14),
+  reminder_on_due_date: z.boolean(),
+  reminder_days_after: intInput(0, 30),
   payment_instructions: optionalText(2000),
+  online_payments_enabled: z.boolean(),
   contact_name: optionalText(120),
   contact_phone: phoneText,
   contact_email: z
@@ -71,7 +76,12 @@ function toForm(s: Tables<'app_settings'>): Input {
     water_rate: String(s.water_rate),
     water_flat_fee: String(s.water_flat_fee),
     auto_billing_enabled: s.auto_billing_enabled,
+    rent_reminders_enabled: s.rent_reminders_enabled,
+    reminder_days_before: String(s.reminder_days_before),
+    reminder_on_due_date: s.reminder_on_due_date,
+    reminder_days_after: String(s.reminder_days_after),
     payment_instructions: s.payment_instructions ?? '',
+    online_payments_enabled: s.online_payments_enabled,
     contact_name: s.contact_name ?? '',
     contact_phone: s.contact_phone ?? '',
     contact_email: s.contact_email ?? '',
@@ -112,6 +122,21 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
   const waterMode = useWatch({ control, name: 'water_billing_mode' })
   const billingDay = Number(useWatch({ control, name: 'billing_day' })) || 1
   const dueDays = Number(useWatch({ control, name: 'due_days' })) || 0
+  const remindersOn = useWatch({ control, name: 'rent_reminders_enabled' })
+  const daysBefore = Number(useWatch({ control, name: 'reminder_days_before' })) || 0
+  const onDueDate = useWatch({ control, name: 'reminder_on_due_date' })
+  const daysAfter = Number(useWatch({ control, name: 'reminder_days_after' })) || 0
+  const plural = (n: number) => `${n} ${n === 1 ? 'day' : 'days'}`
+  const stages = [
+    daysBefore > 0 && `${plural(daysBefore)} before`,
+    onDueDate && 'on the due date',
+    daysAfter > 0 && `${plural(daysAfter)} after if unpaid`,
+  ].filter(Boolean)
+  const reminderSummary = !remindersOn
+    ? 'Off. Tenants still get a notice when each bill is issued.'
+    : stages.length
+      ? `Sent ${stages.join(', ').replace(/, ([^,]*)$/, ' and $1')}, from 8 AM.`
+      : 'No reminder stages are on.'
 
   return (
     <form onSubmit={handleSubmit((v) => save.mutate(v))} noValidate className="space-y-8 pb-4 lg:space-y-10">
@@ -171,6 +196,44 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
         </div>
       </SettingsSection>
 
+      <SettingsSection
+        id="reminders"
+        title="Rent reminders"
+        description="Tenants with portal access are reminded automatically in the app, in your property's timezone. Paid bills are skipped, and part-paid bills show what is still owed."
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex items-start justify-between gap-4 rounded-lg border p-3 sm:col-span-2">
+            <div>
+              <Label htmlFor="rent_reminders_enabled">Send rent reminders</Label>
+              <p className="mt-0.5 text-[13px] text-muted-foreground">{reminderSummary}</p>
+            </div>
+            <Controller
+              control={control}
+              name="rent_reminders_enabled"
+              render={({ field }) => <Switch id="rent_reminders_enabled" checked={field.value} onCheckedChange={field.onChange} />}
+            />
+          </div>
+          {remindersOn && (
+            <>
+              <FormField id="reminder_days_before" label="Days before the due date (0 = off)" error={errors.reminder_days_before?.message}>
+                <Input id="reminder_days_before" inputMode="numeric" aria-invalid={!!errors.reminder_days_before} {...register('reminder_days_before')} />
+              </FormField>
+              <FormField id="reminder_days_after" label="Days after, if still unpaid (0 = off)" error={errors.reminder_days_after?.message}>
+                <Input id="reminder_days_after" inputMode="numeric" aria-invalid={!!errors.reminder_days_after} {...register('reminder_days_after')} />
+              </FormField>
+              <div className="flex items-center justify-between gap-4 rounded-lg border p-3 sm:col-span-2">
+                <Label htmlFor="reminder_on_due_date">Remind on the due date</Label>
+                <Controller
+                  control={control}
+                  name="reminder_on_due_date"
+                  render={({ field }) => <Switch id="reminder_on_due_date" checked={field.value} onCheckedChange={field.onChange} />}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </SettingsSection>
+
       <SettingsSection id="utilities" title="Utility rates" description="A rate is locked into each bill when the charge is first added, so changing it does not alter past bills.">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField id="electricity_rate" label={`Electricity per kWh (${settings.currency_code})`} error={errors.electricity_rate?.message}>
@@ -194,18 +257,36 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
         </div>
       </SettingsSection>
 
-      <SettingsSection id="payments" title="Payment instructions" description="Shown to tenants when they pay, e.g. your bank or e-wallet details.">
-        <div>
-          <Textarea
-            id="payment_instructions"
-            aria-label="Payment instructions"
-            rows={4}
-            placeholder={'GCash: 0917 000 0000 (Juan D.)\nBPI: 1234-5678-90'}
-            {...register('payment_instructions')}
-          />
-          {errors.payment_instructions && (
-            <p className="mt-1.5 text-[13px] text-destructive">{errors.payment_instructions.message}</p>
-          )}
+      <SettingsSection id="payments" title="Payments" description="How tenants can pay. Instructions are shown when they pay, e.g. your bank or e-wallet details.">
+        <div className="grid gap-4">
+          <div className="flex items-start justify-between gap-4 rounded-lg border p-3">
+            <div>
+              <Label htmlFor="online_payments_enabled">Online payments (GCash, Maya, card, QR Ph)</Label>
+              <p className="mt-0.5 text-[13px] text-muted-foreground">
+                Tenants pay on a secure PayMongo page and the payment is confirmed automatically, with no proof to check. Requires
+                the PayMongo keys to be set up on the server.
+              </p>
+            </div>
+            <Controller
+              control={control}
+              name="online_payments_enabled"
+              render={({ field }) => <Switch id="online_payments_enabled" checked={field.value} onCheckedChange={field.onChange} />}
+            />
+          </div>
+          <div>
+            <Label htmlFor="payment_instructions" className="mb-1.5 block">
+              Payment instructions
+            </Label>
+            <Textarea
+              id="payment_instructions"
+              rows={4}
+              placeholder={'GCash: 0917 000 0000 (Juan D.)\nBPI: 1234-5678-90'}
+              {...register('payment_instructions')}
+            />
+            {errors.payment_instructions && (
+              <p className="mt-1.5 text-[13px] text-destructive">{errors.payment_instructions.message}</p>
+            )}
+          </div>
         </div>
       </SettingsSection>
 
@@ -254,6 +335,7 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
 const SECTIONS = [
   { id: 'property', label: 'Property' },
   { id: 'billing', label: 'Billing schedule' },
+  { id: 'reminders', label: 'Rent reminders' },
   { id: 'utilities', label: 'Utility rates' },
   { id: 'payments', label: 'Payment instructions' },
   { id: 'tenants', label: 'Tenant information' },

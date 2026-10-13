@@ -14,7 +14,9 @@ export function useBillsSince(fromPeriod: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bill_overview')
-        .select('id, period, tenant_id, total_amount, amount_paid, balance, status, is_overdue')
+        .select(
+          'id, period, lease_id, tenant_id, total_amount, amount_paid, balance, status, is_overdue, is_finalized, rent_amount, electricity_amount, water_amount, other_amount, rent_paid, electricity_paid, water_paid, other_paid',
+        )
         .gte('period', fromPeriod)
         .neq('status', 'void')
       if (error) throw error
@@ -23,7 +25,7 @@ export function useBillsSince(fromPeriod: string) {
   })
 }
 
-/** Every bill with money still owed, across all months. */
+/** Every issued bill with money still owed, across all months. Drafts are not owed yet. */
 export function useOpenBills() {
   return useQuery({
     queryKey: reportKeys.open,
@@ -32,6 +34,7 @@ export function useOpenBills() {
         .from('bill_overview')
         .select('id, period, due_date, tenant_id, tenant_name, room_number, balance, is_overdue, status')
         .in('status', ['unpaid', 'partial'])
+        .eq('is_finalized', true)
         .order('due_date')
       if (error) throw error
       return data
