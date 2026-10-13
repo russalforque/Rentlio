@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, ArrowRight, Loader2, MailCheck, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { z } from 'zod'
 import { FormField } from '@/components/app/form-field'
 import { PasswordChecklist } from '@/components/app/password-checklist'
@@ -118,6 +118,7 @@ function VerifyEmail({ email, onBack }: { email: string; onBack: () => void }) {
 }
 
 export function RegisterPage() {
+  const navigate = useNavigate()
   const [sentTo, setSentTo] = useState<string | null>(null)
   const [serverError, setServerError] = useState<string | null>(null)
   const {
@@ -134,7 +135,7 @@ export function RegisterPage() {
 
   const onSubmit = async (v: Output) => {
     setServerError(null)
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: v.email,
       password: v.password,
       options: {
@@ -147,8 +148,15 @@ export function RegisterPage() {
       setServerError(getErrorMessage(error))
       return
     }
-    // Supabase answers the same way for an address that is already registered,
-    // so this page never reveals which emails have accounts.
+    // Email confirmation is off: the user is signed in already, and the home
+    // route shows the "Waiting for approval" screen until the landlord decides.
+    if (data.session) {
+      navigate('/', { replace: true })
+      return
+    }
+    // Confirmation still switched on in the Supabase project: ask them to check
+    // their inbox. Supabase answers the same way for an address that is already
+    // registered, so this step never reveals which emails have accounts.
     setSentTo(v.email)
   }
 
