@@ -134,7 +134,7 @@ export function TenantHomePage() {
   )
 
   return (
-    <div className="space-y-5">
+    <div className="@container space-y-5">
       <PageHeader
         eyebrow={format(new Date(), 'EEEE, MMMM d')}
         title={`${greeting()}, ${profile.full_name.split(' ')[0] || 'there'}`}
@@ -158,11 +158,11 @@ export function TenantHomePage() {
         </Callout>
       ))}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
+      <div className="grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-12">
         {/* Amount due: the one thing a tenant comes here for */}
         <section
           aria-label="Amount due"
-          className={cn('surface order-1 flex flex-col p-5 sm:p-6 md:col-span-2 xl:col-span-8', !(totalDue > 0 || bills.isPending) && 'border-success/30')}
+          className={cn('surface order-1 flex flex-col p-5 sm:p-6 @xl:col-span-2 @4xl:col-span-8', !(totalDue > 0 || bills.isPending) && 'border-success/30')}
         >
           {bills.isPending ? (
             <Skeleton className="h-48" />
@@ -229,7 +229,7 @@ export function TenantHomePage() {
         </section>
 
         {/* My room */}
-        <Panel title="My room" className="order-3 xl:order-2 xl:col-span-4" action={<PanelLink to="/my/room">Details</PanelLink>}>
+        <Panel title="My room" className="order-3 @4xl:order-2 @4xl:col-span-4" action={<PanelLink to="/my/room">Details</PanelLink>}>
           {tenancy.isPending ? (
             <Skeleton className="h-32" />
           ) : room ? (
@@ -268,7 +268,7 @@ export function TenantHomePage() {
         <Panel
           title="Your bills"
           description="Total billed per month"
-          className="order-4 md:col-span-2 xl:order-3 xl:col-span-8"
+          className="order-4 @xl:col-span-2 @4xl:order-3 @4xl:col-span-8"
           action={<PanelLink to="/my/bills">View all</PanelLink>}
         >
           {bills.isPending ? (
@@ -305,7 +305,7 @@ export function TenantHomePage() {
         </Panel>
 
         {/* Calendar */}
-        <Panel title="Billing calendar" className="order-5 xl:order-4 xl:col-span-4">
+        <Panel title="Billing calendar" className="order-5 @4xl:order-4 @4xl:col-span-4">
           {settings ? (
             <BillingCalendar billingDay={settings.billing_day} dueDays={settings.due_days} extra={calendarMarks} />
           ) : (
@@ -314,7 +314,7 @@ export function TenantHomePage() {
         </Panel>
 
         {/* Payments */}
-        <Panel title="Recent payments" className="order-2 xl:order-5 xl:col-span-6" action={<PanelLink to="/my/payments">View all</PanelLink>}>
+        <Panel title="Recent payments" className="order-2 @4xl:order-5 @4xl:col-span-6" action={<PanelLink to="/my/payments">View all</PanelLink>}>
           {payments.isPending ? (
             <Skeleton className="h-32" />
           ) : !payments.data?.length ? (
@@ -349,7 +349,7 @@ export function TenantHomePage() {
         </Panel>
 
         {/* How to pay */}
-        <Panel title="How to pay" className="order-6 xl:col-span-6">
+        <Panel title="How to pay" className="order-6 @4xl:col-span-6">
           {settings?.payment_instructions ? (
             <p className="text-sm leading-relaxed whitespace-pre-line md:text-[13px]">{settings.payment_instructions}</p>
           ) : (

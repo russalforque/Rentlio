@@ -22,7 +22,7 @@ export function ThemeToggle() {
           title={label}
           onClick={() => setTheme(value)}
           className={cn(
-            'grid flex-1 place-items-center rounded-md py-2 text-muted-foreground md:py-1 transition-colors',
+            'grid flex-1 place-items-center rounded-md py-2 text-muted-foreground dense:py-1 transition-colors',
             theme === value && 'bg-background text-foreground shadow-sm',
           )}
         >

@@ -3,6 +3,12 @@
 @import '@fontsource-variable/manrope';
 
 @custom-variant dark (&:is(.dark *));
+/*
+ * Compact control sizing for mouse and trackpad users on wider screens. Touch
+ * tablets keep 44px targets and 16px input text (which also stops iPad Safari
+ * zooming into focused fields), whatever their width or orientation.
+ */
+@custom-variant dense (@media (min-width: 48rem) and (pointer: fine));
 
 :root {
   --radius: 0.5rem;

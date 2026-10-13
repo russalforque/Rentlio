@@ -72,7 +72,7 @@ export function BillItems({ items, currency, total, paid, balance, paidByItem, o
               {onEdit && (
                 <div className={cn('flex shrink-0 justify-end', twoActions ? 'w-20 md:w-16' : 'w-10 md:w-8')}>
                   {editable && (
-                    <Button variant="ghost" size="icon" className="size-10 md:size-7" onClick={() => onEdit(item)} aria-label={`Edit ${item.description}`}>
+                    <Button variant="ghost" size="icon" className="size-10 dense:size-7" onClick={() => onEdit(item)} aria-label={`Edit ${item.description}`}>
                       <Pencil className="size-3.5" />
                     </Button>
                   )}
@@ -80,7 +80,7 @@ export function BillItems({ items, currency, total, paid, balance, paidByItem, o
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="size-10 text-destructive hover:text-destructive md:size-7"
+                      className="size-10 text-destructive hover:text-destructive dense:size-7"
                       onClick={() => onRemove(item)}
                       aria-label={`Remove ${item.description}`}
                     >

@@ -63,7 +63,7 @@ export function DashboardPage() {
   const drafts = (monthBills.data ?? []).filter((b) => b.status !== 'void' && !b.is_finalized)
 
   return (
-    <div className="space-y-5">
+    <div className="@container space-y-5">
       <PageHeader
         eyebrow={<span className="text-xs font-semibold tracking-wider uppercase">{format(new Date(), 'EEEE, MMMM d')}</span>}
         title={firstName ? `${greeting()}, ${firstName}` : greeting()}
@@ -99,9 +99,9 @@ export function DashboardPage() {
       ) : loading || !s || !next ? (
         <div className="space-y-4" aria-busy>
           <StatGridSkeleton />
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-            <Skeleton className="h-96 rounded-xl xl:col-span-8" />
-            <Skeleton className="h-96 rounded-xl xl:col-span-4" />
+          <div className="grid grid-cols-1 gap-4 @4xl:grid-cols-12">
+            <Skeleton className="h-96 rounded-xl @4xl:col-span-8" />
+            <Skeleton className="h-96 rounded-xl @4xl:col-span-4" />
           </div>
         </div>
       ) : (
@@ -109,11 +109,11 @@ export function DashboardPage() {
           <KpiStrip months={history.months} occupancy={occupancy} open={open.data ?? []} pending={pending.data ?? []} currency={currency} />
 
           {/* Phones: what needs doing first, charts after. Large screens: an 8/4 grid. */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
-            <RevenueCard months={history.months} currency={currency} className="order-4 md:col-span-2 xl:order-1 xl:col-span-8" />
+          <div className="grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-12">
+            <RevenueCard months={history.months} currency={currency} className="order-4 @xl:col-span-2 @4xl:order-1 @4xl:col-span-8" />
 
             <ActionCenter
-              className="order-1 xl:order-2 xl:col-span-4"
+              className="order-1 @4xl:order-2 @4xl:col-span-4"
               input={{
                 period,
                 today: new Date(),
@@ -136,19 +136,19 @@ export function DashboardPage() {
               period={period}
               bills={monthBills.data ?? []}
               currency={currency}
-              className="order-2 md:col-span-2 xl:order-first xl:col-span-12"
+              className="order-2 @xl:col-span-2 @4xl:order-first @4xl:col-span-12"
             />
 
-            <TransactionsCard currency={currency} className="order-3 md:col-span-2 xl:order-3 xl:col-span-8" />
+            <TransactionsCard currency={currency} className="order-3 @xl:col-span-2 @4xl:order-3 @4xl:col-span-8" />
 
-            <WatchlistCard bills={open.data ?? []} currency={currency} className="order-2 xl:order-4 xl:col-span-4" />
+            <WatchlistCard bills={open.data ?? []} currency={currency} className="order-2 @4xl:order-4 @4xl:col-span-4" />
 
-            <OccupancyCard rooms={roomList} occupancy={occupancy} currency={currency} className="order-5 md:col-span-2 xl:order-5 xl:col-span-8" />
+            <OccupancyCard rooms={roomList} occupancy={occupancy} currency={currency} className="order-5 @xl:col-span-2 @4xl:order-5 @4xl:col-span-8" />
 
             <Panel
               title="Billing calendar"
               description={`Next bills ${format(next.issue, 'MMM d')}, due ${format(next.due, 'MMM d')}`}
-              className="order-6 md:col-span-2 xl:order-6 xl:col-span-4"
+              className="order-6 @xl:col-span-2 @4xl:order-6 @4xl:col-span-4"
             >
               <BillingCalendar billingDay={s.billing_day} dueDays={s.due_days} />
             </Panel>

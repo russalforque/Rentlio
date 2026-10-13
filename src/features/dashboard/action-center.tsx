@@ -39,7 +39,7 @@ export function ActionCenter({ input, className }: { input: ActionInput; classNa
             <Link
               key={a.label}
               to={a.to}
-              className="flex min-h-11 items-center gap-2 rounded-lg border px-3 text-[13px] font-medium transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:min-h-10"
+              className="flex min-h-11 items-center gap-2 rounded-lg border px-3 text-[13px] font-medium transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none dense:min-h-10"
             >
               <a.icon className="size-4 text-muted-foreground" aria-hidden />
               {a.label}

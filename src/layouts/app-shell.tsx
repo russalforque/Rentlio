@@ -24,6 +24,7 @@ import { useNotificationsRealtime } from '@/features/notifications/use-notificat
 import { usePendingPayments } from '@/features/payments/api'
 import { usePendingRegistrationCount } from '@/features/registrations/api'
 import { useAuth, useProfile } from '@/hooks/use-auth'
+import { useMediaQuery } from '@/hooks/use-media-query'
 import { useSettings } from '@/hooks/use-settings'
 import { cn } from '@/lib/utils'
 import { HOME_BY_ROLE } from '@/routes/home'
@@ -31,11 +32,15 @@ import { NAV, type NavItem } from './nav'
 
 const COLLAPSE_KEY = 'rentlio:sidebar-collapsed'
 
-function readCollapsed() {
+type SidebarPref = 'collapsed' | 'expanded' | null
+
+/** The user's explicit choice, or null to follow the screen width. */
+function readSidebarPref(): SidebarPref {
   try {
-    return localStorage.getItem(COLLAPSE_KEY) === '1'
+    const v = localStorage.getItem(COLLAPSE_KEY)
+    return v === '1' ? 'collapsed' : v === '0' ? 'expanded' : null
   } catch {
-    return false
+    return null
   }
 }
 
@@ -84,7 +89,7 @@ function SideLink({ item, wide }: { item: NavItem; wide: boolean }) {
           aria-label={label}
           // Static classes: Radix Slot cannot merge NavLink's function className. NavLink sets aria-current.
           className={cn(
-            'group relative flex h-11 items-center justify-center gap-2.5 lg:h-9 rounded-lg text-[13px] font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-sidebar-accent-foreground aria-[current=page]:shadow-xs aria-[current=page]:ring-1 aria-[current=page]:ring-sidebar-border',
+            'group relative flex h-11 items-center justify-center gap-2.5 dense:h-9 rounded-lg text-[13px] font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-sidebar-accent-foreground aria-[current=page]:shadow-xs aria-[current=page]:ring-1 aria-[current=page]:ring-sidebar-border',
             wide && 'lg:justify-start lg:px-2.5',
           )}
         >
@@ -122,7 +127,7 @@ function DarkModeRow({ wide }: { wide: boolean }) {
             onClick={() => setTheme(dark ? 'light' : 'dark')}
             aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
             className={cn(
-              'flex h-11 items-center justify-center rounded-lg text-sidebar-foreground lg:h-9 transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+              'flex h-11 items-center justify-center rounded-lg text-sidebar-foreground dense:h-9 transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
               wide && 'lg:hidden',
             )}
           >
@@ -169,7 +174,7 @@ function Sidebar({ wide, onToggle }: { wide: boolean; onToggle: () => void }) {
             type="button"
             onClick={onToggle}
             aria-label="Collapse sidebar"
-            className="hidden size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none lg:grid"
+            className="hidden size-10 shrink-0 place-items-center rounded-md text-muted-foreground dense:size-7 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none lg:grid"
           >
             <PanelLeft className="size-4" />
           </button>
@@ -193,7 +198,7 @@ function Sidebar({ wide, onToggle }: { wide: boolean; onToggle: () => void }) {
             type="button"
             onClick={onToggle}
             aria-label="Expand sidebar"
-            className="mt-1 hidden h-9 place-items-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none lg:grid"
+            className="mt-1 hidden h-11 place-items-center rounded-lg text-sidebar-foreground dense:h-9 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none lg:grid"
           >
             <PanelLeft className="size-4.5" strokeWidth={1.8} />
           </button>
@@ -212,7 +217,7 @@ function UserMenu() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-2.5 rounded-full p-1.5 transition-colors hover:bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:p-0.5 lg:rounded-lg lg:py-1 lg:pr-2 lg:pl-1"
+          className="flex items-center gap-2.5 rounded-full p-1.5 transition-colors hover:bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none dense:p-0.5 lg:rounded-lg lg:py-1 lg:pr-2 lg:pl-1"
           aria-label="Account menu"
         >
           <UserAvatar
@@ -263,7 +268,7 @@ function UserMenu() {
 }
 
 const iconButton =
-  'relative grid size-11 shrink-0 place-items-center rounded-full border bg-card md:size-9 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+  'relative grid size-11 shrink-0 place-items-center rounded-full border bg-card dense:size-9 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
 
 function SearchButton({ onOpen }: { onOpen: () => void }) {
   const mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
@@ -396,7 +401,10 @@ export function AppShell() {
   const { state } = useAuth()
   const { data: settings } = useSettings()
   const [searching, setSearching] = useState(false)
-  const [collapsed, setCollapsed] = useState(readCollapsed)
+  const [sidebarPref, setSidebarPref] = useState(readSidebarPref)
+  // Without an explicit choice: icon rail on tablet landscape and small laptops, labels from 1280px.
+  const roomy = useMediaQuery('(min-width: 80rem)')
+  const wide = sidebarPref ? sidebarPref === 'expanded' : roomy
   useNotificationsRealtime(state.status === 'signed-in' ? state.session.user.id : '')
   const items = NAV[profile.role]
   const current = items.find((n) => location.pathname.startsWith(n.to))
@@ -407,15 +415,15 @@ export function AppShell() {
   const more = items.filter((n) => !n.mobileTab)
   const isLandlord = profile.role === 'landlord'
 
-  const toggleSidebar = () =>
-    setCollapsed((c) => {
-      try {
-        localStorage.setItem(COLLAPSE_KEY, c ? '0' : '1')
-      } catch {
-        // Storage blocked: the choice lasts for this visit only.
-      }
-      return !c
-    })
+  const toggleSidebar = () => {
+    const next = wide ? 'collapsed' : 'expanded'
+    try {
+      localStorage.setItem(COLLAPSE_KEY, next === 'collapsed' ? '1' : '0')
+    } catch {
+      // Storage blocked: the choice lasts for this visit only.
+    }
+    setSidebarPref(next)
+  }
 
   // Detail pages go back to wherever the user came from (keeps filters and months), else to the section.
   const goBack = () => {
@@ -437,8 +445,8 @@ export function AppShell() {
   }, [isLandlord])
 
   return (
-    <div className={cn('min-h-dvh md:pl-18', collapsed ? 'lg:pl-18' : 'lg:pl-60')}>
-      <Sidebar wide={!collapsed} onToggle={toggleSidebar} />
+    <div className={cn('min-h-dvh md:pl-18', wide ? 'lg:pl-60' : 'lg:pl-18')}>
+      <Sidebar wide={wide} onToggle={toggleSidebar} />
 
       <header className="px-gutter sticky top-0 z-30 flex h-[calc(4rem+env(safe-area-inset-top))] items-center gap-2 bg-background/90 pt-[env(safe-area-inset-top)] backdrop-blur-md sm:gap-3">
         {nested ? (
@@ -446,9 +454,9 @@ export function AppShell() {
             type="button"
             onClick={goBack}
             aria-label={current ? `Back to ${current.label}` : 'Back'}
-            className="-ml-2.5 grid size-11 shrink-0 place-items-center rounded-full text-foreground hover:bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:-ml-1 md:size-9"
+            className="-ml-2.5 grid size-11 shrink-0 place-items-center rounded-full text-foreground hover:bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none dense:-ml-1 dense:size-9"
           >
-            <ArrowLeft className="size-5 md:size-4.5" />
+            <ArrowLeft className="size-5 dense:size-4.5" />
           </button>
         ) : (
           <Link to={HOME_BY_ROLE[profile.role]} aria-label="Home" className="-ml-0.5 grid size-11 place-items-center rounded-lg md:hidden">

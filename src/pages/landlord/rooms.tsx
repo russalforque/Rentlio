@@ -311,7 +311,7 @@ export function RoomsPage() {
                       </li>
                     ))}
                   </ul>
-                  <div className="hidden grid-cols-2 gap-3 sm:grid md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                  <div className="hidden grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))] gap-3 sm:grid">
                     {list.map((room) => (
                       <RoomCard
                         key={room.id}

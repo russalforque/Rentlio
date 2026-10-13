@@ -40,7 +40,7 @@ export function PanelLink({ to, children }: { to: string; children: ReactNode })
   return (
     <Link
       to={to}
-      className="inline-flex h-10 items-center gap-1 rounded-lg bg-muted px-3 text-[13px] md:h-8 md:text-xs font-medium text-foreground transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className="inline-flex h-10 items-center gap-1 rounded-lg bg-muted px-3 text-[13px] dense:h-8 dense:text-xs font-medium text-foreground transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
     >
       {children}
     </Link>
@@ -257,7 +257,7 @@ export function Segmented<T extends string>({ label, value, options, onChange }:
           aria-checked={value === o.value}
           onClick={() => onChange(o.value)}
           className={cn(
-            'h-9 rounded-md px-3 text-[13px] font-medium md:h-7 md:px-2.5 md:text-xs text-muted-foreground transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+            'h-9 rounded-md px-3 text-[13px] font-medium dense:h-7 dense:px-2.5 dense:text-xs text-muted-foreground transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
             value === o.value && 'bg-card text-foreground shadow-xs',
           )}
         >
@@ -294,7 +294,7 @@ export function FilterChips<T extends string>({ label, value, options, onChange,
             aria-checked={active}
             onClick={() => onChange(o.value)}
             className={cn(
-              'inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3.5 text-sm md:h-8 md:px-3 md:text-[13px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+              'inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3.5 text-sm dense:h-8 dense:px-3 dense:text-[13px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
               active
                 ? 'border-border bg-card text-foreground shadow-xs'
                 : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -319,7 +319,7 @@ export function SearchField({ className, ...props }: ComponentProps<'input'>) {
       <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
       <input
         type="search"
-        className="h-11 w-full rounded-lg border border-input bg-card pr-3 pl-9 text-base md:h-9 outline-none placeholder:text-muted-foreground hover:border-foreground/20 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 md:text-[13px] dark:bg-input/20"
+        className="h-11 w-full rounded-lg border border-input bg-card pr-3 pl-9 text-base dense:h-9 outline-none placeholder:text-muted-foreground hover:border-foreground/20 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15 dense:text-[13px] dark:bg-input/20"
         {...props}
       />
     </div>
