@@ -19,8 +19,8 @@ const schema = z.object({
 })
 type Values = z.infer<typeof schema>
 
-/** Leading glyph inside a 44px-tall field. */
-const fieldIcon = 'pointer-events-none absolute z-10 top-[22px] left-3.5 size-4 -translate-y-1/2 text-muted-foreground'
+/** Center the leading glyph even when dense desktop controls are shorter. */
+const fieldIcon = 'pointer-events-none absolute inset-y-0 left-3.5 z-10 my-auto size-4 text-muted-foreground'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -53,123 +53,129 @@ export function LoginPage() {
   }
 
   return (
-    <>
-      <AuthHeading title="Welcome back" description="Sign in to manage your rooms, bills and payments." />
+    <section className="surface p-5 shadow-sm sm:p-7" aria-labelledby="login-title">
+        <AuthHeading
+          title="Welcome back"
+          description="Sign in to manage your rooms, bills and payments."
+          titleId="login-title"
+        />
 
-      <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4" noValidate>
-        {serverError && (
-          <Alert variant="destructive">
-            <AlertDescription>
-              {serverError}
-              {unconfirmed && (
-                <button
-                  type="button"
-                  disabled={resent}
-                  onClick={async () => {
-                    const { error } = await supabase.auth.resend({
-                      type: 'signup',
-                      email: unconfirmed,
-                      options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
-                    })
-                    if (error) setServerError(getErrorMessage(error))
-                    else setResent(true)
-                  }}
-                  className="mt-1 block font-semibold underline underline-offset-2 disabled:no-underline"
-                >
-                  {resent ? 'Confirmation link sent.' : 'Resend confirmation link'}
-                </button>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <FormField id="email" label="Email" error={errors.email?.message}>
-          <div className="relative">
-            <Mail className={fieldIcon} aria-hidden />
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              inputMode="email"
-              enterKeyHint="next"
-              // Desktop only: on phones the keyboard would cover the form on arrival.
-              autoFocus={typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches}
-              placeholder="you@example.com"
-              className="h-11 pl-10"
-              aria-invalid={!!errors.email}
-              aria-describedby={errors.email ? 'email-error' : undefined}
-              {...register('email')}
-            />
-          </div>
-        </FormField>
-
-        <div className="grid gap-1.5">
-          <div className="flex items-center justify-between gap-3">
-            <label htmlFor="password" className="text-sm font-medium">
-              Password
-            </label>
-            <Link
-              to="/forgot-password"
-              className="rounded text-[13px] font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              Forgot password?
-            </Link>
-          </div>
-          <div className="relative">
-            <LockKeyhole className={fieldIcon} aria-hidden />
-            <PasswordInput
-              id="password"
-              autoComplete="current-password"
-              placeholder="Your password"
-              className="h-11 pl-10"
-              aria-invalid={!!errors.password}
-              aria-describedby={errors.password ? 'password-error' : undefined}
-              {...register('password')}
-            />
-          </div>
-          {errors.password && (
-            <p id="password-error" className="text-[13px] text-destructive">
-              {errors.password.message}
-            </p>
+        <form onSubmit={handleSubmit(onSubmit)} className="grid gap-5" noValidate>
+          {serverError && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                {serverError}
+                {unconfirmed && (
+                  <button
+                    type="button"
+                    disabled={resent}
+                    onClick={async () => {
+                      const { error } = await supabase.auth.resend({
+                        type: 'signup',
+                        email: unconfirmed,
+                        options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
+                      })
+                      if (error) setServerError(getErrorMessage(error))
+                      else setResent(true)
+                    }}
+                    className="mt-1 block min-h-10 rounded font-semibold underline underline-offset-2 disabled:no-underline"
+                  >
+                    {resent ? 'Confirmation link sent.' : 'Resend confirmation link'}
+                  </button>
+                )}
+              </AlertDescription>
+            </Alert>
           )}
+
+          <FormField id="email" label="Email" error={errors.email?.message}>
+            <div className="relative">
+              <Mail className={fieldIcon} aria-hidden />
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                enterKeyHint="next"
+                // Desktop only: on phones the keyboard would cover the form on arrival.
+                autoFocus={typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches}
+                placeholder="you@example.com"
+                className="h-12 pl-10 dense:h-9"
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? 'email-error' : undefined}
+                {...register('email')}
+              />
+            </div>
+          </FormField>
+
+          <div className="grid gap-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <label htmlFor="password" className="text-sm font-medium">
+                Password
+              </label>
+              <Link
+                to="/forgot-password"
+                className="min-h-10 rounded py-2 text-[13px] font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                Forgot password?
+              </Link>
+            </div>
+            <div className="relative">
+              <LockKeyhole className={fieldIcon} aria-hidden />
+              <PasswordInput
+                id="password"
+                autoComplete="current-password"
+                placeholder="Your password"
+                className="h-12 pl-10 dense:h-9"
+                aria-invalid={!!errors.password}
+                aria-describedby={errors.password ? 'password-error' : undefined}
+                {...register('password')}
+              />
+            </div>
+            {errors.password && (
+              <p id="password-error" className="text-[13px] text-destructive">
+                {errors.password.message}
+              </p>
+            )}
+          </div>
+
+          <label className="-ml-1 flex min-h-11 w-fit cursor-pointer items-center gap-2.5 rounded-lg px-1 text-sm select-none">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+              className="size-4 cursor-pointer rounded accent-primary"
+            />
+            Keep me signed in
+          </label>
+
+          <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="animate-spin" /> : null}
+            {isSubmitting ? 'Signing in…' : 'Sign in'}
+            {!isSubmitting && <ArrowRight />}
+          </Button>
+        </form>
+
+        <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground sm:my-6">
+          <span className="h-px flex-1 bg-border" />
+          <span>New to Rentlio?</span>
+          <span className="h-px flex-1 bg-border" />
         </div>
 
-        <label className="-ml-1 flex min-h-10 w-fit cursor-pointer items-center gap-2.5 rounded-lg px-1 text-sm select-none">
-          <input
-            type="checkbox"
-            checked={remember}
-            onChange={(e) => setRemember(e.target.checked)}
-            className="size-4 cursor-pointer rounded accent-primary"
-          />
-          Keep me signed in
-        </label>
-
-        <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? <Loader2 className="animate-spin" /> : null}
-          {isSubmitting ? 'Signing in…' : 'Sign in'}
-          {!isSubmitting && <ArrowRight />}
-        </Button>
-      </form>
-
-      <div className="my-7 flex items-center gap-3 text-xs text-muted-foreground" aria-hidden>
-        <span className="h-px flex-1 bg-border" />
-        New here?
-        <span className="h-px flex-1 bg-border" />
-      </div>
-
-      <Link
-        to="/register"
-        className="surface flex items-start gap-3 p-4 text-[13px] text-muted-foreground transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-      >
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-muted text-foreground/80">
-          <UserPlus className="size-4" aria-hidden />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block font-semibold text-foreground">Renting here? Register as a tenant</span>
-          Your landlord approves new accounts. Got an invitation email? Use its link instead.
-        </span>
-        <ArrowRight className="mt-1 size-4 shrink-0" aria-hidden />
-      </Link>
-    </>
+        <Link
+          to="/register"
+          className="group flex min-w-0 items-center gap-3 rounded-xl border bg-muted/40 p-3.5 text-[13px] text-muted-foreground transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-4"
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-lg border bg-card text-foreground/80">
+            <UserPlus className="size-4" aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold text-foreground">Register as a tenant</span>
+            <span className="mt-0.5 block leading-relaxed">
+              Your landlord approves new accounts. Invited? Use the link in your email.
+            </span>
+          </span>
+          <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
+        </Link>
+    </section>
   )
 }

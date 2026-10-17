@@ -224,6 +224,11 @@
   padding-top: 1.5rem;
 }
 
+.tenant-portal .tenant-page {
+  margin-inline: auto;
+  max-width: 88rem;
+}
+
 .tenant-portal .tenant-page .surface,
 .tenant-portal .tenant-page [data-slot='card'] {
   border-radius: 1.5rem;
@@ -240,7 +245,24 @@
 }
 
 .tenant-portal .tenant-page h1 {
+  font-size: clamp(1.75rem, 2.7vw, 2.25rem);
   letter-spacing: -0.035em;
+}
+
+.tenant-portal .tenant-page h2,
+.tenant-portal .tenant-page [data-slot='card-title'] {
+  letter-spacing: -0.025em;
+}
+
+.tenant-portal .tenant-page .surface {
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.tenant-portal .tenant-page .surface:hover {
+  border-color: color-mix(in oklab, var(--border), var(--foreground) 8%);
+  box-shadow: 0 6px 22px hsl(var(--shadow-color) / 0.055);
 }
 
 .tenant-portal main button,
@@ -262,6 +284,16 @@
 @media (min-width: 48rem) {
   .tenant-portal main {
     padding-top: 2rem;
+  }
+}
+
+@media (max-width: 47.999rem) {
+  .tenant-portal main {
+    padding-top: 1.15rem;
+  }
+
+  .tenant-portal .tenant-page {
+    padding-bottom: 0.5rem;
   }
 }
 

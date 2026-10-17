@@ -39,23 +39,29 @@ export function TenantRoomPage() {
       <PageHeader title="My room" description="Your room, rental terms and how to reach your landlord." />
 
       {tenancy.isPending ? (
-        <Skeleton className="h-40 rounded-xl" />
+        <Skeleton className="h-56 rounded-3xl" />
       ) : !lease ? (
         <EmptyState icon={DoorOpen} title="No room assigned" description="Your landlord has not assigned you a room yet." />
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-display text-3xl">Room {lease.rooms?.room_number}</CardTitle>
-            {lease.rooms?.description && <p className="text-[13px] text-muted-foreground">{lease.rooms.description}</p>}
+        <Card className="overflow-hidden">
+          <CardHeader className="gap-5 pb-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <span className="grid size-16 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground">
+                <DoorOpen className="size-7" strokeWidth={1.7} aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">Your space</p>
+                <CardTitle className="mt-1 font-display text-3xl">Room {lease.rooms?.room_number}</CardTitle>
+                {lease.rooms?.description && <p className="mt-1 text-[13px] text-muted-foreground">{lease.rooms.description}</p>}
+              </div>
+            </div>
+            <span className="inline-flex w-fit items-center gap-2 rounded-full border bg-card px-3 py-1.5 text-xs font-semibold text-success">
+              <span className="size-2 rounded-full bg-success" aria-hidden />
+              Active tenancy
+            </span>
           </CardHeader>
           <CardContent>
-            <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
-              <Item label="Occupancy">
-                <span className="inline-flex items-center gap-1.5 text-success">
-                  <span className="size-1.5 rounded-full bg-success" aria-hidden />
-                  Active
-                </span>
-              </Item>
+            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
               <Item label="Room capacity">
                 {lease.rooms?.capacity ?? '—'} {lease.rooms?.capacity === 1 ? 'person' : 'people'}
               </Item>
@@ -71,7 +77,7 @@ export function TenantRoomPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Card>
+        <Card className="h-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <PiggyBank className="size-4 text-muted-foreground" /> Security deposit
@@ -102,7 +108,7 @@ export function TenantRoomPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="h-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Building2 className="size-4 text-muted-foreground" /> Property & landlord

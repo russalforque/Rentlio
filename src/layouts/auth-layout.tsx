@@ -77,15 +77,15 @@ export function AuthLayout() {
   return (
     <div className="min-h-dvh bg-background lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-3 lg:p-3">
       <div className="flex min-h-dvh flex-col lg:min-h-0">
-        <header className="flex items-center px-5 py-5 sm:px-8">
+        <header className="px-gutter flex items-center py-5">
           <Brand />
         </header>
-        <main className="flex flex-1 items-start justify-center px-5 pt-6 pb-12 sm:items-center sm:px-8 sm:pt-0">
+        <main className="px-gutter flex flex-1 items-start justify-center pt-4 pb-10 sm:items-center sm:pt-0 sm:pb-8">
           <div className="w-full max-w-100">
             <Outlet />
           </div>
         </main>
-        <footer className="flex flex-wrap items-center justify-between gap-2 px-5 pb-5 text-xs text-muted-foreground sm:px-8">
+        <footer className="px-gutter flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-xs text-muted-foreground">
           <span>© {new Date().getFullYear()} Rentlio</span>
           <span className="inline-flex items-center gap-1.5">
             <ShieldCheck className="size-3.5" aria-hidden /> Tenants only ever see their own records
@@ -124,11 +124,21 @@ export function AuthLayout() {
 }
 
 /** Shared heading for the auth forms. */
-export function AuthHeading({ title, description, icon }: { title: string; description: ReactNode; icon?: ReactNode }) {
+export function AuthHeading({
+  title,
+  description,
+  icon,
+  titleId,
+}: {
+  title: string
+  description: ReactNode
+  icon?: ReactNode
+  titleId?: string
+}) {
   return (
     <div className="mb-7">
       {icon}
-      <h1 className="font-display text-[28px] leading-tight font-semibold">{title}</h1>
+      <h1 id={titleId} className="font-display text-[28px] leading-tight font-semibold">{title}</h1>
       <p className="mt-2 text-sm text-muted-foreground">{description}</p>
     </div>
   )
