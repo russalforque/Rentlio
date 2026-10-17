@@ -1,8 +1,9 @@
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { CalendarClock, Gauge, Inbox, type LucideIcon, MailWarning, Percent, ReceiptText, Send, Tags, UserCheck } from 'lucide-react'
 import type { RoomOverview } from '@/features/rooms/api'
 import { formatMoney, formatPeriod } from '@/lib/format'
 import { pct, type MonthRow } from './metrics'
+import { leaseAnniversaryDate } from '@/lib/dates'
 
 /** Rows always shown, padded with standing insights when there is little to do. */
 const MIN_ROWS = 4
@@ -18,9 +19,8 @@ export interface ActionItem {
 
 export interface ActionInput {
   period: string
-  today: Date
-  billingDay: number
-  next: { issue: Date; due: Date }
+  today: string
+  nextDue: string | null
   rooms: RoomOverview[]
   /** Lease ids that already have a live bill for `period`. */
   billedLeases: Set<string>
@@ -65,10 +65,14 @@ export function buildTodos(i: ActionInput): ActionItem[] {
     })
   }
 
-  // Bills are generated on the billing day, so before it a missing bill is expected, not a to-do.
-  // Matched per lease: comparing counts lets a mid-month move-out's bill hide an unbilled room.
-  if (i.today.getDate() >= i.billingDay) {
-    const unbilled = i.rooms.filter((r) => r.occupancy === 'occupied' && r.lease_id && !i.billedLeases.has(r.lease_id)).length
+  {
+    const unbilled = i.rooms.filter((r) =>
+      r.occupancy === 'occupied'
+      && r.lease_id
+      && r.lease_start_date
+      && leaseAnniversaryDate(r.lease_start_date, parseISO(i.today)) <= i.today
+      && !i.billedLeases.has(r.lease_id),
+    ).length
     if (unbilled > 0) {
       todos.push({
         key: 'generate',
@@ -120,7 +124,7 @@ export function buildTodos(i: ActionInput): ActionItem[] {
 }
 
 /** Standing facts that fill the card when the to-do list is short. */
-function buildStanding({ thisMonth, next, currency }: ActionInput): ActionItem[] {
+function buildStanding({ thisMonth, nextDue, currency }: ActionInput): ActionItem[] {
   return [
     {
       key: 'rate',
@@ -134,8 +138,8 @@ function buildStanding({ thisMonth, next, currency }: ActionInput): ActionItem[]
     {
       key: 'next',
       icon: CalendarClock,
-      title: 'Next billing run',
-      note: `Issued ${format(next.issue, 'EEE, MMM d')} · due ${format(next.due, 'MMM d')}`,
+      title: 'Next tenant payment due',
+      note: nextDue ? format(parseISO(nextDue), 'EEE, MMM d') : 'No active rental agreements',
     },
   ]
 }

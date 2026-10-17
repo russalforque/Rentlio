@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { PageHeader } from '@/components/app/page-header'
 import { Panel, StatGrid, StatTile } from '@/components/app/panel'
 import { EmptyState, ErrorState } from '@/components/app/states'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BillStatusBadge } from '@/features/billing/bill-status-badge'
 import { useMyBills } from '@/features/portal/api'
@@ -20,10 +21,11 @@ export function TenantBillsPage() {
   const paidThisYear = (data ?? []).filter((b) => b.period.startsWith(year)).reduce((t, b) => t + b.amount_paid, 0)
 
   return (
-    <div className="space-y-4">
+    <div className="tenant-page space-y-6">
       <PageHeader
         title="Bills"
         description="Your monthly rent and utility bills."
+        actions={open.length > 0 ? <Button asChild><Link to={`/my/pay-online?bill=${nextDue?.id}`}><Wallet /> Pay a bill</Link></Button> : undefined}
       />
       {error ? (
         <ErrorState error={error} onRetry={() => refetch()} />

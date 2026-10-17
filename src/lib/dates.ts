@@ -1,4 +1,4 @@
-import { addDays, addMonths, format, parseISO, startOfMonth } from 'date-fns'
+import { addMonths, format, getDaysInMonth, parseISO, startOfMonth } from 'date-fns'
 
 /**
  * Rental business dates (billing months, due dates, "paid today") follow the
@@ -15,9 +15,17 @@ const propertyDateFormat = new Intl.DateTimeFormat('en-CA', {
 })
 
 /** Today's date at the property, as Postgres `date` text. */
-export function todayISO(now: Date = new Date()): string {
+export function todayISO(now: Date = new Date(), timeZone = PROPERTY_TIME_ZONE): string {
   // en-CA formats as YYYY-MM-DD.
-  return propertyDateFormat.format(now)
+  const formatter = timeZone === PROPERTY_TIME_ZONE
+    ? propertyDateFormat
+    : new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      })
+  return formatter.format(now)
 }
 
 export function firstOfNextMonthISO(): string {
@@ -44,15 +52,19 @@ export function isValidPeriod(value: string | null): value is string {
   return !!value && /^\d{4}-\d{2}-01$/.test(value) && !Number.isNaN(parseISO(value).getTime())
 }
 
-/** Issue and due dates for a month's bills; mirrors generate_bills() in the database. */
-export function billingDatesFor(month: Date, billingDay: number, dueDays: number) {
-  const issue = addDays(startOfMonth(month), billingDay - 1)
-  return { issue, due: addDays(issue, dueDays) }
+/** The move-in anniversary in a target month, clamped without changing the original day. */
+export function leaseAnniversaryDate(startDate: string, month: Date): string {
+  const startDay = Number(startDate.slice(8, 10))
+  const target = startOfMonth(month)
+  const day = Math.min(startDay, getDaysInMonth(target))
+  return format(new Date(target.getFullYear(), target.getMonth(), day), 'yyyy-MM-dd')
 }
 
-/** The next bill issue date on or after today, with its due date. */
-export function nextBillingDates(billingDay: number, dueDays: number) {
-  const today = parseISO(todayISO())
-  const current = billingDatesFor(today, billingDay, dueDays)
-  return current.issue >= today ? current : billingDatesFor(addMonths(today, 1), billingDay, dueDays)
+/** Next lease payment date, including the initial move-in payment date. */
+export function nextLeaseDueDate(startDate: string, today: string = todayISO()): string {
+  if (startDate >= today) return startDate
+
+  const currentMonth = startOfMonth(parseISO(today))
+  const currentDue = leaseAnniversaryDate(startDate, currentMonth)
+  return currentDue >= today ? currentDue : leaseAnniversaryDate(startDate, addMonths(currentMonth, 1))
 }

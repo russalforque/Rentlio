@@ -2,8 +2,7 @@
 //   npm run test:unit
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { format } from 'date-fns'
-import { billingDatesFor, currentPeriod, isValidPeriod, shiftPeriod, todayISO } from '../../src/lib/dates.ts'
+import { currentPeriod, isValidPeriod, leaseAnniversaryDate, nextLeaseDueDate, shiftPeriod, todayISO } from '../../src/lib/dates.ts'
 import { dateInput, intInput, moneyInput, optionalMoneyInput } from '../../src/lib/form-fields.ts'
 import { isValidPhone, optionalText, passwordSchema, phoneText } from '../../src/lib/validation.ts'
 
@@ -94,6 +93,7 @@ describe('dates', () => {
     // 16:30 UTC on Oct 12 is 00:30 on Oct 13 in Manila.
     assert.equal(todayISO(new Date('2026-10-12T16:30:00Z')), '2026-10-13')
     assert.equal(todayISO(new Date('2026-10-12T15:59:00Z')), '2026-10-12')
+    assert.equal(todayISO(new Date('2026-10-12T16:30:00Z'), 'UTC'), '2026-10-12')
     // The billing month turns at Manila midnight too.
     assert.equal(currentPeriod(new Date('2026-01-31T16:00:00Z')), '2026-02-01')
     assert.equal(currentPeriod(new Date('2026-12-31T16:00:00Z')), '2027-01-01')
@@ -105,9 +105,25 @@ describe('dates', () => {
     assert.equal(isValidPeriod('2028-02-15'), false)
     assert.equal(isValidPeriod('nonsense'), false)
   })
-  test('February due dates in leap and common years', () => {
-    const due = (year: number) => format(billingDatesFor(new Date(year, 1, 10), 28, 7).due, 'yyyy-MM-dd')
-    assert.equal(due(2028), '2028-03-06')
-    assert.equal(due(2027), '2027-03-07')
+  test('move-in anniversaries retain each tenant day and clamp only shorter months', () => {
+    const anniversary = (start: string, month: string) =>
+      leaseAnniversaryDate(start, new Date(`${month}-01T00:00:00`))
+    for (const day of [1, 15, 28, 29, 30, 31]) {
+      const start = `2026-10-${String(day).padStart(2, '0')}`
+      assert.equal(anniversary(start, '2026-11'), `2026-11-${String(Math.min(day, 30)).padStart(2, '0')}`)
+    }
+    assert.equal(anniversary('2026-01-29', '2026-02'), '2026-02-28')
+    assert.equal(anniversary('2028-01-29', '2028-02'), '2028-02-29')
+    assert.equal(anniversary('2028-01-31', '2028-02'), '2028-02-29')
+    assert.equal(anniversary('2027-01-31', '2027-02'), '2027-02-28')
+    assert.equal(anniversary('2027-01-29', '2027-03'), '2027-03-29')
+    assert.equal(anniversary('2027-01-30', '2027-03'), '2027-03-30')
+    assert.equal(anniversary('2027-01-31', '2027-03'), '2027-03-31')
+  })
+  test('next lease due date uses move-in date before the first payment, then monthly anniversary', () => {
+    assert.equal(nextLeaseDueDate('2026-10-17', '2026-10-10'), '2026-10-17')
+    assert.equal(nextLeaseDueDate('2026-10-17', '2026-10-18'), '2026-11-17')
+    assert.equal(nextLeaseDueDate('2026-10-31', '2027-03-01'), '2027-03-31')
+    assert.equal(nextLeaseDueDate('2028-01-31', '2028-02-28'), '2028-02-29')
   })
 })

@@ -1,4 +1,4 @@
-import { differenceInCalendarDays, format, parseISO } from 'date-fns'
+import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
 import {
   AlertTriangle,
   CalendarDays,
@@ -16,7 +16,7 @@ import {
   Zap,
   Home as HomeIcon,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { Callout, Panel, PanelLink } from '@/components/app/panel'
 import { PageHeader } from '@/components/app/page-header'
@@ -30,10 +30,10 @@ import { BillingCalendar } from '@/features/billing/billing-calendar'
 import { BillStatusBadge } from '@/features/billing/bill-status-badge'
 import { METHOD_LABEL, useMyPayments } from '@/features/payments/api'
 import { PaymentStatusBadge } from '@/features/payments/components'
-import { SubmitPaymentDialog } from '@/features/payments/payment-dialogs'
 import { useMyBills, useMyDepositBalance, useMyTenancy } from '@/features/portal/api'
 import { useProfile } from '@/hooks/use-auth'
 import { useCurrency, useSettings } from '@/hooks/use-settings'
+import { nextLeaseDueDate, todayISO } from '@/lib/dates'
 import type { Enums } from '@/lib/database.types'
 import { formatCompact, formatDate, formatMoney, formatPeriod } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -96,7 +96,6 @@ export function TenantHomePage() {
   const tenancy = useMyTenancy()
   const payments = useMyPayments()
   const deposit = useMyDepositBalance()
-  const [paying, setPaying] = useState(false)
 
   const history = useMemo(
     () =>
@@ -122,6 +121,12 @@ export function TenantHomePage() {
   const latest = bills.data?.[0]
   const room = tenancy.data?.current
   const due = nextBill ? dueLabel(nextBill.due_date) : null
+  const today = todayISO(new Date(), settings?.timezone)
+  const scheduleFrom = latest?.status === 'paid' && latest.due_date >= today
+    ? format(addDays(parseISO(latest.due_date), 1), 'yyyy-MM-dd')
+    : today
+  const scheduledDue = room ? nextLeaseDueDate(room.start_date, scheduleFrom) : null
+  const nextPaymentDue = nextBill?.due_date ?? scheduledDue
 
   // The tenant's own open bills on the calendar, overdue ones called out.
   const calendarMarks = new Map<string, CalendarMark>(
@@ -134,7 +139,7 @@ export function TenantHomePage() {
   )
 
   return (
-    <div className="@container space-y-5">
+    <div className="tenant-page tenant-home @container space-y-6">
       <PageHeader
         eyebrow={format(new Date(), 'EEEE, MMMM d')}
         title={`${greeting()}, ${profile.full_name.split(' ')[0] || 'there'}`}
@@ -191,8 +196,10 @@ export function TenantHomePage() {
                 <span className="font-semibold text-foreground">{formatDate(nextBill.due_date, 'MMM d')}</span>
               </p>
               <div className="mt-5 grid gap-2 sm:flex sm:flex-row">
-                <Button size="lg" className="h-13 text-base sm:h-11 sm:text-sm" onClick={() => setPaying(true)}>
-                  <Wallet /> Pay {formatPeriod(nextBill.period)}
+                <Button asChild size="lg" className="h-13 text-base sm:h-11 sm:text-sm">
+                  <Link to={`/my/pay-online?bill=${nextBill.id}`}>
+                    <Wallet /> Pay {formatPeriod(nextBill.period)}
+                  </Link>
                 </Button>
                 <Button size="lg" variant="outline" asChild>
                   <Link to={`/my/bills/${nextBill.id}`}>
@@ -220,7 +227,9 @@ export function TenantHomePage() {
                   {pending.length > 0
                     ? 'A payment you sent is waiting for verification.'
                     : latest
-                      ? `Your next bill will appear around day ${settings?.billing_day ?? 1} of the month.`
+                      ? nextPaymentDue
+                        ? `Your next payment is due ${formatDate(nextPaymentDue)}.`
+                        : 'Your next bill will appear here when it is issued.'
                       : 'Your bills will appear here once your landlord issues them.'}
                 </p>
               </div>
@@ -257,7 +266,11 @@ export function TenantHomePage() {
                   <dd className="mt-0.5 truncate text-sm font-semibold tabular">{formatMoney(deposit.data ?? 0, currency)}</dd>
                 </div>
               </dl>
-              {settings && <p className="mt-3 text-xs text-muted-foreground">Bills are due {settings.due_days} days after they are issued.</p>}
+              {nextPaymentDue && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Next payment due {formatDate(nextPaymentDue)} · due dates follow your move-in day.
+                </p>
+              )}
             </div>
           ) : (
             <p className="text-[13px] text-muted-foreground">You are not assigned to a room right now.</p>
@@ -306,10 +319,14 @@ export function TenantHomePage() {
 
         {/* Calendar */}
         <Panel title="Billing calendar" className="order-5 @4xl:order-4 @4xl:col-span-4">
-          {settings ? (
-            <BillingCalendar billingDay={settings.billing_day} dueDays={settings.due_days} extra={calendarMarks} />
+          {room ? (
+            <BillingCalendar
+              leaseStartDate={room.start_date}
+              extra={calendarMarks}
+              dueLabel="Payment due"
+            />
           ) : (
-            <Skeleton className="h-72" />
+            <p className="text-[13px] text-muted-foreground">Your rental due dates appear when you have an active agreement.</p>
           )}
         </Panel>
 
@@ -376,7 +393,6 @@ export function TenantHomePage() {
         </Panel>
       </div>
 
-      {nextBill && <SubmitPaymentDialog bill={nextBill} open={paying} onOpenChange={setPaying} />}
     </div>
   )
 }

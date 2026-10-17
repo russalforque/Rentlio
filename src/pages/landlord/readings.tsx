@@ -22,6 +22,7 @@ type Field = 'electricity_previous' | 'electricity_current' | 'water_previous' |
 type Draft = Record<Field, string>
 
 const FIELDS: Field[] = ['electricity_previous', 'electricity_current', 'water_previous', 'water_current']
+const EDITABLE_FIELDS: Field[] = ['electricity_previous', 'electricity_current']
 const toText = (v: number | null) => (v === null ? '' : String(v))
 
 function parse(v: string): number | null | 'invalid' {
@@ -127,7 +128,6 @@ function ReadingGrid({
   settings: Tables<'app_settings'>
 }) {
   const save = useRecordReadings()
-  const metered = settings.water_billing_mode === 'metered'
   const [showAll, setShowAll] = useState(false)
   const initial = useMemo(
     () =>
@@ -142,16 +142,16 @@ function ReadingGrid({
     setDrafts((d) => ({ ...d, [roomId]: { ...(d[roomId] as Draft), [field]: value } }))
 
   const visible = rows.filter((r) => showAll || r.is_billable || r.reading_id)
-  const changed = rows.filter((r) => FIELDS.some((f) => drafts[r.room_id]?.[f] !== initial[r.room_id]?.[f]))
+  const changed = rows.filter((r) => EDITABLE_FIELDS.some((f) => drafts[r.room_id]?.[f] !== initial[r.room_id]?.[f]))
   const invalid = changed.some((r) => {
     const d = drafts[r.room_id] as Draft
-    return meterError(d.electricity_previous, d.electricity_current) || (metered && meterError(d.water_previous, d.water_current))
+    return meterError(d.electricity_previous, d.electricity_current)
   })
 
   const billable = rows.filter((r) => r.is_billable)
   const isRead = (roomId: string) => {
     const d = drafts[roomId] as Draft
-    return d.electricity_current.trim() !== '' && (!metered || d.water_current.trim() !== '')
+    return d.electricity_current.trim() !== ''
   }
   const readCount = billable.filter((r) => isRead(r.room_id)).length
 
@@ -166,8 +166,8 @@ function ReadingGrid({
         room_id: r.room_id,
         electricity_previous: num(d.electricity_previous),
         electricity_current: num(d.electricity_current),
-        water_previous: metered ? num(d.water_previous) : null,
-        water_current: metered ? num(d.water_current) : null,
+        water_previous: num(d.water_previous),
+        water_current: num(d.water_current),
       }
     })
     save.mutate(
@@ -222,8 +222,7 @@ function ReadingGrid({
               <li
                 key={r.room_id}
                 className={cn(
-                  'surface grid grid-cols-1 gap-3 p-4 md:grid-cols-[9rem_1fr_1fr] md:items-start',
-                  !metered && 'md:grid-cols-[9rem_1fr]',
+                  'surface grid grid-cols-1 gap-3 p-4 md:grid-cols-[9rem_1fr] md:items-start',
                 )}
               >
                 <div className="flex items-center justify-between gap-2 md:block">
@@ -256,20 +255,6 @@ function ReadingGrid({
                   onPrev={(v) => set(r.room_id, 'electricity_previous', v)}
                   onCurr={(v) => set(r.room_id, 'electricity_current', v)}
                 />
-                {metered && (
-                  <MeterInputs
-                    idPrefix={`w-${r.room_id}`}
-                    disabled={r.bill_finalized}
-                    label="Water (m³)"
-                    unit="m³"
-                    rate={settings.water_rate}
-                    currency={settings.currency_code}
-                    prev={d.water_previous}
-                    curr={d.water_current}
-                    onPrev={(v) => set(r.room_id, 'water_previous', v)}
-                    onCurr={(v) => set(r.room_id, 'water_current', v)}
-                  />
-                )}
               </li>
             )
           })}
@@ -300,7 +285,7 @@ export function ReadingsPage() {
     <div className="space-y-5">
       <PageHeader
         title="Meter readings"
-        description={`Electricity${settings.data?.water_billing_mode === 'metered' ? ' and water' : ''} for ${formatPeriod(period)}. Draft bills update when you save; bills already sent are locked.`}
+        description={`Electricity readings for ${formatPeriod(period)}. Water is billed per person; draft bills update when readings are saved, and bills already sent are locked.`}
       />
       <PeriodPicker value={period} onChange={setPeriod} />
       {error ? (

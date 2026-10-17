@@ -1,35 +1,26 @@
-import { addMonths, format, startOfMonth } from 'date-fns'
+import { startOfMonth } from 'date-fns'
 import { useState } from 'react'
 import { type CalendarMark, MonthCalendar } from '@/components/app/month-calendar'
-import { billingDatesFor } from '@/lib/dates'
+import { leaseAnniversaryDate } from '@/lib/dates'
 
-interface BillingCalendarProps {
-  billingDay: number
-  dueDays: number
+type BillingCalendarProps = {
   /** Specific dates to mark on top of the schedule, keyed by "yyyy-MM-dd". */
   extra?: Map<string, CalendarMark>
   dueLabel?: string
+  leaseStartDate: string
 }
 
-/** Month view of the property's billing schedule: issue day and payment due day. */
-export function BillingCalendar({ billingDay, dueDays, extra, dueLabel = 'Payment due' }: BillingCalendarProps) {
+/** Month view of the active lease's anniversary-based due date. */
+export function BillingCalendar({ extra, dueLabel = 'Payment due', leaseStartDate }: BillingCalendarProps) {
   const [month, setMonth] = useState(() => startOfMonth(new Date()))
 
   const marks = new Map<string, CalendarMark>()
-  // The previous month's due date can land in this month.
-  for (const offset of [-1, 0]) {
-    const { issue, due } = billingDatesFor(addMonths(month, offset), billingDay, dueDays)
-    marks.set(format(issue, 'yyyy-MM-dd'), { kind: 'bill', label: 'Bills issued' })
-    marks.set(format(due, 'yyyy-MM-dd'), { kind: 'due', label: dueLabel })
-  }
+  const due = leaseAnniversaryDate(leaseStartDate, month)
+  marks.set(due, { kind: 'due', label: dueLabel })
   for (const [k, v] of extra ?? []) marks.set(k, v)
 
-  const legend: { kind: CalendarMark['kind']; label: string }[] = [
-    { kind: 'bill', label: 'Bills issued' },
-    { kind: 'due', label: dueLabel },
-  ]
+  const legend: { kind: CalendarMark['kind']; label: string }[] = [{ kind: 'due', label: dueLabel }]
   if ([...(extra?.values() ?? [])].some((m) => m.kind === 'overdue')) legend.push({ kind: 'overdue', label: 'Overdue' })
 
   return <MonthCalendar month={month} onMonthChange={setMonth} marks={marks} legend={legend} />
 }
-

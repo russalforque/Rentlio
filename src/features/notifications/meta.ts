@@ -8,6 +8,7 @@ import {
   CircleX,
   DoorClosed,
   DoorOpen,
+  Droplets,
   FileText,
   FileX2,
   HandCoins,
@@ -49,6 +50,8 @@ export const TYPE_ICON: Record<NotificationType, LucideIcon> = {
   announcement: Megaphone,
   payment_verified: BadgeCheck,
   payment_recorded: HandCoins,
+  payment_account_updated: Wallet,
+  water_rate_changed: Droplets,
 }
 
 export const CATEGORY_LABEL: Record<NotificationCategory, string> = {

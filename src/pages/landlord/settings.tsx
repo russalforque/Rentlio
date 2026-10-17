@@ -16,10 +16,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { settingsQueryKey, useSettings } from '@/hooks/use-settings'
+import { useSetWaterRate, useWaterRateSchedule } from '@/features/billing/api'
+import { PaymentAccountSettings } from '@/features/payments/payment-account-settings'
 import type { Tables } from '@/lib/database.types'
 import { getErrorMessage } from '@/lib/errors'
 import { intInput } from '@/lib/form-fields'
 import { supabase } from '@/lib/supabase'
+import { formatDate, formatMoney } from '@/lib/format'
+import { todayISO } from '@/lib/dates'
 import { optionalText, phoneText } from '@/lib/validation'
 
 const rate = (label: string) =>
@@ -35,12 +39,7 @@ const schema = z.object({
   property_address: optionalText(300),
   currency_code: z.string().regex(/^[A-Z]{3}$/, 'Choose a currency'),
   timezone: z.string().min(1, 'Choose a timezone'),
-  billing_day: intInput(1, 28),
-  due_days: intInput(0, 60),
   electricity_rate: rate('electricity rate'),
-  water_billing_mode: z.enum(['metered', 'flat']),
-  water_rate: rate('water rate'),
-  water_flat_fee: rate('flat water fee'),
   auto_billing_enabled: z.boolean(),
   rent_reminders_enabled: z.boolean(),
   reminder_days_before: intInput(0, 14),
@@ -69,12 +68,7 @@ function toForm(s: Tables<'app_settings'>): Input {
     property_address: s.property_address ?? '',
     currency_code: s.currency_code,
     timezone: s.timezone,
-    billing_day: String(s.billing_day),
-    due_days: String(s.due_days),
     electricity_rate: String(s.electricity_rate),
-    water_billing_mode: s.water_billing_mode,
-    water_rate: String(s.water_rate),
-    water_flat_fee: String(s.water_flat_fee),
     auto_billing_enabled: s.auto_billing_enabled,
     rent_reminders_enabled: s.rent_reminders_enabled,
     reminder_days_before: String(s.reminder_days_before),
@@ -87,12 +81,6 @@ function toForm(s: Tables<'app_settings'>): Input {
     contact_email: s.contact_email ?? '',
     house_rules: s.house_rules ?? '',
   }
-}
-
-const ordinal = (n: number) => {
-  const s = ['th', 'st', 'nd', 'rd']
-  const v = n % 100
-  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0] ?? 'th')
 }
 
 function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
@@ -119,9 +107,6 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
     onError: (err) => toast.error(getErrorMessage(err)),
   })
 
-  const waterMode = useWatch({ control, name: 'water_billing_mode' })
-  const billingDay = Number(useWatch({ control, name: 'billing_day' })) || 1
-  const dueDays = Number(useWatch({ control, name: 'due_days' })) || 0
   const remindersOn = useWatch({ control, name: 'rent_reminders_enabled' })
   const daysBefore = Number(useWatch({ control, name: 'reminder_days_before' })) || 0
   const onDueDate = useWatch({ control, name: 'reminder_on_due_date' })
@@ -137,9 +122,11 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
     : stages.length
       ? `Sent ${stages.join(', ').replace(/, ([^,]*)$/, ' and $1')}, from 8 AM.`
       : 'No reminder stages are on.'
+  const submitSettings = handleSubmit((v) => save.mutate(v))
 
   return (
-    <form onSubmit={handleSubmit((v) => save.mutate(v))} noValidate className="space-y-8 pb-4 lg:space-y-10">
+    <div className="space-y-8 pb-4 lg:space-y-10">
+    <form onSubmit={submitSettings} noValidate className="space-y-8 lg:space-y-10">
       <SettingsSection id="property" title="Property" description="Shown to tenants on their portal and bills.">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField id="property_name" label="Property name" error={errors.property_name?.message}>
@@ -169,20 +156,17 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
         </div>
       </SettingsSection>
 
-      <SettingsSection id="billing" title="Billing schedule" description={<>Bills are issued on the {ordinal(billingDay)} of each month and due {dueDays}{' '}
-            {dueDays === 1 ? 'day' : 'days'} later.</>}>
+      <SettingsSection
+        id="billing"
+        title="Billing & Utilities"
+        description="Bills issue and are due on each agreement's move-in day. Short months use their last calendar day, then return to the original day. The first bill still includes full monthly rent; adjust its draft rent line if you prorate move-in month."
+      >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField id="billing_day" label="Billing day of month (1–28)" error={errors.billing_day?.message}>
-            <Input id="billing_day" inputMode="numeric" aria-invalid={!!errors.billing_day} {...register('billing_day')} />
-          </FormField>
-          <FormField id="due_days" label="Days until due" error={errors.due_days?.message}>
-            <Input id="due_days" inputMode="numeric" aria-invalid={!!errors.due_days} {...register('due_days')} />
-          </FormField>
           <div className="flex items-start justify-between gap-4 rounded-lg border p-3 sm:col-span-2">
             <div>
               <Label htmlFor="auto_billing_enabled">Generate bills automatically</Label>
               <p className="mt-0.5 text-[13px] text-muted-foreground">
-                On the billing day, every occupied room gets its bill. You can always generate manually too.
+                Bills are created when each tenant's monthly anniversary arrives. Meter readings are still required before a bill can be finalized.
               </p>
             </div>
             <Controller
@@ -234,37 +218,23 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
         </div>
       </SettingsSection>
 
-      <SettingsSection id="utilities" title="Utility rates" description="A rate is locked into each bill when the charge is first added, so changing it does not alter past bills.">
+      <SettingsSection id="utilities" title="Electricity" description="Electricity remains metered; its configured rate is captured on each bill.">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField id="electricity_rate" label={`Electricity per kWh (${settings.currency_code})`} error={errors.electricity_rate?.message}>
             <Input id="electricity_rate" inputMode="decimal" className="tabular" aria-invalid={!!errors.electricity_rate} {...register('electricity_rate')} />
           </FormField>
-          <FormField id="water_billing_mode" label="Water billing">
-            <NativeSelect id="water_billing_mode" {...register('water_billing_mode')}>
-              <option value="metered">Metered (per m³)</option>
-              <option value="flat">Flat fee per room</option>
-            </NativeSelect>
-          </FormField>
-          {waterMode === 'metered' ? (
-            <FormField id="water_rate" label={`Water per m³ (${settings.currency_code})`} error={errors.water_rate?.message}>
-              <Input id="water_rate" inputMode="decimal" className="tabular" aria-invalid={!!errors.water_rate} {...register('water_rate')} />
-            </FormField>
-          ) : (
-            <FormField id="water_flat_fee" label={`Monthly water fee (${settings.currency_code})`} error={errors.water_flat_fee?.message}>
-              <Input id="water_flat_fee" inputMode="decimal" className="tabular" aria-invalid={!!errors.water_flat_fee} {...register('water_flat_fee')} />
-            </FormField>
-          )}
         </div>
       </SettingsSection>
-
+    </form>
+    <WaterRateSettings currency={settings.currency_code} />
+    <form onSubmit={submitSettings} noValidate className="space-y-8 lg:space-y-10">
       <SettingsSection id="payments" title="Payments" description="How tenants can pay. Instructions are shown when they pay, e.g. your bank or e-wallet details.">
         <div className="grid gap-4">
           <div className="flex items-start justify-between gap-4 rounded-lg border p-3">
             <div>
-              <Label htmlFor="online_payments_enabled">Online payments (GCash, Maya, card, QR Ph)</Label>
+              <Label htmlFor="online_payments_enabled">Hosted checkout with PayMongo</Label>
               <p className="mt-0.5 text-[13px] text-muted-foreground">
-                Tenants pay on a secure PayMongo page and the payment is confirmed automatically, with no proof to check. Requires
-                the PayMongo keys to be set up on the server.
+                An optional provider checkout, separate from your transfer accounts below. Requires PayMongo keys on the server.
               </p>
             </div>
             <Controller
@@ -280,7 +250,7 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
             <Textarea
               id="payment_instructions"
               rows={4}
-              placeholder={'GCash: 0917 000 0000 (Juan D.)\nBPI: 1234-5678-90'}
+              placeholder="Add any general instructions for tenants paying by transfer."
               {...register('payment_instructions')}
             />
             {errors.payment_instructions && (
@@ -289,7 +259,9 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
           </div>
         </div>
       </SettingsSection>
-
+    </form>
+    <PaymentAccountSettings />
+    <form onSubmit={submitSettings} noValidate className="space-y-8 lg:space-y-10">
       <SettingsSection id="tenants" title="Tenant information" description="How tenants can reach you, and the house rules shown on their portal.">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <FormField id="contact_name" label="Contact name" error={errors.contact_name?.message}>
@@ -321,7 +293,7 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
           <Button type="button" variant="ghost" disabled={save.isPending} onClick={() => reset()}>
             Discard
           </Button>
-          <Button type="submit" disabled={save.isPending}>
+          <Button type="button" disabled={save.isPending} onClick={() => void submitSettings()}>
             {save.isPending && <Loader2 className="animate-spin" />}
             <span className="sm:hidden">Save</span>
             <span className="hidden sm:inline">Save changes</span>
@@ -329,6 +301,99 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
         </div>
       )}
     </form>
+    </div>
+  )
+}
+
+const waterRateSchema = z.object({
+  monthly_rate: z
+    .string()
+    .trim()
+    .refine((v) => /^\d+(\.\d{1,2})?$/.test(v), 'Enter a nonnegative amount with up to two decimal places')
+    .transform(Number)
+    .refine((v) => Number.isFinite(v) && v <= 9_999_999_999.99, 'Rate exceeds the database limit'),
+  effective_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose an effective date'),
+})
+
+function WaterRateSettings({ currency }: { currency: string }) {
+  const rates = useWaterRateSchedule()
+  const save = useSetWaterRate()
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<
+    z.input<typeof waterRateSchema>,
+    unknown,
+    z.output<typeof waterRateSchema>
+  >({
+    resolver: zodResolver(waterRateSchema),
+    defaultValues: { monthly_rate: '', effective_from: todayISO() },
+  })
+  const today = todayISO()
+  const currentRate = rates.data?.find((r) => r.effective_from <= today)
+
+  const onSubmit = (value: z.output<typeof waterRateSchema>) =>
+    save.mutate(
+      { monthlyRate: value.monthly_rate, effectiveFrom: value.effective_from },
+      {
+        onSuccess: () => {
+          toast.success('Water rate scheduled')
+          reset({ monthly_rate: '', effective_from: todayISO() })
+        },
+        onError: (err) => toast.error(getErrorMessage(err)),
+      },
+    )
+
+  return (
+    <SettingsSection
+      id="water-rate"
+      title="Per-person water rate"
+      description="Water is charged once per rental agreement: billable occupants × the effective monthly rate. Finalized bills keep their applied rate."
+    >
+      {rates.error && <p role="alert" className="mb-4 text-sm text-destructive">{getErrorMessage(rates.error)}</p>}
+      {currentRate && (
+        <p className="mb-4 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+          Current rate: <strong className="tabular">{formatMoney(currentRate.monthly_rate, currency)}</strong> per person per month
+          {currentRate.effective_from !== '1900-01-01' && <> · effective {formatDate(currentRate.effective_from)}</>}
+        </p>
+      )}
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <FormField id="water-monthly-rate" label={`Monthly rate per person (${currency})`} error={errors.monthly_rate?.message}>
+          <Input
+            id="water-monthly-rate"
+            inputMode="decimal"
+            className="tabular"
+            aria-invalid={!!errors.monthly_rate}
+            {...register('monthly_rate')}
+          />
+        </FormField>
+        <FormField id="water-effective-date" label="Effective date" error={errors.effective_from?.message}>
+          <Input
+            id="water-effective-date"
+            type="date"
+            min={today}
+            aria-invalid={!!errors.effective_from}
+            {...register('effective_from')}
+          />
+        </FormField>
+        <div className="sm:col-span-2">
+          <Button type="submit" disabled={save.isPending || rates.isPending}>
+            {save.isPending && <Loader2 className="animate-spin" />}
+            Schedule rate
+          </Button>
+        </div>
+      </form>
+      {rates.data && rates.data.length > 0 && (
+        <div className="mt-5 border-t pt-4">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Rate history and upcoming changes</p>
+          <ul className="divide-y">
+            {rates.data.map((rateEntry) => (
+              <li key={rateEntry.id} className="flex justify-between gap-3 py-2 text-sm">
+                <span>{formatDate(rateEntry.effective_from)}{rateEntry.effective_from > today ? ' · upcoming' : ''}</span>
+                <span className="font-medium tabular">{formatMoney(rateEntry.monthly_rate, currency)} / person</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </SettingsSection>
   )
 }
 
@@ -337,7 +402,8 @@ const SECTIONS = [
   { id: 'billing', label: 'Billing schedule' },
   { id: 'reminders', label: 'Rent reminders' },
   { id: 'utilities', label: 'Utility rates' },
-  { id: 'payments', label: 'Payment instructions' },
+  { id: 'payments', label: 'Payments' },
+  { id: 'payment-accounts', label: 'Payment methods' },
   { id: 'tenants', label: 'Tenant information' },
 ]
 

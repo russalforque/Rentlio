@@ -18,7 +18,7 @@ export function NotificationsPage() {
   const isLandlord = profile.role === 'landlord'
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className={`${isLandlord ? '' : 'tenant-page'} mx-auto max-w-3xl space-y-6`}>
       <PageHeader
         title="Notifications"
         description={

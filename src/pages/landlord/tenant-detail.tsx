@@ -41,6 +41,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   useDepositLedger,
+  useLeaseOccupantAudit,
   useManageTenant,
   useSetPortalSuspended,
   useTenant,
@@ -53,11 +54,13 @@ import {
   DepositDialog,
   EditTenantDialog,
   EndLeaseDialog,
+  LeaseOccupantsDialog,
   LeaseRentDialog,
   MoveRoomDialog,
 } from '@/features/tenants/tenancy-dialogs'
 import { TenantStatusBadge } from '@/features/tenants/tenant-status-badge'
-import { useCurrency } from '@/hooks/use-settings'
+import { useCurrency, useSettings } from '@/hooks/use-settings'
+import { nextLeaseDueDate, todayISO } from '@/lib/dates'
 import { getErrorMessage } from '@/lib/errors'
 import { formatDate, formatMoney } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -68,6 +71,7 @@ type DialogName =
   | 'move'
   | 'end'
   | 'rent'
+  | 'occupants'
   | 'deposit'
   | 'deactivate'
   | 'reactivate'
@@ -88,11 +92,19 @@ function CurrentRoomCard({
   tenant,
   currency,
   open,
+  leaseId,
+  occupants,
+  capacity,
 }: {
   tenant: TenantOverview
   currency: string
   open: (d: DialogName) => void
+  leaseId: string | null
+  occupants: number
+  capacity: number
 }) {
+  const settings = useSettings()
+  const occupantAudit = useLeaseOccupantAudit(leaseId)
   if (!tenant.lease_id) {
     return (
       <Card>
@@ -131,6 +143,9 @@ function CurrentRoomCard({
       <CardContent className="space-y-5">
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Detail label="Since">{formatDate(tenant.lease_start_date)}</Detail>
+          <Detail label="Next payment due">
+            {tenant.lease_start_date ? nextLeaseDueDate(tenant.lease_start_date, todayISO(new Date(), settings.data?.timezone)) : '—'}
+          </Detail>
           <Detail label="Agreed rent">
             <button
               type="button"
@@ -147,7 +162,30 @@ function CurrentRoomCard({
               {formatMoney(tenant.outstanding_balance, currency)}
             </span>
           </Detail>
+          <Detail label="Billable occupants">
+            <button
+              type="button"
+              onClick={() => open('occupants')}
+              className="inline-flex items-center gap-1.5 tabular underline-offset-2 hover:underline"
+              title="Change billable occupant count"
+            >
+              {occupants} / {capacity}
+              <Pencil className="size-3.5 text-muted-foreground" />
+            </button>
+          </Detail>
         </dl>
+        {(occupantAudit.data?.length ?? 0) > 0 && (
+          <div className="border-t pt-3 text-xs text-muted-foreground">
+            <p className="font-medium text-foreground">Occupant count history</p>
+            <ul className="mt-1 space-y-1">
+              {occupantAudit.data?.slice(0, 3).map((change) => (
+                <li key={change.id}>
+                  {change.previous_count} → {change.new_count} · {formatDate(change.changed_at.slice(0, 10))}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="flex justify-end border-t pt-4">
           <Button variant="ghost" className="text-destructive hover:text-destructive" onClick={() => open('end')}>
             <LogOut /> End tenancy
@@ -296,6 +334,7 @@ export function TenantDetailPage() {
 
   // Deposits are recorded against the current lease, or the latest one after move-out.
   const depositLeaseId = tenant.lease_id ?? leases?.[0]?.id ?? null
+  const activeLease = leases?.find((l) => l.status === 'active')
 
   const runAction = (action: 'resend_invite' | 'deactivate' | 'reactivate', success: string) =>
     manage.mutate(
@@ -469,7 +508,14 @@ export function TenantDetailPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
         <div className="contents lg:col-span-2 lg:block lg:space-y-4">
           <div className="order-1 lg:order-none">
-            <CurrentRoomCard tenant={tenant} currency={currency} open={setDialog} />
+            <CurrentRoomCard
+              tenant={tenant}
+              currency={currency}
+              open={setDialog}
+              leaseId={activeLease?.id ?? null}
+              occupants={activeLease?.occupant_count ?? 1}
+              capacity={activeLease?.rooms?.capacity ?? 1}
+            />
           </div>
           <div className="order-4 lg:order-none">
             <LeaseHistoryCard tenantId={tenant.id} currency={currency} />
@@ -534,6 +580,16 @@ export function TenantDetailPage() {
       {dialog === 'move' && <MoveRoomDialog tenant={tenant} open onOpenChange={close} />}
       {dialog === 'end' && <EndLeaseDialog tenant={tenant} open onOpenChange={close} />}
       {dialog === 'rent' && <LeaseRentDialog tenant={tenant} open onOpenChange={close} />}
+      {dialog === 'occupants' && activeLease && (
+        <LeaseOccupantsDialog
+          tenant={tenant}
+          leaseId={activeLease.id}
+          occupants={activeLease.occupant_count}
+          capacity={activeLease.rooms?.capacity ?? 1}
+          open
+          onOpenChange={close}
+        />
+      )}
       {dialog === 'deposit' && depositLeaseId && (
         <DepositDialog tenant={tenant} leaseId={depositLeaseId} open onOpenChange={close} />
       )}

@@ -307,11 +307,23 @@ function TabBar({ items, more }: { items: NavItem[]; more: NavItem[] }) {
     <>
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-30 grid border-t bg-card/95 px-[env(safe-area-inset-left)] pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_12px_hsl(var(--shadow-color)/0.06)] backdrop-blur-md md:hidden"
+        className={cn(
+          'fixed bottom-0 z-30 grid md:hidden',
+          profile.role === 'tenant'
+            ? 'inset-x-0 mx-auto mb-[calc(.65rem+env(safe-area-inset-bottom))] w-[min(calc(100%-2rem),30rem)] rounded-full border bg-card/95 p-1.5 shadow-[0_12px_40px_hsl(var(--shadow-color)/0.16)] backdrop-blur-xl'
+            : 'inset-x-0 border-t bg-card/95 px-[env(safe-area-inset-left)] pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_12px_hsl(var(--shadow-color)/0.06)] backdrop-blur-md',
+        )}
         style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
       >
         {items.map((item) => (
-          <NavLink key={item.to} to={item.to} className={tab}>
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={cn(
+              tab,
+              profile.role === 'tenant' && 'min-h-13 gap-0 px-1 pt-1 pb-0.5 text-[10px]',
+            )}
+          >
             <span className={pill}>
               <item.icon className="size-5" strokeWidth={1.8} />
               {navBadge(item, 'dot')}
@@ -323,7 +335,7 @@ function TabBar({ items, more }: { items: NavItem[]; more: NavItem[] }) {
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className={tab}
+            className={cn(tab, profile.role === 'tenant' && 'min-h-13 gap-0 px-1 pt-1 pb-0.5 text-[10px]')}
             aria-current={moreActive ? 'page' : undefined}
             aria-haspopup="dialog"
             aria-expanded={open}
@@ -445,7 +457,7 @@ export function AppShell() {
   }, [isLandlord])
 
   return (
-    <div className={cn('min-h-dvh md:pl-18', wide ? 'lg:pl-60' : 'lg:pl-18')}>
+    <div className={cn('min-h-dvh md:pl-18', profile.role === 'tenant' && 'tenant-portal', wide ? 'lg:pl-60' : 'lg:pl-18')}>
       <Sidebar wide={wide} onToggle={toggleSidebar} />
 
       <header className="px-gutter sticky top-0 z-30 flex h-[calc(4rem+env(safe-area-inset-top))] items-center gap-2 bg-background/90 pt-[env(safe-area-inset-top)] backdrop-blur-md sm:gap-3">
@@ -473,7 +485,7 @@ export function AppShell() {
         <Outlet />
       </main>
 
-      <TabBar items={tabs} more={isLandlord ? more : []} />
+      <TabBar items={tabs} more={more} />
       {isLandlord && <CommandPalette open={searching} onOpenChange={setSearching} />}
     </div>
   )

@@ -21,7 +21,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useCurrency } from '@/hooks/use-settings'
 import { firstOfNextMonthISO, todayISO } from '@/lib/dates'
 import { getErrorMessage } from '@/lib/errors'
-import { dateInput, moneyInput, optionalMoneyInput } from '@/lib/form-fields'
+import { dateInput, intInput, moneyInput, optionalMoneyInput } from '@/lib/form-fields'
 import { formatDate, formatMoney } from '@/lib/format'
 import { optionalText, phoneText } from '@/lib/validation'
 import {
@@ -29,6 +29,7 @@ import {
   useEndLease,
   useMoveTenant,
   useRecordDeposit,
+  useUpdateLeaseOccupants,
   useUpdateLeaseRent,
   useUpdateTenantProfile,
   type TenantOverview,
@@ -322,6 +323,71 @@ export function LeaseRentDialog({ tenant, open, onOpenChange }: DialogProps) {
           <Input id="lease-rent" inputMode="decimal" className="tabular" autoFocus aria-invalid={!!errors.rent} {...register('rent')} />
         </FormField>
         <SubmitButton pending={update.isPending}>Save rent</SubmitButton>
+      </form>
+    </FormDialog>
+  )
+}
+
+const occupantsSchema = z.object({
+  occupants: intInput(1, 20),
+})
+
+export function LeaseOccupantsDialog({
+  tenant,
+  leaseId,
+  occupants,
+  capacity,
+  open,
+  onOpenChange,
+}: DialogProps & { leaseId: string; occupants: number; capacity: number }) {
+  const update = useUpdateLeaseOccupants()
+  const { register, handleSubmit, formState: { errors } } = useForm<
+    z.input<typeof occupantsSchema>,
+    unknown,
+    z.output<typeof occupantsSchema>
+  >({
+    resolver: zodResolver(occupantsSchema),
+    defaultValues: { occupants: String(occupants) },
+  })
+
+  const onSubmit = (values: z.output<typeof occupantsSchema>) =>
+    update.mutate(
+      { leaseId, occupantCount: values.occupants },
+      {
+        onSuccess: () => {
+          toast.success('Billable occupant count updated')
+          onOpenChange(false)
+        },
+        onError: (err) => toast.error(getErrorMessage(err)),
+      },
+    )
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Update occupants · Room ${tenant.room_number}`}
+      description="The new count applies to future water charges. Finalized bills remain unchanged."
+    >
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid gap-4">
+        <FormField
+          id="lease-occupants"
+          label="Billable occupants"
+          error={errors.occupants?.message}
+          hint={`Room capacity: ${capacity}`}
+        >
+          <Input
+            id="lease-occupants"
+            type="number"
+            min={1}
+            max={capacity}
+            step={1}
+            inputMode="numeric"
+            aria-invalid={!!errors.occupants}
+            {...register('occupants')}
+          />
+        </FormField>
+        <SubmitButton pending={update.isPending}>Save occupants</SubmitButton>
       </form>
     </FormDialog>
   )

@@ -278,7 +278,7 @@ export function AccountPage() {
   const profile = useProfile()
   const { signOut } = useAuth()
   return (
-    <div className="space-y-8">
+    <div className={`${profile.role === 'tenant' ? 'tenant-page' : ''} space-y-8`}>
       <PageHeader
         title={profile.role === 'tenant' ? 'Profile' : 'Account'}
         description="Your profile and sign-in settings."

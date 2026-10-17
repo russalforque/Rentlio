@@ -1,6 +1,9 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   BarChart3,
+  Bell,
+  ChartNoAxesCombined,
+  CreditCard,
   DoorOpen,
   House,
   LayoutDashboard,
@@ -35,6 +38,7 @@ export const NAV: Record<Enums<'user_role'>, NavItem[]> = {
     { to: '/registrations', label: 'Registrations', icon: UserCheck, group: 'Menu', badge: 'pendingRegistrations' },
     { to: '/billing', label: 'Billing', icon: ReceiptText, group: 'Finance' },
     { to: '/payments', label: 'Payments', icon: Wallet, group: 'Finance', badge: 'pendingPayments', mobileTab: true },
+    { to: '/finances', label: 'Finances', icon: ChartNoAxesCombined, group: 'Finance' },
     { to: '/reports', label: 'Reports', icon: BarChart3, group: 'Finance' },
     { to: '/settings', label: 'Settings', icon: Settings, footer: true },
     { to: '/account', label: 'Account', icon: UserRound, footer: true },
@@ -42,8 +46,10 @@ export const NAV: Record<Enums<'user_role'>, NavItem[]> = {
   tenant: [
     { to: '/home', label: 'Home', icon: House, mobileTab: true },
     { to: '/my/bills', label: 'Bills', icon: ReceiptText, mobileTab: true },
-    { to: '/my/payments', label: 'Payments', icon: Wallet, mobileTab: true },
+    { to: '/my/pay-online', label: 'Pay', icon: CreditCard, mobileTab: true },
     { to: '/my/room', label: 'My room', icon: DoorOpen, mobileTab: true },
-    { to: '/account', label: 'Profile', icon: UserRound, mobileTab: true, footer: true },
+    { to: '/my/payments', label: 'Payment history', icon: Wallet, group: 'Account' },
+    { to: '/notifications', label: 'Notifications', icon: Bell, group: 'Account' },
+    { to: '/account', label: 'Profile', icon: UserRound, group: 'Account', footer: true },
   ],
 }

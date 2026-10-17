@@ -98,8 +98,8 @@ export function BillingPage() {
         title="Billing overview"
         description={
           settings?.auto_billing_enabled
-            ? `Bills are created automatically on day ${settings.billing_day} of each month.`
-            : 'Automatic billing is off. Generate bills manually each month.'
+            ? 'Bills are created automatically on each rental agreement’s move-in anniversary.'
+            : 'Automatic billing is off. Generate anniversary-based bills manually.'
         }
         actions={
           <>

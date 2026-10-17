@@ -21,7 +21,7 @@ export function TenantPaymentsPage() {
   const rejected = (data ?? []).filter((p) => p.status === 'rejected').length
 
   return (
-    <div className="space-y-4">
+    <div className="tenant-page space-y-6">
       <PageHeader
         title="Payment history"
         description="Every payment you have made or submitted."

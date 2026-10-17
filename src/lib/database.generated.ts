@@ -14,6 +14,166 @@ export type Database = {
   }
   public: {
     Tables: {
+      financial_categories: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          transaction_type: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          transaction_type: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          transaction_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_categories_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_transaction_audit: {
+        Row: {
+          actor_id: string
+          created_at: string
+          event: string
+          id: number
+          new_record: Json | null
+          old_record: Json | null
+          transaction_id: string
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          event: string
+          id?: never
+          new_record?: Json | null
+          old_record?: Json | null
+          transaction_id: string
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          event?: string
+          id?: never
+          new_record?: Json | null
+          old_record?: Json | null
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_transaction_audit_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_transaction_audit_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "financial_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_transactions: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          created_by: string
+          deleted_at: string | null
+          description: string
+          id: string
+          method: Database["public"]["Enums"]["payment_method"]
+          receipt_path: string | null
+          room_id: string | null
+          tenant_id: string | null
+          transaction_date: string
+          transaction_type: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          amount: number
+          category: string
+          created_at?: string
+          created_by: string
+          deleted_at?: string | null
+          description: string
+          id?: string
+          method: Database["public"]["Enums"]["payment_method"]
+          receipt_path?: string | null
+          room_id?: string | null
+          tenant_id?: string | null
+          transaction_date: string
+          transaction_type: string
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          description?: string
+          id?: string
+          method?: Database["public"]["Enums"]["payment_method"]
+          receipt_path?: string | null
+          room_id?: string | null
+          tenant_id?: string | null
+          transaction_date?: string
+          transaction_type?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_transactions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_transactions_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_transactions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_transactions_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       account_audit_log: {
         Row: {
           actor_id: string | null
@@ -61,6 +221,106 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      landlord_payment_accounts: {
+        Row: {
+          account_holder: string
+          account_number: string
+          bank_name: string | null
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean
+          is_default: boolean
+          landlord_id: string
+          method: Database["public"]["Enums"]["payment_method"]
+          qr_path: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          account_holder: string
+          account_number: string
+          bank_name?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          landlord_id: string
+          method: Database["public"]["Enums"]["payment_method"]
+          qr_path: string
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          account_holder?: string
+          account_number?: string
+          bank_name?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          landlord_id?: string
+          method?: Database["public"]["Enums"]["payment_method"]
+          qr_path?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landlord_payment_accounts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landlord_payment_accounts_landlord_id_fkey"
+            columns: ["landlord_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landlord_payment_accounts_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_account_audit: {
+        Row: {
+          account_id: string
+          actor_id: string
+          created_at: string
+          details: Json
+          event: string
+          id: number
+          landlord_id: string
+        }
+        Insert: {
+          account_id: string
+          actor_id: string
+          created_at?: string
+          details?: Json
+          event: string
+          id?: number
+          landlord_id: string
+        }
+        Update: {
+          account_id?: string
+          actor_id?: string
+          created_at?: string
+          details?: Json
+          event?: string
+          id?: number
+          landlord_id?: string
+        }
+        Relationships: []
       }
       app_settings: {
         Row: {
@@ -507,6 +767,7 @@ export type Database = {
           id: string
           monthly_rent: number
           notes: string | null
+          occupant_count: number
           room_id: string
           start_date: string
           status: Database["public"]["Enums"]["lease_status"]
@@ -519,6 +780,7 @@ export type Database = {
           id?: string
           monthly_rent: number
           notes?: string | null
+          occupant_count?: number
           room_id: string
           start_date: string
           status?: Database["public"]["Enums"]["lease_status"]
@@ -531,6 +793,7 @@ export type Database = {
           id?: string
           monthly_rent?: number
           notes?: string | null
+          occupant_count?: number
           room_id?: string
           start_date?: string
           status?: Database["public"]["Enums"]["lease_status"]
@@ -574,6 +837,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      lease_occupant_audit: {
+        Row: {
+          changed_at: string
+          changed_by: string
+          id: string
+          lease_id: string
+          new_count: number
+          previous_count: number
+        }
+        Insert: {
+          changed_at?: string
+          changed_by: string
+          id?: string
+          lease_id: string
+          new_count: number
+          previous_count: number
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string
+          id?: string
+          lease_id?: string
+          new_count?: number
+          previous_count?: number
+        }
+        Relationships: []
       }
       meter_readings: {
         Row: {
@@ -649,6 +939,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      water_rate_schedule: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          effective_from: string
+          id: string
+          monthly_rate: number
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          effective_from: string
+          id?: string
+          monthly_rate: number
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          effective_from?: string
+          id?: string
+          monthly_rate?: number
+        }
+        Relationships: []
+      }
+      bill_due_date_audit: {
+        Row: {
+          bill_id: string
+          changed_at: string
+          changed_by: string
+          id: string
+          new_date: string
+          previous_date: string
+          reason: string
+        }
+        Insert: {
+          bill_id: string
+          changed_at?: string
+          changed_by: string
+          id?: string
+          new_date: string
+          previous_date: string
+          reason: string
+        }
+        Update: {
+          bill_id?: string
+          changed_at?: string
+          changed_by?: string
+          id?: string
+          new_date?: string
+          previous_date?: string
+          reason?: string
+        }
+        Relationships: []
       }
       notification_preferences: {
         Row: {
@@ -891,6 +1235,8 @@ export type Database = {
           method: Database["public"]["Enums"]["payment_method"]
           notes: string | null
           paid_on: string
+          payment_account_id: string | null
+          payment_account_snapshot: Json | null
           proof_path: string | null
           provider: string | null
           provider_payment_id: string | null
@@ -913,6 +1259,8 @@ export type Database = {
           method: Database["public"]["Enums"]["payment_method"]
           notes?: string | null
           paid_on: string
+          payment_account_id?: string | null
+          payment_account_snapshot?: Json | null
           proof_path?: string | null
           provider?: string | null
           provider_payment_id?: string | null
@@ -935,6 +1283,8 @@ export type Database = {
           method?: Database["public"]["Enums"]["payment_method"]
           notes?: string | null
           paid_on?: string
+          payment_account_id?: string | null
+          payment_account_snapshot?: Json | null
           proof_path?: string | null
           provider?: string | null
           provider_payment_id?: string | null
@@ -1336,6 +1686,26 @@ export type Database = {
       }
     }
     Views: {
+      financial_transaction_overview: {
+        Row: {
+          amount: number | null
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string | null
+          method: Database["public"]["Enums"]["payment_method"] | null
+          payment_id: string | null
+          receipt_path: string | null
+          room_id: string | null
+          room_number: string | null
+          source: string | null
+          tenant_id: string | null
+          tenant_name: string | null
+          transaction_date: string | null
+          transaction_type: string | null
+        }
+        Relationships: []
+      }
       bill_overview: {
         Row: {
           amount_paid: number | null
@@ -1477,6 +1847,8 @@ export type Database = {
           notes: string | null
           paid_on: string | null
           period: string | null
+          payment_account_id: string | null
+          payment_account_snapshot: Json | null
           proof_path: string | null
           provider: string | null
           receipt_number: number | null
@@ -1636,6 +2008,26 @@ export type Database = {
       }
     }
     Functions: {
+      add_financial_category: {
+        Args: { p_name: string; p_transaction_type: string }
+        Returns: string
+      }
+      delete_financial_transaction: { Args: { p_id: string }; Returns: undefined }
+      save_financial_transaction: {
+        Args: {
+          p_amount: number
+          p_category: string
+          p_description: string
+          p_id?: string
+          p_method: Database["public"]["Enums"]["payment_method"]
+          p_receipt_path?: string
+          p_room_id?: string
+          p_tenant_id?: string
+          p_transaction_date: string
+          p_transaction_type: string
+        }
+        Returns: string
+      }
       _assert_active_user: { Args: never; Returns: string }
       _assert_landlord: { Args: never; Returns: undefined }
       _generate_bills: { Args: { p_period: string }; Returns: number }
@@ -1708,6 +2100,7 @@ export type Database = {
       mark_account_activated: { Args: never; Returns: undefined }
       mark_all_notifications_read: { Args: never; Returns: number }
       mark_notifications_read: { Args: { p_ids: string[] }; Returns: number }
+      override_bill_due_date: { Args: { p_bill_id: string; p_due_date: string; p_reason: string }; Returns: undefined }
       meter_reading_sheet: {
         Args: { p_period: string }
         Returns: {
@@ -1790,6 +2183,29 @@ export type Database = {
         }
         Returns: undefined
       }
+      review_payment_confirmed: {
+        Args: {
+          p_amount?: number
+          p_approve: boolean
+          p_money_received?: boolean
+          p_payment_id: string
+          p_reason?: string
+        }
+        Returns: undefined
+      }
+      save_payment_account: {
+        Args: {
+          p_account_holder: string
+          p_account_id: string | null
+          p_account_number: string
+          p_bank_name: string | null
+          p_is_active: boolean
+          p_is_default: boolean
+          p_method: Database["public"]["Enums"]["payment_method"]
+          p_qr_path: string
+        }
+        Returns: string
+      }
       run_scheduled_billing: { Args: never; Returns: number }
       send_announcement: {
         Args: { p_message: string; p_title: string }
@@ -1803,6 +2219,8 @@ export type Database = {
         Args: { p_beds: Json; p_room_id: string }
         Returns: undefined
       }
+      set_lease_occupants: { Args: { p_lease_id: string; p_occupant_count: number }; Returns: undefined }
+      set_water_rate: { Args: { p_monthly_rate: number; p_effective_from: string }; Returns: string }
       start_online_payment: {
         Args: { p_amount: number; p_bill_id: string }
         Returns: Database["public"]["Tables"]["payment_checkouts"]["Row"]
@@ -1821,6 +2239,19 @@ export type Database = {
           p_proof_path: string
           p_reference_number?: string
           p_request_id?: string
+        }
+        Returns: string
+      }
+      submit_qr_payment: {
+        Args: {
+          p_amount: number
+          p_bill_id: string
+          p_notes: string | null
+          p_paid_on: string
+          p_payment_account_id: string
+          p_proof_path: string
+          p_reference_number: string
+          p_request_id: string
         }
         Returns: string
       }
@@ -1887,6 +2318,8 @@ export type Database = {
         | "announcement"
         | "payment_verified"
         | "payment_recorded"
+        | "payment_account_updated"
+        | "water_rate_changed"
       payment_method:
         | "cash"
         | "bank_transfer"
@@ -2071,6 +2504,8 @@ export const Constants = {
         "announcement",
         "payment_verified",
         "payment_recorded",
+        "payment_account_updated",
+        "water_rate_changed",
       ],
       payment_method: [
         "cash",

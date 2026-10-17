@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Ban, Check, CircleDashed, Eye, FileText, Gauge, Loader2, Lock, MoreHorizontal, PencilLine, Plus, ReceiptText, Send, Wallet } from 'lucide-react'
+import { Ban, CalendarClock, Check, CircleDashed, Eye, FileText, Gauge, Loader2, Lock, MoreHorizontal, PencilLine, Plus, ReceiptText, Send, Wallet } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useParams } from 'react-router'
@@ -31,10 +31,12 @@ import {
   CHARGE_LABEL,
   useAddCharge,
   useBill,
+  useBillDueDateAudit,
   useBillItems,
   useFinalizeBill,
   useRemoveCharge,
   useReopenBill,
+  useOverrideBillDueDate,
   useUpdateBillItem,
   useVoidBill,
   type BillOverview,
@@ -47,7 +49,7 @@ import { RecordPaymentDialog, ReviewPaymentDialog } from '@/features/payments/pa
 import { useCurrency } from '@/hooks/use-settings'
 import type { Tables } from '@/lib/database.types'
 import { getErrorMessage } from '@/lib/errors'
-import { moneyInput } from '@/lib/form-fields'
+import { dateInput, moneyInput } from '@/lib/form-fields'
 import { formatDate, formatMoney, formatPeriod } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -170,6 +172,68 @@ function VoidDialog({ billId, onClose }: { billId: string; onClose: () => void }
   )
 }
 
+const dueDateSchema = z.object({
+  due_date: dateInput('due date'),
+  reason: z.string().trim().min(1, 'Give a reason').max(500),
+})
+
+function DueDateDialog({
+  billId,
+  currentDate,
+  onClose,
+}: {
+  billId: string
+  currentDate: string
+  onClose: () => void
+}) {
+  const update = useOverrideBillDueDate()
+  const { register, handleSubmit, formState: { errors } } = useForm<
+    z.input<typeof dueDateSchema>,
+    unknown,
+    z.output<typeof dueDateSchema>
+  >({
+    resolver: zodResolver(dueDateSchema),
+    defaultValues: { due_date: currentDate, reason: '' },
+  })
+
+  const onSubmit = (values: z.output<typeof dueDateSchema>) =>
+    update.mutate(
+      { billId, dueDate: values.due_date, reason: values.reason },
+      {
+        onSuccess: () => {
+          toast.success('Bill due date updated')
+          onClose()
+        },
+        onError: (err) => toast.error(getErrorMessage(err)),
+      },
+    )
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid gap-4">
+          <DialogHeader>
+            <DialogTitle>Override payment due date</DialogTitle>
+            <DialogDescription>The new date and reason are recorded in the bill audit trail.</DialogDescription>
+          </DialogHeader>
+          <FormField id="override-due-date" label="Due date" error={errors.due_date?.message}>
+            <Input id="override-due-date" type="date" aria-invalid={!!errors.due_date} {...register('due_date')} />
+          </FormField>
+          <FormField id="override-due-reason" label="Reason" error={errors.reason?.message}>
+            <Textarea id="override-due-reason" rows={3} aria-invalid={!!errors.reason} {...register('reason')} />
+          </FormField>
+          <DialogFooter>
+            <Button type="submit" disabled={update.isPending}>
+              {update.isPending && <Loader2 className="animate-spin" />}
+              Save due date
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function ProofDialog({ payment, onClose }: { payment: PaymentOverview; onClose: () => void }) {
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -256,6 +320,7 @@ type Overlay =
   | { kind: 'record' }
   | { kind: 'review'; payment: PaymentOverview }
   | { kind: 'proof'; payment: PaymentOverview }
+  | { kind: 'due-date' }
   | { kind: 'finalize'; missing: string[] }
   | { kind: 'reopen' }
 
@@ -264,6 +329,7 @@ export function BillDetailPage() {
   const currency = useCurrency()
   const bill = useBill(id)
   const items = useBillItems(id)
+  const dueDateAudit = useBillDueDateAudit(id)
   const payments = useBillPayments(id)
   const allocations = useBillAllocations(id)
   const remove = useRemoveCharge()
@@ -347,6 +413,9 @@ export function BillDetailPage() {
                     <PencilLine /> {canReopen ? 'Reopen to edit charges' : 'Locked (has payments)'}
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem onSelect={() => setOverlay({ kind: 'due-date' })}>
+                  <CalendarClock /> Override payment due date
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   variant="destructive"
                   disabled={b.amount_paid > 0}
@@ -401,6 +470,18 @@ export function BillDetailPage() {
               <dd className={cn('mt-0.5 font-medium', b.is_overdue && !isVoid && 'text-destructive')}>{formatDate(b.due_date)}</dd>
             </div>
           </dl>
+          {dueDateAudit.data && dueDateAudit.data.length > 0 && (
+            <div className="mt-3 border-t pt-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">Due-date changes</p>
+              <ul className="mt-1 space-y-1">
+                {dueDateAudit.data.map((change) => (
+                  <li key={change.id}>
+                    {formatDate(change.previous_date)} → {formatDate(change.new_date)} · {change.reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {b.finalized_at && !isVoid && (
             <p className="mt-4 flex items-center gap-1.5 border-t pt-3 text-xs text-muted-foreground">
               <Lock className="size-3.5 shrink-0" aria-hidden />
@@ -542,6 +623,7 @@ export function BillDetailPage() {
 
       {overlay?.kind === 'charge' && <ChargeDialog billId={b.id} item={overlay.item} onClose={close} />}
       {overlay?.kind === 'void' && <VoidDialog billId={b.id} onClose={close} />}
+      {overlay?.kind === 'due-date' && <DueDateDialog billId={b.id} currentDate={b.due_date} onClose={close} />}
       {overlay?.kind === 'proof' && <ProofDialog payment={overlay.payment} onClose={close} />}
       <ConfirmDialog
         open={overlay?.kind === 'remove'}

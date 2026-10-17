@@ -14,19 +14,20 @@ Rent, utilities and payments for a 28-room rental property. The landlord manages
 | 4 | Payments: **verification queue** with proof viewer, approve (with amount correction) / reject with reason, record cash payments with receipt, payment history | ✅ Built |
 | 5 | Tenant portal: **Home** (amount due, pay now, rejection alerts), **Bills** with breakdown, pay with proof upload, **Payment history**, **My room** (terms, deposit, landlord contact, house rules), mobile bottom tabs | ✅ Built |
 | 6 | Landlord **Dashboard** (KPIs, "needs your attention", overdue), **Reports** (12-month billed vs collected chart + table, arrears, occupancy, CSV export) | ✅ Built — Vercel deploy pending a live Supabase project |
+| 7 | Landlord **Finances** (audited manual income and expenses, verified-payment income, cash-flow dashboard, filters, CSV and print-to-PDF export) | ✅ Built |
 
 ### Pages
 
 | Landlord | Tenant |
 | --- | --- |
-| `/dashboard`, `/rooms`, `/tenants`, `/tenants/:id`, `/billing`, `/billing/readings`, `/billing/bills/:id`, `/payments`, `/reports`, `/settings`, `/account` | `/home`, `/my/bills`, `/my/bills/:id`, `/my/payments`, `/my/room`, `/account` |
+| `/dashboard`, `/rooms`, `/tenants`, `/tenants/:id`, `/billing`, `/billing/readings`, `/billing/bills/:id`, `/payments`, `/finances`, `/reports`, `/settings`, `/account` | `/home`, `/my/bills`, `/my/bills/:id`, `/my/pay-online`, `/my/payments`, `/my/room`, `/account` |
 
 ### A landlord's month
 
 1. Day 1 (configurable): one **draft** bill per occupied room is generated automatically, with that month's rent.
 2. Open **Billing → Meter readings**, type each room's current meter values, save. Electricity and water are added to the drafts.
 3. **Billing → Finalize ready bills** (or **Finalize and send** on one bill). The charges lock and each tenant is notified that their one consolidated bill is ready.
-4. Tenants **Pay online** (PayMongo checkout, confirmed automatically) or upload proof of a transfer, or **Pay in person**. Proofs show under **Payments → To verify**.
+4. Tenants **Pay online** with a landlord-configured transfer account, submit a transaction reference and screenshot, or use the optional PayMongo checkout. Transfer proofs stay pending until reviewed under **Payments → To verify**; displaying a QR code does not process a payment.
 5. Cash in hand? Open the bill → **Record payment**. Every verified payment gets a receipt.
 6. The **Dashboard** shows this month's collections by rent, electricity and water, plus unpaid and partially paid rooms.
 
@@ -42,7 +43,7 @@ Rent, utilities and payments for a 28-room rental property. The landlord manages
   - **Self-registration** (`/register`): creates only a *pending* `registration_requests` row, never a record. The landlord reviews it under **Registrations**, states how they verified the person's identity, and either links an existing record or creates a new one (`approve_registration`, atomic, row-locked). Room numbers and names typed by the applicant are unverified hints and never grant access.
 - **Landlord:** exactly one, set up explicitly with `bootstrap_landlord` (service role only). No sign-up, invitation or metadata can produce a landlord.
 - **Audit:** every registration, email verification, approval, rejection, link, invitation, manual tenant and suspension is written to the append-only `account_audit_log`.
-- **Storage:** private buckets. Proofs live at `payment-proofs/<tenant record id>/…`; tenants can upload only into their own folder and can never overwrite or delete a proof.
+- **Storage:** private buckets. Proofs live at `payment-proofs/<tenant record id>/…`; tenants can upload only into their own folder and can never overwrite or delete a proof. Landlord QR images live in `payment-qr-codes/<landlord id>/…`; only landlords can upload or replace them, and tenants with an active lease can view QR images for active accounts.
 - **History is never deleted:** bills are voided (with a reason), leases are ended, tenants are deactivated. Foreign keys are `ON DELETE RESTRICT`, and clients have no delete permission on financial tables.
 
 ### Database schema
@@ -69,6 +70,8 @@ app_settings (singleton)   billing_runs (log)
 | `bills` | One consolidated bill per lease per month. **Unique `(lease_id, period)` where not void** prevents duplicates even under concurrent runs. Draft until `finalized_at` is set. `total_amount`, `amount_paid`, `balance` and `status` are maintained by triggers. |
 | `payment_allocations` | How each verified payment was split across the bill's lines (allocation policy below). Permanent. |
 | `payment_checkouts` | Online checkouts at the payment provider: one in progress per bill. |
+| `landlord_payment_accounts` | Landlord-managed GCash, Maya and bank transfer accounts with private QR paths, active/default state, and audited changes. |
+| `payment_account_audit` | Append-only audit history of receiving-account changes. Landlord-readable. |
 | `bill_items` | Rent, electricity, water and extra-charge lines. Rates are captured on the line, so later rate changes do not rewrite history. |
 | `payments` | Tenant-submitted (pending → verified/rejected by the landlord) or landlord-recorded (verified). Only verified payments count. Multiple payments per bill = partial payments. |
 | `deposit_transactions` | Separate ledger: received / deduction / refund. Never mixed with rent. Balance is per tenant (follows them on a room move) and cannot go negative. |
@@ -102,6 +105,12 @@ app_settings (singleton)   billing_runs (log)
 * **Duplicate prevention:** one live bill per lease per month (unique index); payment forms send a request id, so a double tap or a retried request returns the first payment instead of recording a second (`unique (submitted_by, client_request_id)`); provider references and proof files cannot back two payments; one online checkout per bill at a time; provider payment ids are unique.
 * **Receipts:** every verified payment gets a sequential receipt number. `/receipts/:id` shows the payment and what it paid on each charge, with the balance before and after; **Download PDF** uses the browser's save-as-PDF.
 * **Deposits** stay in their own ledger and never appear in bills, allocations, collections or receipts.
+
+### QR and bank-transfer payments
+
+Landlords manage receiving accounts under **Settings → Payment accounts**. Each active account includes its holder, number, QR image, and (for bank transfers) bank name; one active account can be the default. Tenants with active leases can view only active accounts and their QR images. QR uploads are private JPG, PNG, or WebP files up to 4 MB.
+
+For a transfer, the tenant selects an account, sends money from their wallet or banking app, and submits an amount, transaction reference, and screenshot. The server validates the selected account, image metadata, reference uniqueness, and amount against the outstanding bill. The submission remains **Pending Verification**; it does not mark the bill paid. Landlords see the selected account snapshot and must explicitly confirm receipt before approval. Rejection requires a reason and leaves the bill balance unchanged. Approved full or partial payments use the normal allocation, receipt, and notification workflow.
 
 ### Online payments (PayMongo)
 
@@ -164,7 +173,7 @@ Import the repo, framework preset **Vite**, and add `VITE_SUPABASE_URL` and `VIT
 | `npm run dev` | Start the dev server |
 | `npm run build` | Type-check and build for production |
 | `npm run lint` | ESLint |
-| `npm run test:db` | Run every migration in an in-process Postgres (PGlite) and run 128 tests: consolidated bills (draft, finalize, lock, reopen), payment allocation by charge type, complete/partial/overdue payments, duplicate submissions, provider-confirmed online payments, receipts, RLS isolation, notifications (delivery, reminders, de-duplication, privacy), registration and approval security, manual tenants, account linking, duplicate-bill prevention, partial payments, deposits, voiding, room moves, deactivation, read models and storage rules. No Docker needed |
+| `npm run test:db` | Run every migration in an in-process Postgres (PGlite) and run the database tests: consolidated bills, payment allocation, complete/partial/overdue payments, duplicate submissions, provider-confirmed online payments, QR account validation and permissions, QR proof submission, confirmed approval, receipts, RLS isolation, notifications, registration security, deposits, voiding, room moves, read models and storage rules. No Docker needed |
 | `npm run db:types` | Regenerate database types from the linked project |
 
 ## Common problems

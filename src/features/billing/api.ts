@@ -14,6 +14,8 @@ export const billingKeys = {
   items: (id: string) => [...billingKeys.all, 'items', id] as const,
   sheet: (period: string) => [...billingKeys.all, 'sheet', period] as const,
   runs: () => [...billingKeys.all, 'runs'] as const,
+  waterRates: () => [...billingKeys.all, 'water-rates'] as const,
+  dueDateAudit: (id: string) => [...billingKeys.all, 'due-date-audit', id] as const,
 }
 
 const byRoom = <T extends { room_number: string }>(a: T, b: T) =>
@@ -85,6 +87,32 @@ export function useBillingRuns() {
   })
 }
 
+export function useWaterRateSchedule() {
+  return useQuery({
+    queryKey: billingKeys.waterRates(),
+    queryFn: async () => {
+      const { data, error } = await supabase.from('water_rate_schedule').select('*').order('effective_from', { ascending: false })
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+export function useBillDueDateAudit(billId: string) {
+  return useQuery({
+    queryKey: billingKeys.dueDateAudit(billId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bill_due_date_audit')
+        .select('*')
+        .eq('bill_id', billId)
+        .order('changed_at', { ascending: false })
+      if (error) throw error
+      return data
+    },
+  })
+}
+
 // Mutations -----------------------------------------------------------------------
 
 /** Bills feed balances shown on rooms, tenants and the dashboard. */
@@ -111,6 +139,37 @@ export function useGenerateBills() {
   return useMutation({
     mutationFn: (period: string) => call(supabase.rpc('generate_bills', { p_period: period })),
     onSuccess: invalidate,
+  })
+}
+
+export function useSetWaterRate() {
+  const invalidate = useInvalidateBilling()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (args: { monthlyRate: number; effectiveFrom: string }) =>
+      call(supabase.rpc('set_water_rate', { p_monthly_rate: args.monthlyRate, p_effective_from: args.effectiveFrom })),
+    onSuccess: async () => {
+      await Promise.all([invalidate(), qc.invalidateQueries({ queryKey: billingKeys.waterRates() })])
+    },
+  })
+}
+
+export function useOverrideBillDueDate() {
+  const invalidate = useInvalidateBilling()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (args: { billId: string; dueDate: string; reason: string }) =>
+      call(supabase.rpc('override_bill_due_date', {
+        p_bill_id: args.billId,
+        p_due_date: args.dueDate,
+        p_reason: args.reason,
+      })),
+    onSuccess: async (_data, args) => {
+      await Promise.all([
+        invalidate(),
+        qc.invalidateQueries({ queryKey: billingKeys.dueDateAudit(args.billId) }),
+      ])
+    },
   })
 }
 

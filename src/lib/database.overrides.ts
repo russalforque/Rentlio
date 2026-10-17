@@ -49,6 +49,26 @@ export interface PaymentReceipt {
 }
 
 export type ViewRows = {
+  financial_transaction_overview: {
+    Row: {
+      amount: number
+      category: string
+      created_at: string
+      description: string
+      id: string
+      method: E['payment_method']
+      payment_id: string | null
+      receipt_path: string | null
+      room_id: string | null
+      room_number: string | null
+      source: 'manual' | 'payment'
+      tenant_id: string | null
+      tenant_name: string | null
+      transaction_date: string
+      transaction_type: 'income' | 'expense'
+    }
+    Relationships: []
+  }
   bill_overview: {
     Row: {
       amount_paid: number
@@ -104,6 +124,13 @@ export type ViewRows = {
       method: E['payment_method']
       notes: string | null
       paid_on: string
+      payment_account_id: string | null
+      payment_account_snapshot: {
+        account_holder: string
+        account_number: string
+        bank_name: string | null
+        method: E['payment_method']
+      } | null
       period: string
       proof_path: string | null
       recorded_by_landlord: boolean
@@ -185,6 +212,23 @@ export type ViewRows = {
 }
 
 export type FunctionOverrides = {
+  add_financial_category: { Args: { p_name: string; p_transaction_type: string }; Returns: string }
+  delete_financial_transaction: { Args: { p_id: string }; Returns: undefined }
+  save_financial_transaction: {
+    Args: {
+      p_amount: number
+      p_category: string
+      p_description: string
+      p_id?: string
+      p_method: E['payment_method']
+      p_receipt_path?: string
+      p_room_id?: string
+      p_tenant_id?: string
+      p_transaction_date: string
+      p_transaction_type: string
+    }
+    Returns: string
+  }
   add_bill_charge: { Args: { p_bill_id: string; p_description: string; p_amount: number }; Returns: string }
   assign_tenant: {
     Args: {

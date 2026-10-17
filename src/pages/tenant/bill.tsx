@@ -73,7 +73,7 @@ export function TenantBillPage() {
   const pendingTotal = payments.data?.filter((p) => p.status === 'pending').reduce((t, p) => t + p.amount, 0) ?? 0
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
+    <div className="tenant-page mx-auto max-w-3xl space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex items-center gap-2">

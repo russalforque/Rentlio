@@ -35,7 +35,8 @@ const SUPABASE_STUBS = `
   create table storage.objects (
     id uuid primary key default gen_random_uuid(),
     bucket_id text not null references storage.buckets (id),
-    name text not null
+    name text not null,
+    metadata jsonb not null default '{}'::jsonb
   );
   create function storage.foldername(name text) returns text[] language sql immutable as
     $$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1] $$;
@@ -146,6 +147,8 @@ const proof = async (owner, name) => {
 // --- fixtures ----------------------------------------------------------------------
 const landlord = await createUser('owner@example.com', { full_name: 'Owner' })
 await asAdmin(`select public.bootstrap_landlord('owner@example.com')`)
+// Historical test periods predate the migration's initial live rate.
+await asAdmin(`insert into public.water_rate_schedule (monthly_rate, effective_from) values (150, '2026-01-01')`)
 const alice = await invite('alice@example.com', 'Alice')
 const bob = await invite('bob@example.com', 'Bob')
 const stray = await createUser('stray@example.com')
@@ -238,14 +241,15 @@ await test('readings + generation produce rent and metered utility lines', async
   await as(landlord, `select public.record_meter_readings($1, $2)`, [PERIOD, JSON.stringify([
     { room_id: r101, electricity_previous: 1000, electricity_current: 1100, water_previous: 50, water_current: 60 },
   ])])
-  const [{ generate_bills: created }] = await as(landlord, `select public.generate_bills($1)`, [PERIOD])
+  const [{ generate_bills: created }] = await on('2026-10-20', () =>
+    as(landlord, `select public.generate_bills($1)`, [PERIOD]))
   assert.equal(created, 2)
   ;[{ id: aliceBill }] = await asAdmin(`select id from public.bills where lease_id = $1`, [aliceLease])
   ;[{ id: bobBill }] = await asAdmin(`select id from public.bills where lease_id = $1`, [bobLease])
   const b = await bill(aliceBill)
-  assert.equal(num(b.total_amount), 5000 + 100 * 12 + 10 * 30)
+  assert.equal(num(b.total_amount), 5000 + 100 * 12 + 150)
   assert.equal(b.status, 'unpaid')
-  assert.equal(b.due_date.toISOString().slice(0, 10), '2026-10-08')
+  assert.equal(b.due_date.toISOString().slice(0, 10), '2026-10-15')
 })
 await test('generating the same month again creates no duplicates', async () => {
   const [{ generate_bills: created }] = await as(landlord, `select public.generate_bills($1)`, [PERIOD])
@@ -262,7 +266,7 @@ await test('readings recorded after generation update the bill; previous auto-fi
     { room_id: r102, electricity_current: 550, water_current: 25 },
   ])])
   const b = await bill(bobBill)
-  assert.equal(num(b.total_amount), 4500 + 50 * 12 + 5 * 30)
+  assert.equal(num(b.total_amount), 4500 + 50 * 12 + 150)
 })
 await test('meter readings cannot go backwards', async () => {
   await rejects(as(landlord, `select public.record_meter_readings($1, $2)`, [PERIOD, JSON.stringify([
@@ -272,9 +276,9 @@ await test('meter readings cannot go backwards', async () => {
 await test('extra charges and rent adjustments recalculate totals', async () => {
   const [{ add_bill_charge: itemId }] = await as(landlord,
     `select public.add_bill_charge($1, 'Key replacement', 250)`, [aliceBill])
-  assert.equal(num((await bill(aliceBill)).total_amount), 6750)
+  assert.equal(num((await bill(aliceBill)).total_amount), 6600)
   await as(landlord, `select public.remove_bill_charge($1)`, [itemId])
-  assert.equal(num((await bill(aliceBill)).total_amount), 6500)
+  assert.equal(num((await bill(aliceBill)).total_amount), 6350)
   const [{ id: utilityItem }] = await asAdmin(
     `select id from public.bill_items where bill_id = $1 and kind = 'electricity'`, [aliceBill])
   await rejects(as(landlord, `select public.update_bill_item($1, null, 0)`, [utilityItem]), /meter reading/)
@@ -300,8 +304,8 @@ await test('a bill cannot be finalized until its required charges are in', async
   await as(landlord, `select public.generate_bills($1)`, [PERIOD])
   const [{ id }] = await asAdmin(`select id from public.bills where lease_id = $1`, [lease])
   const [d] = await as(landlord, `select missing_charges from public.bill_overview where id = $1`, [id])
-  assert.deepEqual(d.missing_charges, ['electricity', 'water'])
-  await rejects(as(landlord, `select public.finalize_bill($1)`, [id]), /no electricity or water charge/)
+  assert.deepEqual(d.missing_charges, ['electricity'])
+  await rejects(as(landlord, `select public.finalize_bill($1)`, [id]), /no electricity charge/)
   await rejects(as(carl, `select public.finalize_bill($1)`, [id]), /Only the landlord/)
   // Bulk finalizing skips incomplete drafts.
   assert.equal((await as(landlord, `select public.finalize_bills($1) as n`, [PERIOD]))[0].n, 2)
@@ -318,9 +322,9 @@ await test('finalizing issues the bill: tenant sees one consolidated bill with e
     is_finalized, due_date from public.bill_overview`)
   assert.deepEqual(
     { total: num(b.total_amount), rent: num(b.rent_amount), electricity: num(b.electricity_amount), water: num(b.water_amount), other: num(b.other_amount) },
-    { total: 6500, rent: 5000, electricity: 1200, water: 300, other: 0 })
+    { total: 6350, rent: 5000, electricity: 1200, water: 150, other: 0 })
   assert.equal(b.is_finalized, true)
-  assert.equal(b.due_date.toISOString().slice(0, 10), '2026-10-08')
+  assert.equal(b.due_date.toISOString().slice(0, 10), '2026-10-15')
   const kinds = (await as(alice, `select kind from public.bill_items order by sort_order`)).map((i) => i.kind)
   assert.deepEqual(kinds, ['rent', 'electricity', 'water'])
   await rejects(as(landlord, `select public.finalize_bill($1)`, [aliceBill]), /already finalized/)
@@ -337,7 +341,7 @@ await test('charges on a finalized bill are locked', async () => {
     { room_id: r101, electricity_previous: 1000, electricity_current: 1100, water_previous: 50, water_current: 60 },
   ])])
   await rejects(asAdmin(`delete from public.bill_items where id = $1`, [rentItem]), /finalized/)
-  assert.equal(num((await bill(aliceBill)).total_amount), 6500)
+  assert.equal(num((await bill(aliceBill)).total_amount), 6350)
 })
 await test('a finalized bill without payments can be reopened, corrected and reissued', async () => {
   await rejects(as(alice, `select public.reopen_bill($1)`, [aliceBill]), /Only the landlord/)
@@ -367,8 +371,8 @@ await test('a bill finalized after its issue date gets the full payment window',
     await setToday(baseToday)
   }
   const b = await bill(id)
-  assert.equal(b.issue_date.toISOString().slice(0, 10), '2026-10-12')
-  assert.equal(b.due_date.toISOString().slice(0, 10), '2026-10-19')
+  assert.equal(b.issue_date.toISOString().slice(0, 10), '2026-10-01')
+  assert.equal(b.due_date.toISOString().slice(0, 10), '2026-10-01')
   await on('2026-10-12', () => as(landlord, `select public.record_payment($1, 2000, 'cash', '2026-10-12')`, [id]))
   await as(landlord, `select public.end_lease($1, '2026-10-31')`, [lease])
 })
@@ -424,30 +428,30 @@ await test('submitted payment stays pending and does not reduce the balance', as
     `select public.submit_payment($1, 2000, 'gcash', public.property_today(), $2, 'REF-1')`, [aliceBill, await proof(alice, 'p1.jpg')])
   const b = await bill(aliceBill)
   assert.equal(b.status, 'unpaid')
-  assert.equal(num(b.balance), 6500)
+  assert.equal(num(b.balance), 6350)
 })
 await test('tenant cannot verify their own payment', async () => {
-  await rejects(as(alice, `select public.review_payment($1, true)`, [p1]), /Only the landlord/)
+  await rejects(as(alice, `select public.review_payment_confirmed($1, true, null, null, true)`, [p1]), /Only the landlord/)
 })
 await test('verification makes the bill partial; full balance makes it paid', async () => {
-  await as(landlord, `select public.review_payment($1, true)`, [p1])
+  await as(landlord, `select public.review_payment_confirmed($1, true, null, null, true)`, [p1])
   let b = await bill(aliceBill)
   assert.equal(b.status, 'partial')
-  assert.equal(num(b.balance), 4500)
+  assert.equal(num(b.balance), 4350)
   const [{ submit_payment: p2 }] = await as(alice,
-    `select public.submit_payment($1, 4500, 'bank_transfer', public.property_today(), $2)`, [aliceBill, await proof(alice, 'p2.jpg')])
-  await rejects(as(landlord, `select public.review_payment($1, true, 5000)`, [p2]), /exceeds/)
-  await as(landlord, `select public.review_payment($1, true)`, [p2])
+    `select public.submit_payment($1, 4350, 'bank_transfer', public.property_today(), $2)`, [aliceBill, await proof(alice, 'p2.jpg')])
+  await rejects(as(landlord, `select public.review_payment_confirmed($1, true, 5000, null, true)`, [p2]), /exceeds/)
+  await as(landlord, `select public.review_payment_confirmed($1, true, null, null, true)`, [p2])
   b = await bill(aliceBill)
   assert.equal(b.status, 'paid')
   assert.equal(num(b.balance), 0)
-  await rejects(as(landlord, `select public.review_payment($1, false, null, 'dup')`, [p2]), /already been verified/)
+  await rejects(as(landlord, `select public.review_payment_confirmed($1, false, null, 'dup', false)`, [p2]), /already been verified/)
 })
 await test('rejection needs a reason and leaves the balance unchanged', async () => {
   const [{ submit_payment: p3 }] = await as(bob,
     `select public.submit_payment($1, 1000, 'gcash', public.property_today(), $2)`, [bobBill, await proof(bob, 'p3.jpg')])
-  await rejects(as(landlord, `select public.review_payment($1, false)`, [p3]), /reason/)
-  await as(landlord, `select public.review_payment($1, false, null, 'Blurry screenshot')`, [p3])
+  await rejects(as(landlord, `select public.review_payment_confirmed($1, false, null, null, false)`, [p3]), /reason/)
+  await as(landlord, `select public.review_payment_confirmed($1, false, null, 'Blurry screenshot', false)`, [p3])
   const b = await bill(bobBill)
   assert.equal(b.status, 'unpaid')
 })
@@ -471,8 +475,8 @@ await test('approval refuses a reference already verified on another payment', a
   const [{ id }] = await asAdmin(
     `insert into public.payments (bill_id, tenant_id, amount, method, reference_number, paid_on, proof_path, submitted_by)
      values ($1, $2, 100, 'gcash', 'REF-1', public.property_today(), $3, $2) returning id`, [bobBill, bob, await proof(bob, 'legacy.jpg')])
-  await rejects(as(landlord, `select public.review_payment($1, true)`, [id]), /already verified/)
-  await as(landlord, `select public.review_payment($1, false, null, 'Duplicate reference')`, [id])
+  await rejects(as(landlord, `select public.review_payment_confirmed($1, true, null, null, true)`, [id]), /already verified/)
+  await as(landlord, `select public.review_payment_confirmed($1, false, null, 'Duplicate reference', false)`, [id])
 })
 await test('proof must be an uploaded file not already used by another payment', async () => {
   await rejects(as(bob, `select public.submit_payment($1, 100, 'gcash', public.property_today(), $2)`, [bobBill, `${bob}/ghost.jpg`]),
@@ -481,9 +485,9 @@ await test('proof must be an uploaded file not already used by another payment',
   const [{ submit_payment: id }] = await as(bob, `select public.submit_payment($1, 100, 'gcash', public.property_today(), $2)`, [bobBill, file])
   await rejects(as(bob, `select public.submit_payment($1, 100, 'gcash', public.property_today(), $2)`, [bobBill, file]), /already attached/)
   // After a rejection the tenant may resubmit the same file.
-  await as(landlord, `select public.review_payment($1, false, null, 'Wrong amount')`, [id])
+  await as(landlord, `select public.review_payment_confirmed($1, false, null, 'Wrong amount', false)`, [id])
   const [{ submit_payment: again }] = await as(bob, `select public.submit_payment($1, 100, 'gcash', public.property_today(), $2)`, [bobBill, file])
-  await as(landlord, `select public.review_payment($1, false, null, 'Test cleanup')`, [again])
+  await as(landlord, `select public.review_payment_confirmed($1, false, null, 'Test cleanup', false)`, [again])
 })
 await test('a paid bill can be neither edited nor reopened', async () => {
   const before = await bill(aliceBill)
@@ -501,7 +505,7 @@ await test('deposit ledger is separate from bills', async () => {
   const [d] = await as(landlord, `select balance from public.deposit_balances where tenant_id = $1`, [alice])
   assert.equal(num(d.balance), 5000)
   const [{ total }] = await asAdmin(`select coalesce(sum(amount_paid), 0) as total from public.bills where tenant_id = $1`, [alice])
-  assert.equal(num(total), 6500)
+  assert.equal(num(total), 6350)
 })
 await test('deductions need a note and cannot exceed the balance', async () => {
   await rejects(as(landlord, `select public.record_deposit_transaction($1, 'deduction', 100, public.property_today())`, [aliceLease]), /reason/)
@@ -587,9 +591,9 @@ await test('moving rooms ends the old lease the day before and carries the depos
   const [old] = await asAdmin(`select status, end_date from public.leases where id = $1`, [aliceLease])
   assert.equal(old.status, 'ended')
   assert.equal(old.end_date.toISOString().slice(0, 10), '2026-10-31')
-  // The November draft for the old room was cancelled, so November is not billed twice.
+  // The old lease had not reached its November anniversary, so no November bill exists.
   const nov = await asAdmin(`select status, void_reason from public.bills where lease_id = $1 and period = '2026-11-01'`, [aliceLease])
-  assert.deepEqual(nov, [{ status: 'void', void_reason: 'Tenancy ended on October 31, 2026, before this month' }])
+  assert.deepEqual(nov, [])
   const [t] = await as(landlord, `select room_number, lease_rent, deposit_balance from public.tenant_overview where id = $1`, [alice])
   assert.equal(t.room_number, '105')
   assert.equal(num(t.lease_rent), 5200)
@@ -605,12 +609,10 @@ console.log('\nRead models')
 await test('bill_overview flags overdue bills and is tenant-isolated', async () => {
   const mine = await as(bob, `select tenant_id, is_overdue, room_number from public.bill_overview`)
   assert.ok(mine.length > 0 && mine.every((b) => b.tenant_id === bob))
-  // October bills were due 2026-10-08; whether they are overdue depends on today's date.
-  const [{ overdue }] = await asAdmin(
-    `select (public.property_today() > '2026-10-08') as overdue`)
+  const [{ today }] = await asAdmin(`select public.property_today()::text as today`)
   const open = await as(landlord,
-    `select is_overdue from public.bill_overview where period = '2026-10-01' and status in ('unpaid','partial')`)
-  assert.ok(open.every((b) => b.is_overdue === overdue))
+    `select is_overdue, due_date from public.bill_overview where period = '2026-10-01' and status in ('unpaid','partial')`)
+  assert.ok(open.every((b) => b.is_overdue === (today > b.due_date.toISOString().slice(0, 10))))
   const paid = await as(landlord, `select is_overdue from public.bill_overview where status = 'paid'`)
   assert.ok(paid.every((b) => b.is_overdue === false))
 })
@@ -747,9 +749,9 @@ await test('landlord creates a tenant without email or login, housed in one step
 await test('manual tenants are billed and the landlord records cash payments', async () => {
   await on('2026-12-01', () => as(landlord, `select public.generate_bills('2026-12-01')`))
   const [b] = await asAdmin(`select id, total_amount from public.bills where tenant_id = $1 and period = '2026-12-01'`, [frank])
-  assert.equal(num(b.total_amount), 4000)
+  assert.equal(num(b.total_amount), 4150)
   await as(landlord, `select public.finalize_bill($1, true)`, [b.id])
-  await on('2026-12-03', () => as(landlord, `select public.record_payment($1, 4000, 'cash', '2026-12-03')`, [b.id]))
+  await on('2026-12-03', () => as(landlord, `select public.record_payment($1, 4150, 'cash', '2026-12-03')`, [b.id]))
   assert.equal((await bill(b.id)).status, 'paid')
 })
 await test('a failed room assignment leaves no orphan tenant record', async () => {
@@ -1040,7 +1042,7 @@ await test('moving in and a new bill each notify the tenant, with the bill total
   const issued = await inbox(nina, 'bill_issued')
   assert.equal(issued.length, 1)
   assert.equal(issued[0].related_entity_id, ninaBill)
-  assert.match(issued[0].message, /₱6,000\.00 is due on Oct 8, 2026\. Rent ₱6,000\.00\./)
+  assert.match(issued[0].message, /₱6,150\.00 is due on Oct 1, 2026\. Rent ₱6,000\.00 · Water ₱150\.00\./)
   // Bills are backdated for the reminder tests: "due soon" skips bills issued in the last day.
   await asAdmin(`update public.bills set created_at = '2026-10-01', finalized_at = '2026-10-01' where id in ($1, $2)`,
     [ninaBill, omarBill])
@@ -1048,19 +1050,19 @@ await test('moving in and a new bill each notify the tenant, with the bill total
 await test('opting out of payment updates silences them; essential notices still arrive', async () => {
   await as(omar, `insert into public.notification_preferences (user_id, payment_updates) values ($1, false)`, [omar])
   await rejects(as(omar, `insert into public.notification_preferences (user_id) values ($1)`, [nina]), /row-level security/)
-  await on('2026-10-02', () => as(landlord, `select public.record_payment($1, 3000, 'cash', '2026-10-02')`, [omarBill]))
+  await on('2026-10-02', () => as(landlord, `select public.record_payment($1, 3150, 'cash', '2026-10-02')`, [omarBill]))
   assert.equal(await inboxCount(omar, 'payment_recorded'), 0)
   assert.equal(await inboxCount(omar, 'bill_issued'), 1)
 })
 await test('rent reminders: 3 days before, on the due date, and 3 days after, once each', async () => {
-  assert.equal((await runJob('_send_rent_reminders', '2026-10-04'))[0].n, 0)
-  await runJob('_send_rent_reminders', '2026-10-05')
-  await runJob('_send_rent_reminders', '2026-10-06')
+  assert.equal((await runJob('_send_rent_reminders', '2026-09-27'))[0].n, 0)
+  await runJob('_send_rent_reminders', '2026-09-28')
+  await runJob('_send_rent_reminders', '2026-09-29')
   const soon = await inbox(nina, 'rent_due_soon')
   assert.equal(soon.length, 1)
   assert.equal(soon[0].title, 'Rent due in 3 days')
-  await runJob('_send_rent_reminders', '2026-10-08')
-  await runJob('_send_rent_reminders', '2026-10-08')
+  await runJob('_send_rent_reminders', '2026-10-01')
+  await runJob('_send_rent_reminders', '2026-10-01')
   assert.equal(await inboxCount(nina, 'rent_due_today'), 1)
   assert.equal(await inboxCount(nina, 'rent_overdue'), 0)
 })
@@ -1068,27 +1070,27 @@ await test('a cash payment notifies the tenant with the new balance; overdue use
   await on('2026-10-09', () => as(landlord, `select public.record_payment($1, 1000, 'cash', '2026-10-09')`, [ninaBill]))
   const [rec] = await inbox(nina, 'payment_recorded')
   assert.equal(rec.title, 'Payment recorded')
-  assert.match(rec.message, /cash payment of ₱1,000\.00.*Remaining balance: ₱5,000\.00/)
+  assert.match(rec.message, /cash payment of ₱1,000\.00.*Remaining balance: ₱5,150\.00/)
   assert.equal(rec.related_entity_type, 'bill')
   assert.equal(await inboxCount(landlord, 'payment_recorded'), 0) // the landlord did it
-  await runJob('_send_rent_reminders', '2026-10-10')
+  await runJob('_send_rent_reminders', '2026-10-03')
   assert.equal(await inboxCount(nina, 'rent_overdue'), 0)
-  await runJob('_send_rent_reminders', '2026-10-11')
-  await runJob('_send_rent_reminders', '2026-10-12')
+  await runJob('_send_rent_reminders', '2026-10-04')
+  await runJob('_send_rent_reminders', '2026-10-05')
   const overdue = await inbox(nina, 'rent_overdue')
   assert.equal(overdue.length, 1)
-  assert.match(overdue[0].message, /₱5,000\.00 is still unpaid/)
+  assert.match(overdue[0].message, /₱5,150\.00 is still unpaid/)
 })
 await test('paid bills get no reminders, and stale stages are not sent late', async () => {
-  for (const day of ['2026-10-05', '2026-10-08', '2026-10-11']) await runJob('_send_rent_reminders', day)
+  for (const day of ['2026-09-28', '2026-10-01', '2026-10-04']) await runJob('_send_rent_reminders', day)
   assert.equal(await inboxCount(omar, 'rent_due_soon') + await inboxCount(omar, 'rent_overdue'), 0)
   const before = await inboxCount(nina)
   await runJob('_send_rent_reminders', '2026-11-30')
   assert.equal(await inboxCount(nina), before)
 })
 await test('the landlord gets one daily summary of bills that became overdue', async () => {
-  await runJob('_send_landlord_digests', '2026-10-09')
-  await runJob('_send_landlord_digests', '2026-10-09')
+  await runJob('_send_landlord_digests', '2026-10-02')
+  await runJob('_send_landlord_digests', '2026-10-02')
   const n = await inbox(landlord, 'bills_overdue')
   assert.equal(n.length, 1)
   assert.match(n[0].message, /Room.*201/)
@@ -1111,16 +1113,16 @@ await test('a submitted payment notifies the landlord without the reference numb
   assert.match(n[0].message, /Nina Reyes \(Room 201\) sent ₱1,000\.00 by GCash/)
   assert.doesNotMatch(n[0].message, /GC-SECRET-77/)
   assert.equal(await inboxCount(nina, 'payment_submitted'), 0)
-  await as(landlord, `select public.review_payment($1, true)`, [pid])
+  await as(landlord, `select public.review_payment_confirmed($1, true, null, null, true)`, [pid])
   const [ok] = await inbox(nina, 'payment_verified')
   assert.equal(ok.title, 'Payment confirmed')
-  assert.match(ok.message, /Remaining balance: ₱4,000.00. It now shows in your bill/)
+  assert.match(ok.message, /Remaining balance: ₱4,150.00. It now shows in your bill/)
   assert.equal(await inboxCount(landlord, 'payment_verified'), 0)
 })
 await test('a rejected payment proof tells the tenant why', async () => {
   const [{ submit_payment: pid }] = await as(nina,
     `select public.submit_payment($1, 500, 'maya', public.property_today(), $2)`, [ninaBill, await proof(nina, 'n2.jpg')])
-  await as(landlord, `select public.review_payment($1, false, null, 'Screenshot is unreadable')`, [pid])
+  await as(landlord, `select public.review_payment_confirmed($1, false, null, 'Screenshot is unreadable', false)`, [pid])
   const [n] = await inbox(nina, 'payment_rejected')
   assert.match(n.message, /not accepted: Screenshot is unreadable/)
 })
@@ -1212,6 +1214,9 @@ await test('duplicates are impossible and notices never reach the wrong audience
     values ($1, 'announcement', 'rental', 'T', 'M', 'dup-test')`, [nina]), /duplicate key/)
 })
 await test('a failed scheduled billing run tells the landlord once and creates nothing', async () => {
+  const [{ create_manual_tenant: tenant }] = await as(landlord, `select public.create_manual_tenant('Scheduled billing test')`)
+  await as(landlord, `select public.assign_tenant($1, $2, '2026-10-01', 2000)`,
+    [tenant, await roomId('114')])
   await db.exec(`create function public._test_fail() returns trigger language plpgsql as $$
     begin raise exception 'disk full'; end $$;
     create trigger test_fail before insert on public.bills for each row execute function public._test_fail();`)
@@ -1254,8 +1259,8 @@ await test('the landlord sets the reminder schedule; tenants cannot', async () =
 // Runs last so the provider-payment notices do not disturb the notification counts above.
 const FEB = '2027-02-01'
 // This part of the story happens in February 2027.
-baseToday = FEB
-await setToday(FEB)
+baseToday = '2027-02-15'
+await setToday(baseToday)
 const paz = await invite('paz@example.com', 'Paz Lim')
 const quinn = await invite('quinn@example.com', 'Quinn Tan')
 const r211 = await roomId('211')
@@ -1285,8 +1290,8 @@ await test('one consolidated bill per tenant: rent, electricity, water and extra
   await as(landlord, `select public.add_bill_charge($1, 'Parking', 200)`, [pazBill])
   await as(landlord, `select public.finalize_bill($1)`, [pazBill])
   await as(landlord, `select public.finalize_bill($1)`, [quinnBill])
-  assert.equal(num((await bill(pazBill)).total_amount), 5000 + 1200 + 300 + 200)
-  assert.equal(num((await bill(quinnBill)).total_amount), 4000 + 600 + 120)
+  assert.equal(num((await bill(pazBill)).total_amount), 5000 + 1200 + 150 + 200)
+  assert.equal(num((await bill(quinnBill)).total_amount), 4000 + 600 + 150)
   const mine = await as(paz, `select id from public.bill_overview where period = $1`, [FEB])
   assert.deepEqual(mine.map((b) => b.id), [pazBill])
   // Still one bill per tenancy per month.
@@ -1295,22 +1300,22 @@ await test('one consolidated bill per tenant: rent, electricity, water and extra
 await test('partial payments are allocated electricity, then water, then extra charges, then rent', async () => {
   await on('2027-02-02', () => as(landlord, `select public.record_payment($1, 1000, 'cash', '2027-02-02')`, [pazBill]))
   assert.deepEqual(await paidByKind(pazBill),
-    { rent: 0, electricity: 1000, water: 0, other: 0, paid: 1000, balance: 5700, status: 'partial' })
+    { rent: 0, electricity: 1000, water: 0, other: 0, paid: 1000, balance: 5550, status: 'partial' })
   const [{ submit_payment: pid }] = await as(paz,
     `select public.submit_payment($1, 800, 'gcash', public.property_today(), $2, 'GC-PAZ-1')`, [pazBill, await proof(paz, 'paz1.jpg')])
   // Pending payments are not allocated and do not reduce anything.
   assert.equal((await asAdmin(`select 1 from public.payment_allocations where payment_id = $1`, [pid])).length, 0)
-  await as(landlord, `select public.review_payment($1, true)`, [pid])
+  await as(landlord, `select public.review_payment_confirmed($1, true, null, null, true)`, [pid])
   assert.deepEqual(await paidByKind(pazBill),
-    { rent: 100, electricity: 1200, water: 300, other: 200, paid: 1800, balance: 4900, status: 'partial' })
+    { rent: 250, electricity: 1200, water: 150, other: 200, paid: 1800, balance: 4750, status: 'partial' })
   const split = await asAdmin(`select kind, amount from public.payment_allocations where payment_id = $1 order by amount`, [pid])
   assert.deepEqual(split.map((a) => [a.kind, num(a.amount)]),
-    [['rent', 100], ['electricity', 200], ['other', 200], ['water', 300]])
+    [['water', 150], ['electricity', 200], ['other', 200], ['rent', 250]])
 })
 await test('a payment completing the bill clears every line and marks it paid', async () => {
-  await on('2027-02-05', () => as(landlord, `select public.record_payment($1, 4900, 'cash', '2027-02-05')`, [pazBill]))
+  await on('2027-02-05', () => as(landlord, `select public.record_payment($1, 4750, 'cash', '2027-02-05')`, [pazBill]))
   assert.deepEqual(await paidByKind(pazBill),
-    { rent: 5000, electricity: 1200, water: 300, other: 200, paid: 6700, balance: 0, status: 'paid' })
+    { rent: 5000, electricity: 1200, water: 150, other: 200, paid: 6550, balance: 0, status: 'paid' })
   await rejects(as(landlord, `select public.record_payment($1, 1, 'cash', '2027-02-05')`, [pazBill]), /exceeds/)
 })
 await test('collections by category always add up to what was paid', async () => {
@@ -1347,13 +1352,13 @@ await test('each verified payment gets one receipt with the charge breakdown', a
   assert.equal(r.payment.amount, 800)
   assert.equal(r.tenant_name, 'Paz Lim')
   assert.equal(r.room_number, '211')
-  assert.equal(r.balance_before, 5700)
-  assert.equal(r.balance_after, 4900)
+  assert.equal(r.balance_before, 5550)
+  assert.equal(r.balance_after, 4750)
   const lines = Object.fromEntries(r.lines.map((l) => [l.kind, [l.amount, l.paid_before, l.applied, l.remaining]]))
   assert.deepEqual(lines, {
-    rent: [5000, 0, 100, 4900],
+    rent: [5000, 0, 250, 4750],
     electricity: [1200, 1000, 200, 0],
-    water: [300, 0, 300, 0],
+    water: [150, 0, 150, 0],
     other: [200, 0, 200, 0],
   })
   const [{ r: last }] = await as(landlord, `select public.payment_receipt($1) as r`, [pays[2].id])
@@ -1380,7 +1385,7 @@ await test('a resubmitted payment request is recorded once', async () => {
   // Another tenant reusing the request id gets nothing of Quinn's.
   await rejects(as(paz, `select public.submit_payment($1, 500, 'gcash', public.property_today(), $2, null, null, $3)`,
     [quinnBill, file, req]), /Bill not found/)
-  await as(landlord, `select public.review_payment($1, true)`, [first])
+  await as(landlord, `select public.review_payment_confirmed($1, true, null, null, true)`, [first])
   const cash = '22222222-2222-4222-8222-222222222222'
   const record = () => on('2027-02-04', () => as(landlord, `select public.record_payment($1, 220, 'cash', '2027-02-04', null, null, null, $2) as id`,
     [quinnBill, cash]))
@@ -1388,14 +1393,14 @@ await test('a resubmitted payment request is recorded once', async () => {
   const [{ id: c2 }] = await record()
   assert.equal(c1, c2)
   assert.deepEqual(await paidByKind(quinnBill),
-    { rent: 0, electricity: 600, water: 120, other: 0, paid: 720, balance: 4000, status: 'partial' })
+    { rent: 0, electricity: 600, water: 120, other: 0, paid: 720, balance: 4030, status: 'partial' })
 })
 await test('tenants cannot submit more than is owed once pending payments are counted', async () => {
   const [{ submit_payment: pid }] = await as(quinn,
     `select public.submit_payment($1, 3000, 'maya', public.property_today(), $2)`, [quinnBill, await proof(quinn, 'q2.jpg')])
   await rejects(as(quinn, `select public.submit_payment($1, 1500, 'maya', public.property_today(), $2)`,
     [quinnBill, await proof(quinn, 'q3.jpg')]), /awaiting verification/)
-  await as(landlord, `select public.review_payment($1, false, null, 'Amount not received')`, [pid])
+  await as(landlord, `select public.review_payment_confirmed($1, false, null, 'Amount not received', false)`, [pid])
 })
 await test('an unpaid balance becomes overdue after the due date and keeps its remaining amount', async () => {
   await setToday('2027-02-20')
@@ -1404,7 +1409,7 @@ await test('an unpaid balance becomes overdue after the due date and keeps its r
                                      where period = $1 and tenant_id in ($2, $3)`, [FEB, paz, quinn])
     const q = rows.find((b) => b.tenant_id === quinn)
     const p = rows.find((b) => b.tenant_id === paz)
-    assert.deepEqual({ status: q.status, overdue: q.is_overdue, balance: num(q.balance) }, { status: 'partial', overdue: true, balance: 4000 })
+    assert.deepEqual({ status: q.status, overdue: q.is_overdue, balance: num(q.balance) }, { status: 'partial', overdue: true, balance: 4030 })
     assert.equal(p.is_overdue, false)
     // Tenants see their own overdue flag; drafts are never overdue.
     assert.equal((await as(quinn, `select is_overdue from public.bill_overview where period = $1`, [FEB]))[0].is_overdue, true)
@@ -1413,9 +1418,9 @@ await test('an unpaid balance becomes overdue after the due date and keeps its r
   } finally {
     await setToday(baseToday)
   }
-  await runJob('_send_rent_reminders', '2027-02-10')
+  await runJob('_send_rent_reminders', '2027-02-18')
   const [n] = await inbox(quinn, 'rent_overdue')
-  assert.match(n.message, /February 2027 bill .* ₱4,000\.00 is still unpaid/)
+  assert.match(n.message, /February 2027 bill .* ₱4,030\.00 is still unpaid/)
   assert.equal(await inboxCount(paz, 'rent_overdue'), 0)
 })
 await test('draft bills do not count toward outstanding balances', async () => {
@@ -1423,9 +1428,9 @@ await test('draft bills do not count toward outstanding balances', async () => {
   await on('2027-03-01', () => as(landlord, `select public.generate_bills('2027-03-01')`))
   const after = await as(landlord, `select outstanding_balance from public.tenant_overview where id = $1`, [quinn])
   assert.equal(num(after[0].outstanding_balance), num(before[0].outstanding_balance))
-  assert.equal(num(before[0].outstanding_balance), 4000)
+  assert.equal(num(before[0].outstanding_balance), 4030)
   const [room] = await as(landlord, `select outstanding_balance from public.room_overview where id = $1`, [r212])
-  assert.equal(num(room.outstanding_balance), 4000)
+  assert.equal(num(room.outstanding_balance), 4030)
 })
 
 console.log('\nUnified billing: online payments')
@@ -1474,18 +1479,18 @@ await test('a provider-confirmed payment is verified, allocated and receipted ex
   assert.equal(p.reviewed_by, null)
   assert.equal((await asAdmin(`select count(*)::int as n from public.payments where provider_payment_id = 'pay_1'`))[0].n, 1)
   assert.deepEqual(await paidByKind(quinnBill),
-    { rent: 1000, electricity: 600, water: 120, other: 0, paid: 1720, balance: 3000, status: 'partial' })
+    { rent: 970, electricity: 600, water: 150, other: 0, paid: 1720, balance: 3030, status: 'partial' })
   const [c] = await asAdmin(`select status, payment_id from public.payment_checkouts where id = $1`, [checkoutId])
   assert.deepEqual(c, { status: 'paid', payment_id: id })
   const mine = (await inbox(quinn, 'payment_verified')).at(-1)
   assert.equal(mine.title, 'Payment received')
-  assert.match(mine.message, /online payment of ₱1,000\.00 by GCash .* Remaining balance: ₱3,000\.00/)
+  assert.match(mine.message, /online payment of ₱1,000\.00 by GCash .* Remaining balance: ₱3,030\.00/)
   const forLandlord = (await inbox(landlord, 'payment_verified')).filter((n) => n.related_entity_id === id)
   assert.equal(forLandlord.length, 1)
   assert.equal(forLandlord[0].title, 'Online payment received')
   const [{ r }] = await as(quinn, `select public.payment_receipt($1) as r`, [id])
   assert.equal(r.payment.provider, 'paymongo')
-  assert.equal(r.balance_after, 3000)
+  assert.equal(r.balance_after, 3030)
 })
 await test('cancelled or expired checkouts free the bill for a new one', async () => {
   const [{ id: a }] = await as(quinn, `select (public.start_online_payment($1, 3000)).id`, [quinnBill])
@@ -1503,18 +1508,18 @@ await test('cancelled or expired checkouts free the bill for a new one', async (
 })
 await test('money that cannot be applied as-is waits for the landlord instead', async () => {
   // Quinn pays the rest in cash, then the abandoned online checkout completes after all.
-  await on('2027-02-22', () => as(landlord, `select public.record_payment($1, 3000, 'cash', '2027-02-22')`, [quinnBill]))
+  await on('2027-02-22', () => as(landlord, `select public.record_payment($1, 3030, 'cash', '2027-02-22')`, [quinnBill]))
   assert.equal((await bill(quinnBill)).status, 'paid')
   const [{ id }] = await asSystem(
     `select public._confirm_provider_payment('paymongo', 'cs_test_2', 'pay_2', 2000, 'maya', '2027-02-22') as id`)
   const [p] = await asAdmin(`select status, notes from public.payments where id = $1`, [id])
   assert.equal(p.status, 'pending')
   assert.match(p.notes, /more than the remaining balance of ₱0\.00/)
-  assert.equal(num((await bill(quinnBill)).amount_paid), 4720)
+  assert.equal(num((await bill(quinnBill)).amount_paid), 4750)
   const [n] = (await inbox(landlord, 'payment_submitted')).filter((x) => x.related_entity_id === id)
   assert.match(n.message, /Quinn Tan \(Room 212\) paid ₱2,000\.00 by Maya .* refund the rest/)
-  await rejects(as(landlord, `select public.review_payment($1, true)`, [id]), /exceeds/)
-  await as(landlord, `select public.review_payment($1, false, null, 'Refunded to your Maya account')`, [id])
+  await rejects(as(landlord, `select public.review_payment_confirmed($1, true, null, null, true)`, [id]), /exceeds/)
+  await as(landlord, `select public.review_payment_confirmed($1, false, null, 'Refunded to your Maya account', false)`, [id])
   await asSystem(`select public._confirm_provider_payment('paymongo', 'cs_test_2', 'pay_2', 2000, 'maya', '2027-02-22')`)
   assert.equal((await asAdmin(`select count(*)::int as n from public.payments where provider_payment_id = 'pay_2'`))[0].n, 1)
 })
@@ -1531,6 +1536,7 @@ await test('tenants see only their own allocations and checkouts', async () => {
   await rejects(as(null, `select public.start_online_payment(gen_random_uuid(), 1)`), /permission denied/)
 })
 await test('tenants cannot finalize, reopen or bulk-finalize bills', async () => {
+  await on('2027-03-15', () => as(landlord, `select public.generate_bills('2027-03-01')`))
   const [{ id: draft }] = await asAdmin(`select id from public.bills where tenant_id = $1 and period = '2027-03-01'`, [quinn])
   await rejects(as(quinn, `select public.finalize_bill($1, true)`, [draft]), /Only the landlord/)
   await rejects(as(quinn, `select public.finalize_bills('2027-03-01')`), /Only the landlord/)
@@ -1552,8 +1558,8 @@ await test('deposits stay out of bill collections', async () => {
   const [{ collected }] = await as(landlord, `select sum(rent_paid + electricity_paid + water_paid + other_paid) as collected
                                               from public.bill_overview where tenant_id = $1`, [paz])
   const [{ paid }] = await asAdmin(`select sum(amount) as paid from public.payments where tenant_id = $1 and status = 'verified'`, [paz])
-  assert.equal(num(collected), 6700)
-  assert.equal(num(paid), 6700)
+  assert.equal(num(collected), 6550)
+  assert.equal(num(paid), 6550)
   await rejects(as(landlord, `select public.record_payment($1, 1, 'cash', public.property_today())`, [pazLease]), /Bill not found/)
 })
 
@@ -1673,7 +1679,7 @@ await test('bills cannot be generated for a month that has not started', async (
   await rejects(as(landlord, `select public.generate_bills('2027-03-01')`), /March 2027 has not started yet/)
   await rejects(as(landlord, `select public.generate_bills('2031-01-01')`), /has not started yet/)
   // Any date in a month means that month.
-  await as(landlord, `select public.generate_bills('2027-02-17')`)
+  await on('2027-02-17', () => as(landlord, `select public.generate_bills('2027-02-17')`))
   assert.ok(await veraBill(FEB))
   assert.equal((await as(landlord, `select public.generate_bills($1) as n`, [FEB]))[0].n, 0)
 })
@@ -1690,7 +1696,8 @@ await test('a room and a tenant hold one tenancy at a time, even with a future m
 })
 await test('a tenancy cannot end before a month the tenant was already sent a bill for', async () => {
   await as(landlord, `select public.finalize_bill($1, true)`, [await veraBill(JAN)])
-  await as(landlord, `select public.finalize_bill($1, true)`, [await veraBill(FEB)])
+  const febBill = await veraBill(FEB)
+  await on('2027-02-17', () => as(landlord, `select public.finalize_bill($1, true)`, [febBill]))
   await rejects(as(landlord, `select public.end_lease($1, '2027-01-20')`, [vLease]), /already has a February 2027 bill/)
   const [l] = await asAdmin(`select status from public.leases where id = $1`, [vLease])
   assert.equal(l.status, 'active')
@@ -1699,9 +1706,9 @@ await test('a tenancy cannot end before a month the tenant was already sent a bi
 console.log('\nValidation: payment and deposit dates')
 await test('payment dates cannot be in the future or long before the bill', async () => {
   const jan = await veraBill(JAN)
-  await rejects(as(landlord, `select public.record_payment($1, 100, 'cash', '2027-02-02')`, [jan]), /cannot be in the future/)
+  await rejects(as(landlord, `select public.record_payment($1, 100, 'cash', '2027-02-16')`, [jan]), /cannot be in the future/)
   await rejects(as(landlord, `select public.record_payment($1, 100, 'cash', '2025-12-31')`, [jan]), /more than a year before/)
-  await rejects(as(vera, `select public.submit_payment($1, 100, 'gcash', '2027-02-02', $2)`,
+  await rejects(as(vera, `select public.submit_payment($1, 100, 'gcash', '2027-02-16', $2)`,
     [jan, await proof(vera, 'future.jpg')]), /cannot be in the future/)
   await rejects(as(landlord, `select public.record_payment($1, 100, 'card', public.property_today())`, [jan]), /Choose how/)
   const before = num((await bill(jan)).balance)
@@ -1709,28 +1716,304 @@ await test('payment dates cannot be in the future or long before the bill', asyn
   assert.equal(num((await bill(jan)).balance), Math.round((before - 100.55) * 100) / 100)
 })
 await test('deposits cannot be dated in the future; no date means today', async () => {
-  await rejects(as(landlord, `select public.record_deposit_transaction($1, 'received', 1000, '2027-02-02')`, [vLease]), /future/)
+  await rejects(as(landlord, `select public.record_deposit_transaction($1, 'received', 1000, '2027-02-16')`, [vLease]), /future/)
   const [{ id }] = await as(landlord, `select public.record_deposit_transaction($1, 'received', 1000, null) as id`, [vLease])
   const [d] = await asAdmin(`select transaction_date from public.deposit_transactions where id = $1`, [id])
-  assert.equal(iso(d.transaction_date), FEB)
+  assert.equal(iso(d.transaction_date), baseToday)
 })
 
 console.log('\nValidation: month boundaries')
 await test('February bills fall due correctly in leap and common years', async () => {
-  const [s] = await asAdmin(`select billing_day, due_days from public.app_settings`)
-  await as(landlord, `update public.app_settings set billing_day = 28, due_days = 7`)
-  try {
-    await on('2028-02-28', () => as(landlord, `select public.generate_bills('2028-02-01')`))
-    await on('2029-02-28', () => as(landlord, `select public.generate_bills('2029-02-01')`))
-    const rows = await asAdmin(`select period, issue_date, due_date from public.bills
-                                where lease_id = $1 and period in ('2028-02-01', '2029-02-01') order by period`, [vLease])
-    assert.deepEqual(rows.map((r) => [iso(r.period), iso(r.issue_date), iso(r.due_date)]), [
-      ['2028-02-01', '2028-02-28', '2028-03-06'],
-      ['2029-02-01', '2029-02-28', '2029-03-07'],
-    ])
-  } finally {
-    await as(landlord, `update public.app_settings set billing_day = $1, due_days = $2`, [s.billing_day, s.due_days])
-  }
+  await on('2028-02-28', () => as(landlord, `select public.generate_bills('2028-02-01')`))
+  await on('2029-02-28', () => as(landlord, `select public.generate_bills('2029-02-01')`))
+  const rows = await asAdmin(`select period, issue_date, due_date from public.bills
+                              where lease_id = $1 and period in ('2028-02-01', '2029-02-01') order by period`, [vLease])
+  assert.deepEqual(rows.map((r) => [iso(r.period), iso(r.issue_date), iso(r.due_date)]), [
+    ['2028-02-01', '2028-02-10', '2028-02-10'],
+    ['2029-02-01', '2029-02-10', '2029-02-10'],
+  ])
+})
+
+await test('effective water rates, occupant audits, preserved bills and due-date overrides', async () => {
+  const [{ create_manual_tenant: tenant }] = await as(landlord, `select public.create_manual_tenant('Rate schedule test')`)
+  await as(landlord, `update public.rooms set capacity = 2 where id = $1`, [r213])
+  const [{ assign_tenant: lease }] = await as(landlord,
+    `select public.assign_tenant($1, $2, '2029-12-29', 3000)`, [tenant, r213])
+  await rejects(as(nina, `select public.set_water_rate(250, '2030-01-01')`), /Only the landlord/)
+  await rejects(as(landlord, `select public.set_water_rate(-1, '2030-01-01')`), /nonnegative amount/)
+  await rejects(as(landlord, `select public.set_water_rate(1.001, '2030-01-01')`), /at most two decimal places/)
+  await as(landlord, `select public.set_water_rate(200, '2030-01-01')`)
+  const [rateNotice] = await inbox(alice, 'water_rate_changed')
+  assert.match(rateNotice.message, /₱200\.00 per person per month, effective Jan 1, 2030/)
+
+  await on('2029-12-29', () => as(landlord, `select public.generate_bills('2029-12-01')`))
+  const [{ id: december }] = await asAdmin(
+    `select id from public.bills where lease_id = $1 and period = '2029-12-01'`, [lease])
+  const water = async (id) => asAdmin(
+    `select quantity, unit_price, amount from public.bill_items where bill_id = $1 and kind = 'water'`, [id])
+  assert.deepEqual((await water(december)).map((i) => [num(i.quantity), num(i.unit_price), num(i.amount)]), [[1, 150, 150]])
+  await as(landlord, `select public.set_lease_occupants($1, 2::smallint)`, [lease])
+  assert.deepEqual((await water(december)).map((i) => [num(i.quantity), num(i.unit_price), num(i.amount)]), [[2, 150, 300]])
+  const audit = await as(landlord,
+    `select previous_count, new_count from public.lease_occupant_audit where lease_id = $1 order by changed_at`, [lease])
+  assert.deepEqual(audit, [{ previous_count: 1, new_count: 2 }])
+  await rejects(as(nina, `select public.set_lease_occupants($1, 1::smallint)`, [lease]), /Only the landlord/)
+  await rejects(as(landlord, `select public.set_lease_occupants($1, 3::smallint)`, [lease]), /capacity/)
+  await on('2029-12-29', () => as(landlord, `select public.finalize_bill($1, true)`, [december]))
+
+  await on('2030-01-29', () => as(landlord, `select public.generate_bills('2030-01-01')`))
+  const [{ id: january }] = await asAdmin(
+    `select id from public.bills where lease_id = $1 and period = '2030-01-01'`, [lease])
+  let [billDates] = await asAdmin(`select issue_date, due_date from public.bills where id = $1`, [january])
+  assert.deepEqual([iso(billDates.issue_date), iso(billDates.due_date)], ['2030-01-29', '2030-01-29'])
+  assert.deepEqual((await water(january)).map((i) => [num(i.quantity), num(i.unit_price), num(i.amount)]), [[2, 200, 400]])
+  await on('2030-01-29', () => as(landlord, `select public.finalize_bill($1, true)`, [january]))
+  await as(landlord, `select public.set_lease_occupants($1, 1::smallint)`, [lease])
+  assert.deepEqual((await water(january)).map((i) => [num(i.quantity), num(i.unit_price), num(i.amount)]), [[2, 200, 400]])
+  assert.deepEqual((await water(december)).map((i) => [num(i.quantity), num(i.unit_price), num(i.amount)]), [[2, 150, 300]])
+
+  await rejects(as(nina, `select public.override_bill_due_date($1, '2030-02-05', 'approved')`, [january]), /Only the landlord/)
+  await rejects(as(landlord, `select public.override_bill_due_date($1, '2030-02-05', '')`, [january]), /reason/)
+  await as(landlord, `select public.override_bill_due_date($1, '2030-02-05', 'Agreed extension')`, [january])
+  ;[billDates] = await asAdmin(`select issue_date, due_date from public.bills where id = $1`, [january])
+  assert.deepEqual([iso(billDates.issue_date), iso(billDates.due_date)], ['2030-01-29', '2030-02-05'])
+  const dueAudit = await as(landlord,
+    `select previous_date, new_date, reason from public.bill_due_date_audit where bill_id = $1`, [january])
+  assert.deepEqual(dueAudit.map((row) => [iso(row.previous_date), iso(row.new_date), row.reason]),
+    [['2030-01-29', '2030-02-05', 'Agreed extension']])
+})
+
+console.log('\nPayment accounts and QR submissions')
+const qrTenant = await invite('qr-flow@example.com', 'QR Flow Tenant')
+const [{ id: qrTenantProfile }] = await asAdmin(`select id from public.profiles where user_id = $1`, [qrTenant])
+const qrRoom = await roomId('108')
+await as(landlord, `select public.assign_tenant($1, $2, '2026-10-01', 1000)`, [qrTenantProfile, qrRoom])
+await as(landlord, `select public.generate_bills('2026-10-01')`)
+const [{ id: qrBill }] = await asAdmin(
+  `select id from public.bills where tenant_id = $1 and period = '2026-10-01'`, [qrTenantProfile])
+await as(landlord, `select public.finalize_bill($1, true)`, [qrBill])
+const [{ id: landlordProfile }] = await asAdmin(`select id from public.profiles where user_id = $1`, [landlord])
+const gcashQr = `${landlordProfile}/gcash.png`
+const replacementQr = `${landlordProfile}/gcash-new.png`
+const mayaQr = `${landlordProfile}/maya.png`
+const bankQr = `${landlordProfile}/bank.png`
+const badTypeQr = `${landlordProfile}/bad-type.png`
+const oversizedQr = `${landlordProfile}/oversized.png`
+await as(landlord, `
+  insert into storage.objects (bucket_id, name, metadata)
+  values ('payment-qr-codes', $1, '{"mimetype":"image/png","size":1024}'::jsonb),
+         ('payment-qr-codes', $2, '{"mimetype":"image/png","size":1024}'::jsonb),
+         ('payment-qr-codes', $3, '{"mimetype":"image/png","size":1024}'::jsonb),
+         ('payment-qr-codes', $4, '{"mimetype":"image/png","size":1024}'::jsonb),
+         ('payment-qr-codes', $5, '{"mimetype":"image/gif","size":1024}'::jsonb),
+         ('payment-qr-codes', $6, '{"mimetype":"image/png","size":4194305}'::jsonb)
+`, [gcashQr, replacementQr, mayaQr, bankQr, badTypeQr, oversizedQr])
+
+let gcashAccount
+await test('landlord account validation, QR replacement, audit and tenant read permissions', async () => {
+  await rejects(as(landlord, `
+    select public.save_payment_account(null, 'gcash', 'Landlord', '12345', null, $1, true, true)
+  `, [gcashQr]), /valid Philippine mobile wallet number/)
+  await rejects(as(landlord, `
+    select public.save_payment_account(null, 'gcash', 'Landlord', '09171234567', null, $1, true, true)
+  `, [badTypeQr]), /valid QR code image/)
+  await rejects(as(landlord, `
+    select public.save_payment_account(null, 'gcash', 'Landlord', '09171234567', null, $1, true, true)
+  `, [oversizedQr]), /valid QR code image/)
+  ;[{ save_payment_account: gcashAccount }] = await as(landlord, `
+    select public.save_payment_account(null, 'gcash', 'Landlord', '0917 123 4567', null, $1, true, true)
+  `, [gcashQr])
+  assert.ok(gcashAccount)
+  await as(landlord, `
+    select public.save_payment_account($1, 'gcash', 'Landlord', '09171234567', null, $2, true, true)
+  `, [gcashAccount, replacementQr])
+  await rejects(as(landlord, `
+    select public.save_payment_account(null, 'bank_transfer', 'Landlord', '123456789012', null, $1, true, false)
+  `, [bankQr]), /bank name/)
+  await as(landlord, `
+    select public.save_payment_account(null, 'maya', 'Landlord', '09181234567', null, $1, true, true)
+  `, [mayaQr])
+  await as(landlord, `
+    select public.save_payment_account(null, 'bank_transfer', 'Landlord', '123456789012', 'Metrobank', $1, true, false)
+  `, [bankQr])
+  const [saved] = await asAdmin(`select account_number, qr_path, is_active, is_default from public.landlord_payment_accounts where id = $1`, [gcashAccount])
+  assert.deepEqual(saved, { account_number: '09171234567', qr_path: replacementQr, is_active: true, is_default: false })
+  const tenantAccounts = await as(qrTenant, `select id, method from public.landlord_payment_accounts where is_active`)
+  assert.deepEqual(tenantAccounts.map((account) => account.method).sort(), ['bank_transfer', 'gcash', 'maya'])
+  const [{ method: defaultMethod }] = await asAdmin(`select method from public.landlord_payment_accounts where is_default`)
+  assert.equal(defaultMethod, 'maya')
+  assert.equal((await as(qrTenant, `select name from storage.objects where bucket_id = 'payment-qr-codes' and name = $1`, [gcashQr])).length, 0)
+  assert.equal((await as(qrTenant, `select name from storage.objects where bucket_id = 'payment-qr-codes' and name = $1`, [replacementQr])).length, 1)
+  await rejects(as(qrTenant, `update public.landlord_payment_accounts set account_number = '09170000000'`), /permission denied/)
+  await rejects(as(qrTenant, `select public.save_payment_account(null, 'gcash', 'Tenant', '09170000000', null, $1, true, true)`, [replacementQr]),
+    /Only the landlord/)
+  await rejects(as(qrTenant, `
+    insert into storage.objects (bucket_id, name) values ('payment-qr-codes', $1)
+  `, [`${qrTenantProfile}/unauthorized.png`]), /row-level security/)
+  const [{ n: auditCount }] = await as(landlord,
+    `select count(*)::int as n from public.payment_account_audit where account_id = $1`, [gcashAccount])
+  assert.equal(auditCount, 3)
+  assert.ok((await inbox(qrTenant, 'payment_account_updated')).length >= 4)
+})
+
+let qrPayment
+const optionalReferenceProof = `${qrTenantProfile}/qr-no-reference.jpg`
+await test('QR proof submission validates optional references, active accounts, images, amounts and idempotency', async () => {
+  const firstProof = `${qrTenantProfile}/qr-proof.jpg`
+  const duplicateProof = `${qrTenantProfile}/qr-duplicate.jpg`
+  await as(qrTenant, `
+    insert into storage.objects (bucket_id, name, metadata)
+    values ('payment-proofs', $1, '{"mimetype":"image/jpeg","size":2048}'::jsonb),
+           ('payment-proofs', $2, '{"mimetype":"image/jpeg","size":2048}'::jsonb),
+           ('payment-proofs', $3, '{"mimetype":"image/jpeg","size":2048}'::jsonb)
+  `, [firstProof, duplicateProof, optionalReferenceProof])
+  await rejects(as(qrTenant, `
+    select public.submit_qr_payment($1, $2, 100, public.property_today(), $3, 'AB', null, 'f51064d3-51e5-4f0b-9a21-4af93a72a4c9')
+  `, [qrBill, gcashAccount, firstProof]), /transaction reference/)
+  await rejects(as(qrTenant, `
+    select public.submit_qr_payment($1, $2, 2000, public.property_today(), $3, 'QR-OVER', null, 'f51064d3-51e5-4f0b-9a21-4af93a72a4c9')
+  `, [qrBill, gcashAccount, firstProof]), /exceeds/)
+  await rejects(as(qrTenant, `
+    select public.submit_qr_payment($1, $2, 100, public.property_today(), $3, 'QR-PDF', null, 'f51064d3-51e5-4f0b-9a21-4af93a72a4c9')
+  `, [qrBill, gcashAccount, `${qrTenantProfile}/missing.jpg`]), /screenshot/)
+  ;[{ submit_qr_payment: qrPayment }] = await as(qrTenant, `
+    select public.submit_qr_payment($1, $2, 400, public.property_today(), $3, 'QR-REF-001', 'partial transfer',
+      'f51064d3-51e5-4f0b-9a21-4af93a72a4c9')
+  `, [qrBill, gcashAccount, firstProof])
+  const [{ submit_qr_payment: retry }] = await as(qrTenant, `
+    select public.submit_qr_payment($1, $2, 400, public.property_today(), $3, 'QR-REF-001', 'partial transfer',
+      'f51064d3-51e5-4f0b-9a21-4af93a72a4c9')
+  `, [qrBill, gcashAccount, firstProof])
+  assert.equal(retry, qrPayment)
+  await rejects(as(qrTenant, `
+    select public.submit_qr_payment($1, $2, 100, public.property_today(), $3, 'qr-ref-001', null,
+      '79f3a853-6bad-48a4-88db-51bd4aef2a8f')
+  `, [qrBill, gcashAccount, duplicateProof]), /already been used/)
+  const [{ status, payment_account_id: paymentAccountId }] = await asAdmin(
+    `select status, payment_account_id from public.payments where id = $1`, [qrPayment])
+  assert.equal(status, 'pending')
+  assert.equal(paymentAccountId, gcashAccount)
+  const [{ payment_account_snapshot: accountSnapshot }] = await asAdmin(
+    `select payment_account_snapshot from public.payments where id = $1`, [qrPayment])
+  assert.deepEqual(accountSnapshot, {
+    method: 'gcash',
+    account_holder: 'Landlord',
+    account_number: '09171234567',
+    bank_name: null,
+  })
+  await rejects(asAdmin(`update public.payments set payment_account_snapshot = '{}' where id = $1`, [qrPayment]), /immutable/)
+  assert.equal(num((await bill(qrBill)).balance), 1150)
+  assert.equal((await as(alice, `select name from storage.objects where bucket_id = 'payment-proofs' and name = $1`, [firstProof])).length, 0)
+})
+
+await test('payment confirmation is required, approval allocates the partial payment, and inactive accounts are rejected', async () => {
+  await rejects(as(landlord, `select public.review_payment_confirmed($1, true, null, null, false)`, [qrPayment]), /Confirm that the money was received/)
+  await rejects(as(qrTenant, `select public.review_payment_confirmed($1, true, null, null, true)`, [qrPayment]), /Only the landlord/)
+  await rejects(as(landlord, `select public.review_payment($1, true)`, [qrPayment]), /permission denied/)
+  await as(landlord, `select public.review_payment_confirmed($1, true, null, null, true)`, [qrPayment])
+  const [{ status }] = await asAdmin(`select status from public.payments where id = $1`, [qrPayment])
+  assert.equal(status, 'verified')
+  assert.equal(num((await bill(qrBill)).balance), 750)
+  const [{ amount }] = await asAdmin(`select sum(amount) as amount from public.payment_allocations where payment_id = $1`, [qrPayment])
+  assert.equal(num(amount), 400)
+  const [{ payment: receiptPayment }] = await as(qrTenant, `select public.payment_receipt($1) as payment`, [qrPayment])
+  assert.equal(num(receiptPayment.payment.amount), 400)
+  const [{ submit_qr_payment: optionalReferencePayment }] = await as(qrTenant, `
+    select public.submit_qr_payment($1, $2, 100, public.property_today(), $3, '   ', null,
+      'b155ba14-30da-49bb-84bd-c927e330aaf0')
+  `, [qrBill, gcashAccount, optionalReferenceProof])
+  const [{ reference_number: optionalReference }] = await asAdmin(
+    `select reference_number from public.payments where id = $1`, [optionalReferencePayment])
+  assert.equal(optionalReference, null)
+  await as(landlord, `
+    select public.save_payment_account($1, 'gcash', 'Landlord', '09171234567', null, $2, false, false)
+  `, [gcashAccount, replacementQr])
+  await rejects(as(qrTenant, `
+    select public.submit_qr_payment($1, $2, 100, public.property_today(), $3, 'QR-INACTIVE', null,
+      '37f9b0fc-8f54-42bc-a2bf-74d4e14a1c09')
+  `, [qrBill, gcashAccount, `${qrTenantProfile}/inactive.jpg`]), /no longer active/)
+  assert.equal((await as(qrTenant, `select id from public.landlord_payment_accounts where id = $1`, [gcashAccount])).length, 0)
+  assert.equal((await as(qrTenant, `select name from storage.objects where bucket_id = 'payment-qr-codes' and name = $1`, [replacementQr])).length, 0)
+})
+
+console.log('\nFinancial management')
+let manualIncome, manualExpense
+await test('only landlords can create custom finance categories and manual transactions', async () => {
+  await rejects(as(alice, `select public.add_financial_category('expense', 'Landscaping')`), /Only the landlord/)
+  await rejects(as(alice, `select public.save_financial_transaction('income', 50, 'Rental Income', '2026-01-15', 'Not allowed', 'cash')`), /Only the landlord/)
+  const [{ add_financial_category: categoryId }] = await as(landlord,
+    `select public.add_financial_category('expense', 'Landscaping')`)
+  assert.ok(categoryId)
+  await rejects(as(landlord, `select public.add_financial_category('expense', 'landscaping')`), /already exists/)
+  ;[{ id: manualIncome }] = await as(landlord, `
+    select public.save_financial_transaction('income', 1234.56, 'Rental Income', '2026-01-15',
+      'Manual rent correction', 'cash', $1, $2, null, null) as id
+  `, [r101, alice])
+  ;[{ id: manualExpense }] = await as(landlord, `
+    select public.save_financial_transaction('expense', 25.35, 'Landscaping', '2026-01-16',
+      'Garden service', 'bank_transfer', $1, null, null, null) as id
+  `, [r101])
+  const rows = await as(landlord, `
+    select transaction_type, amount, category, room_number, tenant_name, source
+    from public.financial_transaction_overview where id in ($1, $2) order by transaction_type
+  `, [manualIncome, manualExpense])
+  assert.deepEqual(rows, [
+    { transaction_type: 'expense', amount: '25.35', category: 'Landscaping', room_number: '101', tenant_name: null, source: 'manual' },
+    { transaction_type: 'income', amount: '1234.56', category: 'Rental Income', room_number: '101', tenant_name: 'Alice', source: 'manual' },
+  ])
+  assert.equal((await as(alice, `select id from public.financial_transaction_overview`)).length, 0)
+  assert.equal((await as(alice, `select id from public.financial_categories`)).length, 0)
+  await rejects(as(landlord, `update public.financial_transactions set amount = 1 where id = $1`, [manualIncome]), /permission denied/)
+})
+await test('manual records are editable and deletions preserve an append-only audit trail', async () => {
+  await as(landlord, `
+    select public.save_financial_transaction('income', 1300.01, 'Rental Income', '2026-01-15',
+      'Corrected rent', 'cash', $1, $2, null, $3)
+  `, [r101, alice, manualIncome])
+  await as(landlord, `select public.delete_financial_transaction($1)`, [manualExpense])
+  assert.equal((await as(landlord, `select id from public.financial_transaction_overview where id = $1`, [manualExpense])).length, 0)
+  assert.equal((await asAdmin(`select amount from public.financial_transactions where id = $1`, [manualIncome]))[0].amount, '1300.01')
+  const log = await as(landlord, `
+    select event from public.financial_transaction_audit where transaction_id in ($1, $2) order by id
+  `, [manualIncome, manualExpense])
+  assert.deepEqual(log.map((entry) => entry.event), ['created', 'created', 'updated', 'deleted'])
+  await rejects(as(landlord, `delete from public.financial_transaction_audit`), /permission denied/)
+})
+await test('receipts are private to the landlord and cannot be linked from another folder', async () => {
+  const path = `${landlord}/garden-receipt.jpg`
+  await asAdmin(`insert into storage.objects (bucket_id, name) values ('financial-receipts', $1)`, [path])
+  await as(landlord, `
+    select public.save_financial_transaction('expense', 45.50, 'Repairs', '2026-01-17',
+      'Sink repair', 'cash', $1, null, $2, null)
+  `, [r101, path])
+  await rejects(as(landlord, `
+    select public.save_financial_transaction('expense', 5, 'Repairs', '2026-01-17',
+      'Bad receipt path', 'cash', null, null, $1, null)
+  `, [`${alice}/private.jpg`]), /uploaded file in your private receipts folder/)
+  assert.equal((await as(landlord, `select name from storage.objects where bucket_id = 'financial-receipts' and name = $1`, [path])).length, 1)
+  assert.equal((await as(alice, `select name from storage.objects where bucket_id = 'financial-receipts' and name = $1`, [path])).length, 0)
+  await rejects(as(alice, `insert into storage.objects (bucket_id, name) values ('financial-receipts', $1)`, [`${alice}/fake.jpg`]), /row-level security/)
+})
+await test('approved income is projected once from payment allocations, never from unpaid bills', async () => {
+  const [expected] = await asAdmin(`
+    select count(distinct kind)::int as kinds, sum(amount) as amount
+    from public.payment_allocations where payment_id = $1
+  `, [qrPayment])
+  const actual = await as(landlord, `
+    select id, amount, category from public.financial_transaction_overview where payment_id = $1
+  `, [qrPayment])
+  assert.equal(actual.length, expected.kinds)
+  assert.equal(num(actual.reduce((sum, row) => sum + Number(row.amount), 0)), num(expected.amount))
+  assert.ok(actual.every((row) => ['Rental Income', 'Utility Payments', 'Other Income'].includes(row.category)))
+  assert.equal((await as(landlord, `
+    select id from public.financial_transaction_overview where payment_id in (
+      select id from public.payments where status <> 'verified'
+    )
+  `)).length, 0)
+  await rejects(as(alice, `
+    select public.save_financial_transaction('income', 1, 'Rental Income', '2026-01-15',
+      'Cannot edit verified payments', 'cash', null, null, null, $1)
+  `, [qrPayment]), /Only the landlord/)
 })
 
 console.log(`\n${passed} passed${process.exitCode ? ', some FAILED' : ''}\n`)

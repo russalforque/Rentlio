@@ -4,10 +4,10 @@ import { StatusPill, type Tone } from '@/components/app/panel'
 import { Button } from '@/components/ui/button'
 import type { Enums } from '@/lib/database.types'
 import { cn } from '@/lib/utils'
-import { PROOF_TYPES, useProofUrl, validateProof } from './api'
+import { PROOF_TYPES, QR_PROOF_TYPES, useProofUrl, validateProof, validateQrProof } from './api'
 
 const STATUS: Record<Enums<'payment_status'>, { label: string; tone: Tone }> = {
-  pending: { label: 'Awaiting verification', tone: 'info' },
+  pending: { label: 'Pending verification', tone: 'info' },
   verified: { label: 'Verified', tone: 'success' },
   rejected: { label: 'Rejected', tone: 'destructive' },
 }
@@ -83,11 +83,13 @@ export function ProofFileInput({
   onChange,
   error,
   required,
+  imagesOnly,
 }: {
   file: File | null
   onChange: (file: File | null) => void
   error?: string
   required?: boolean
+  imagesOnly?: boolean
 }) {
   const id = useId()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -126,7 +128,7 @@ export function ProofFileInput({
           )}
         >
           <Paperclip className="size-5 text-muted-foreground" />
-          <span className="font-medium">Choose a photo, screenshot or PDF</span>
+          <span className="font-medium">{imagesOnly ? 'Choose a payment screenshot' : 'Choose a photo, screenshot or PDF'}</span>
           <span className="text-xs text-muted-foreground">Up to 5 MB</span>
         </label>
       )}
@@ -134,11 +136,11 @@ export function ProofFileInput({
         ref={inputRef}
         id={id}
         type="file"
-        accept={PROOF_TYPES.join(',')}
+        accept={(imagesOnly ? QR_PROOF_TYPES : PROOF_TYPES).join(',')}
         className="sr-only"
         onChange={(e) => {
           const f = e.target.files?.[0] ?? null
-          const problem = f ? validateProof(f) : null
+          const problem = f ? (imagesOnly ? validateQrProof(f) : validateProof(f)) : null
           setLocalError(problem)
           onChange(problem ? null : f)
         }}

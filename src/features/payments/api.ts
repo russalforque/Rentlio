@@ -1,13 +1,16 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useInvalidateBilling } from '@/features/billing/api'
-import type { Enums, Views } from '@/lib/database.types'
+import type { Enums, Tables, Views } from '@/lib/database.types'
 import { invokeFunction } from '@/lib/functions'
 import { STORAGE_BUCKETS, supabase } from '@/lib/supabase'
 
 export type PaymentOverview = Views<'payment_overview'>
+export type PaymentAccount = Tables<'landlord_payment_accounts'>
 
 export const paymentKeys = {
   all: ['payments'] as const,
+  accounts: () => [...paymentKeys.all, 'accounts'] as const,
+  accountQr: (path: string) => [...paymentKeys.all, 'account-qr', path] as const,
   pending: () => [...paymentKeys.all, 'pending'] as const,
   history: (period: string) => [...paymentKeys.all, 'history', period] as const,
   forBill: (billId: string) => [...paymentKeys.all, 'bill', billId] as const,
@@ -48,6 +51,38 @@ export function usePendingPayments() {
       return data
     },
     refetchInterval: 60_000,
+  })
+}
+
+/** RLS exposes every account to the landlord and active accounts to current tenants only. */
+export function usePaymentAccounts() {
+  return useQuery({
+    queryKey: paymentKeys.accounts(),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('landlord_payment_accounts')
+        .select('*')
+        .order('created_at', { ascending: true })
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+/** Short-lived signed URL for a private landlord QR image. */
+export function usePaymentQrUrl(path: string | null) {
+  return useQuery({
+    queryKey: paymentKeys.accountQr(path ?? ''),
+    enabled: !!path,
+    staleTime: 8 * 60_000,
+    queryFn: async () => {
+      if (!path) throw new Error('A QR image path is required')
+      const { data, error } = await supabase.storage
+        .from(STORAGE_BUCKETS.paymentQrCodes)
+        .createSignedUrl(path, 10 * 60)
+      if (error) throw error
+      return data.signedUrl
+    },
   })
 }
 
@@ -146,6 +181,32 @@ export function useProofUrl(path: string | null) {
 
 export const PROOF_MAX_BYTES = 5 * 1024 * 1024
 export const PROOF_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf']
+export const QR_PROOF_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic']
+export const QR_MAX_BYTES = 4 * 1024 * 1024
+
+export function validateQrImage(file: File): string | null {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return 'Use a JPG, PNG, or WebP QR image.'
+  if (file.size > QR_MAX_BYTES) return 'QR images must be 4 MB or smaller.'
+  return null
+}
+
+export function validateQrProof(file: File): string | null {
+  if (!QR_PROOF_TYPES.includes(file.type)) return 'Upload a JPG, PNG, WebP, or HEIC payment screenshot.'
+  if (file.size > PROOF_MAX_BYTES) return 'The screenshot is larger than 5 MB.'
+  return null
+}
+
+export async function uploadPaymentQr(landlordId: string, file: File): Promise<string> {
+  const problem = validateQrImage(file)
+  if (problem) throw new Error(problem)
+  const ext = file.type === 'image/jpeg' ? 'jpg' : file.type === 'image/png' ? 'png' : 'webp'
+  const path = `${landlordId}/${crypto.randomUUID()}.${ext}`
+  const { error } = await supabase.storage
+    .from(STORAGE_BUCKETS.paymentQrCodes)
+    .upload(path, file, { contentType: file.type, upsert: false })
+  if (error) throw new Error(`QR upload failed: ${error.message}`)
+  return path
+}
 
 export function validateProof(file: File): string | null {
   if (!PROOF_TYPES.includes(file.type)) return 'Upload a photo (JPG, PNG, WebP, HEIC) or a PDF.'
@@ -177,13 +238,20 @@ async function call<T>(promise: PromiseLike<{ data: T; error: unknown }>): Promi
 export function useReviewPayment() {
   const invalidate = useInvalidateBilling()
   return useMutation({
-    mutationFn: (a: { paymentId: string; approve: boolean; amount?: number | null; reason?: string | null }) =>
+    mutationFn: (a: {
+      paymentId: string
+      approve: boolean
+      amount?: number | null
+      reason?: string | null
+      moneyReceived: boolean
+    }) =>
       call(
-        supabase.rpc('review_payment', {
+        supabase.rpc('review_payment_confirmed', {
           p_payment_id: a.paymentId,
           p_approve: a.approve,
-          p_amount: a.amount ?? null,
-          p_reason: a.reason ?? null,
+          p_amount: a.amount ?? undefined,
+          p_reason: a.reason ?? undefined,
+          p_money_received: a.moneyReceived,
         }),
       ),
     onSuccess: invalidate,
@@ -252,6 +320,75 @@ export function useSubmitPayment() {
       )
     },
     onSuccess: invalidate,
+  })
+}
+
+/** QR bank/e-wallet transfers remain pending until the landlord verifies receipt. */
+export function useSubmitQrPayment() {
+  const invalidate = useInvalidateBilling()
+  return useMutation({
+    mutationFn: async (a: {
+      accountId: string
+      billId: string
+      tenantId: string
+      amount: number
+      paidOn: string
+      reference: string
+      notes: string | null
+      proof: File
+      requestId: string
+    }) => {
+      const problem = validateQrProof(a.proof)
+      if (problem) throw new Error(problem)
+      const proofPath = await uploadProof(a.tenantId, a.proof)
+      return call(
+        supabase.rpc('submit_qr_payment', {
+          p_bill_id: a.billId,
+          p_payment_account_id: a.accountId,
+          p_amount: a.amount,
+          p_paid_on: a.paidOn,
+          p_proof_path: proofPath,
+          p_reference_number: a.reference,
+          p_notes: a.notes,
+          p_request_id: a.requestId,
+        }),
+      )
+    },
+    onSuccess: invalidate,
+  })
+}
+
+export function useSavePaymentAccount() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (account: {
+      accountId: string | null
+      method: Enums<'payment_method'>
+      accountHolder: string
+      accountNumber: string
+      bankName: string | null
+      qrPath: string
+      active: boolean
+      isDefault: boolean
+    }) =>
+      call(
+        supabase.rpc('save_payment_account', {
+          p_account_id: account.accountId,
+          p_method: account.method,
+          p_account_holder: account.accountHolder,
+          p_account_number: account.accountNumber,
+          p_bank_name: account.bankName,
+          p_qr_path: account.qrPath,
+          p_is_active: account.active,
+          p_is_default: account.isDefault,
+        }),
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: paymentKeys.accounts() }),
+        qc.invalidateQueries({ queryKey: paymentKeys.all }),
+      ])
+    },
   })
 }
 

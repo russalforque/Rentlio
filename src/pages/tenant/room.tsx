@@ -8,6 +8,7 @@ import { useDepositLedger } from '@/features/tenants/api'
 import { useMyDepositBalance, useMyTenancy } from '@/features/portal/api'
 import { useProfile } from '@/hooks/use-auth'
 import { useCurrency, useSettings } from '@/hooks/use-settings'
+import { nextLeaseDueDate, todayISO } from '@/lib/dates'
 import { formatDate, formatMoney } from '@/lib/format'
 
 function Item({ label, children }: { label: string; children: ReactNode }) {
@@ -34,7 +35,7 @@ export function TenantRoomPage() {
   const s = settings.data
 
   return (
-    <div className="space-y-5">
+    <div className="tenant-page space-y-6">
       <PageHeader title="My room" description="Your room, rental terms and how to reach your landlord." />
 
       {tenancy.isPending ? (
@@ -48,13 +49,22 @@ export function TenantRoomPage() {
             {lease.rooms?.description && <p className="text-[13px] text-muted-foreground">{lease.rooms.description}</p>}
           </CardHeader>
           <CardContent>
-            <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+              <Item label="Occupancy">
+                <span className="inline-flex items-center gap-1.5 text-success">
+                  <span className="size-1.5 rounded-full bg-success" aria-hidden />
+                  Active
+                </span>
+              </Item>
+              <Item label="Room capacity">
+                {lease.rooms?.capacity ?? '—'} {lease.rooms?.capacity === 1 ? 'person' : 'people'}
+              </Item>
               <Item label="Monthly rent">
                 <span className="tabular">{formatMoney(lease.monthly_rent, currency)}</span>
               </Item>
               <Item label="Move-in date">{formatDate(lease.start_date)}</Item>
               <Item label="Floor">{lease.rooms?.floor ?? '—'}</Item>
-              {s && <Item label="Bills issued">Day {s.billing_day}, due {s.due_days} days later</Item>}
+              <Item label="Next payment due">{nextLeaseDueDate(lease.start_date, todayISO(new Date(), s?.timezone))}</Item>
             </dl>
           </CardContent>
         </Card>

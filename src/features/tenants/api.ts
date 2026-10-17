@@ -44,9 +44,26 @@ export function useTenantLeases(tenantId: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('leases')
-        .select('*, rooms(room_number)')
+        .select('*, rooms(room_number, capacity)')
         .eq('tenant_id', tenantId)
         .order('start_date', { ascending: false })
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+export function useLeaseOccupantAudit(leaseId: string | null) {
+  return useQuery({
+    queryKey: [...tenantKeys.all, 'occupant-audit', leaseId],
+    enabled: !!leaseId,
+    queryFn: async () => {
+      if (!leaseId) throw new Error('Lease id is required.')
+      const { data, error } = await supabase
+        .from('lease_occupant_audit')
+        .select('*')
+        .eq('lease_id', leaseId)
+        .order('changed_at', { ascending: false })
       if (error) throw error
       return data
     },
@@ -231,6 +248,21 @@ export function useUpdateLeaseRent() {
     mutationFn: ({ leaseId, rent }: { leaseId: string; rent: number }) =>
       throwing(supabase.rpc('update_lease_rent', { p_lease_id: leaseId, p_monthly_rent: rent })),
     onSuccess: invalidate,
+  })
+}
+
+export function useUpdateLeaseOccupants() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ leaseId, occupantCount }: { leaseId: string; occupantCount: number }) =>
+      throwing(supabase.rpc('set_lease_occupants', { p_lease_id: leaseId, p_occupant_count: occupantCount })),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: tenantKeys.all }),
+        qc.invalidateQueries({ queryKey: roomKeys.all }),
+        qc.invalidateQueries({ queryKey: ['billing'] }),
+        qc.invalidateQueries({ queryKey: ['dashboard'] }),
+      ]),
   })
 }
 

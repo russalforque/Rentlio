@@ -73,12 +73,15 @@ function Queue({ currency }: { currency: string }) {
               {METHOD_LABEL[p.method]} · paid {formatDate(p.paid_on)} · sent{' '}
               {formatDistanceToNow(parseISO(p.created_at), { addSuffix: true })}
             </p>
+            {p.reference_number && (
+              <p className="mt-2 break-all text-xs text-muted-foreground">Reference: <span className="font-medium text-foreground">{p.reference_number}</span></p>
+            )}
             {p.provider && p.notes && (
               // Money already arrived online but could not be applied as-is.
               <p className="mt-2 rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning-foreground">{p.notes}</p>
             )}
             <Button className="mt-4 w-full" onClick={() => setReviewing(p)}>
-              Review
+              Review payment
             </Button>
           </li>
         ))}

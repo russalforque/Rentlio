@@ -68,6 +68,8 @@ export const supabase = createClient<Database>(url ?? 'http://localhost', key ??
 
 export const STORAGE_BUCKETS = {
   paymentProofs: 'payment-proofs',
+  paymentQrCodes: 'payment-qr-codes',
   tenantDocuments: 'tenant-documents',
   avatars: 'avatars',
+  financialReceipts: 'financial-receipts',
 } as const
