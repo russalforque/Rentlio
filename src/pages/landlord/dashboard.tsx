@@ -43,6 +43,11 @@ export function DashboardPage() {
   const open = useOpenBills()
   const pending = usePendingPayments()
   const sheet = useReadingSheet(period)
+  const meterReadingFields = {
+    aircon: { previous: 'aircon_previous', current: 'aircon_current' },
+    outlet: { previous: 'outlet_previous', current: 'outlet_current' },
+    light: { previous: 'light_previous', current: 'light_current' },
+  } as const
   const monthBills = useBills(period)
   const tenants = useTenants()
   const registrations = usePendingRegistrationCount()
@@ -130,7 +135,17 @@ export function DashboardPage() {
                 rooms: roomList,
                 billedLeases: new Set((history.data ?? []).flatMap((b) => (b.period === period && b.lease_id ? [b.lease_id] : []))),
                 pendingCount: pending.data?.length ?? 0,
-                missingReadings: (sheet.data ?? []).filter((r) => r.is_billable && r.electricity_current === null).length,
+                missingReadings: (sheet.data ?? []).filter(
+                  (r) =>
+                    r.is_billable &&
+                    r.electricity_meters.length > 0 &&
+                    r.electricity_meters.some(
+                      (meter) => {
+                        const fields = meterReadingFields[meter]
+                        return r[fields.previous] === null || r[fields.current] === null
+                      },
+                    ),
+                ).length,
                 invitedTenants: (tenants.data ?? []).filter((t) => t.account_status === 'invited').length,
                 pendingRegistrations: registrations.data ?? 0,
                 draftBills: drafts.length,

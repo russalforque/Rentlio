@@ -25,7 +25,7 @@ Rent, utilities and payments for a 28-room rental property. The landlord manages
 ### A landlord's month
 
 1. Day 1 (configurable): one **draft** bill per occupied room is generated automatically, with that month's rent.
-2. Open **Billing → Meter readings**, type each room's current meter values, save. Electricity and water are added to the drafts.
+2. Open **Billing → Meter readings** and enter each configured Aircon, Outlet and Light current value. Previous values carry forward from the last finalized bill. Monthly consumption is calculated separately per meter, then totalled at the configured electricity rate and added automatically to the consolidated draft. A lower cumulative reading can be saved for review without a charge; correct the previous value or record a reset, replacement or rollover before finalizing.
 3. **Billing → Finalize ready bills** (or **Finalize and send** on one bill). The charges lock and each tenant is notified that their one consolidated bill is ready.
 4. Tenants **Pay online** with a landlord-configured transfer account, submit a transaction reference and screenshot, or use the optional PayMongo checkout. Transfer proofs stay pending until reviewed under **Payments → To verify**; displaying a QR code does not process a payment.
 5. Cash in hand? Open the bill → **Record payment**. Every verified payment gets a receipt.
@@ -64,9 +64,10 @@ app_settings (singleton)   billing_runs (log)
 | `registration_requests` | One per self-registered login: claimed name, phone, requested room, email verification, status (pending / approved / rejected) and the landlord's identity check. |
 | `account_audit_log` | Append-only history of account events. Landlord-readable. |
 | `app_settings` | Single row: property name, currency, timezone, billing day, due days, electricity rate, water mode (metered/flat) and rate, payment instructions, landlord contact, house rules. |
-| `rooms` | 28 seeded rooms (101–114, 201–214). Standard rent, floor, capacity, maintenance flag. |
+| `rooms` | 28 seeded rooms (101–114, 201–214). Standard rent, floor, capacity, maintenance flag and the room's applicable electricity meters. Existing rooms retain their former single-meter behavior as Aircon. |
 | `leases` | Tenant ↔ room assignment with agreed rent. Partial unique indexes: one active lease per room and per tenant. |
-| `meter_readings` | Electricity/water readings per room per month. Previous reading auto-fills from last month. |
+| `meter_readings` | Legacy single-meter and water readings, retained for history and compatibility. |
+| `electricity_meter_readings` | Dated Aircon, Outlet and Light readings, per-meter previous/current values, and normal/review/reset/replacement/rollover events. Readings carry forward independently from finalized periods; review readings never produce negative consumption or an electricity charge. `electricity_meter_reading_audit` preserves corrections and meter events. |
 | `bills` | One consolidated bill per lease per month. **Unique `(lease_id, period)` where not void** prevents duplicates even under concurrent runs. Draft until `finalized_at` is set. `total_amount`, `amount_paid`, `balance` and `status` are maintained by triggers. |
 | `payment_allocations` | How each verified payment was split across the bill's lines (allocation policy below). Permanent. |
 | `payment_checkouts` | Online checkouts at the payment provider: one in progress per bill. |
@@ -91,7 +92,7 @@ app_settings (singleton)   billing_runs (log)
 
 1. **Automatic:** `pg_cron` calls `run_scheduled_billing()` hourly. It acts only on/after the configured billing day (in the property's timezone) and generation is idempotent, so missed ticks self-heal and mid-month move-ins are picked up.
 2. **Draft:** each bill starts with its rent line. Electricity and water lines come from that month's meter readings (saved before or after generation); extra charges can be added. Drafts are invisible to tenants and cannot take payments.
-3. **Finalize:** `finalize_bill` / `finalize_bills` require rent, electricity and water (unless water is a flat fee of zero). A room with no meter can be finalized without a utility after an explicit confirmation. Finalizing locks every charge (enforced by a trigger on `bill_items`), notifies the tenant with the itemized total, and, if it happens after the scheduled issue date, gives the tenant the full payment window from that day.
+3. **Finalize:** `finalize_bill` / `finalize_bills` require rent, electricity when the room has applicable meters, and water (unless water is a flat fee of zero). Finalizing locks every charge (enforced by a trigger on `bill_items`), notifies the tenant with the itemized total, and, if it happens after the scheduled issue date, gives the tenant the full payment window from that day.
 4. **Reopen:** `reopen_bill` returns a finalized bill to draft for corrections, only while it has no pending or verified payments and no online checkout in progress. The tenant is notified again ("bill updated") when it is re-sent. Once money is applied to a bill its charges never change; corrections go on next month's bill.
 5. Status is derived: `unpaid` → `partial` → `paid`; `void` keeps the record and frees the month for a corrected bill. Bills with verified payments cannot be voided. `is_overdue`, reminders and outstanding balances only consider finalized bills.
 

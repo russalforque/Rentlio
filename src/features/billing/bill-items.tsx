@@ -13,7 +13,10 @@ const KIND_ICON: Record<Enums<'bill_item_kind'>, LucideIcon> = {
 }
 
 function detail(item: Tables<'bill_items'>, currency: string): string | null {
-  if (item.kind === 'electricity') return `${item.quantity.toLocaleString()} kWh × ${formatMoney(item.unit_price, currency)}`
+  if (item.kind === 'electricity') {
+    const rate = item.unit_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })
+    return `${item.quantity.toLocaleString()} kWh × ${currency} ${rate} / kWh`
+  }
   if (item.kind === 'water' && item.meter_reading_id) {
     return `${item.quantity.toLocaleString()} m³ × ${formatMoney(item.unit_price, currency)}`
   }

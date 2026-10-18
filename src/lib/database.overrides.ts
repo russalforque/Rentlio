@@ -213,6 +213,14 @@ export type ViewRows = {
 
 export type FunctionOverrides = {
   add_financial_category: { Args: { p_name: string; p_transaction_type: string }; Returns: string }
+  record_daily_cash_adjustment: {
+    Args: { p_adjustment_date: string; p_amount_delta: number; p_reason: string }
+    Returns: string
+  }
+  save_daily_cash_opening: {
+    Args: { p_opening_date: string; p_opening_cash: number }
+    Returns: string
+  }
   delete_financial_transaction: { Args: { p_id: string }; Returns: undefined }
   save_financial_transaction: {
     Args: {
@@ -286,8 +294,25 @@ export type FunctionOverrides = {
       bill_id: string | null
       /** The room's bill for the month is finalized, so its reading is locked. */
       bill_finalized: boolean
+      electricity_meters: ('aircon' | 'outlet' | 'light')[]
+      aircon_previous: number | null
+      aircon_current: number | null
+      aircon_reset: boolean
+      aircon_event: 'normal' | 'review' | 'reset' | 'replacement' | 'rollover' | null
+      aircon_rollover_at: number | null
+      outlet_previous: number | null
+      outlet_current: number | null
+      outlet_reset: boolean
+      outlet_event: 'normal' | 'review' | 'reset' | 'replacement' | 'rollover' | null
+      outlet_rollover_at: number | null
+      light_previous: number | null
+      light_current: number | null
+      light_reset: boolean
+      light_event: 'normal' | 'review' | 'reset' | 'replacement' | 'rollover' | null
+      light_rollover_at: number | null
     }[]
   }
+  record_room_readings: { Args: { p_period: string; p_readings: Json }; Returns: number }
   move_tenant: {
     Args: { p_lease_id: string; p_room_id: string; p_move_date: string; p_monthly_rent?: number | null }
     Returns: string

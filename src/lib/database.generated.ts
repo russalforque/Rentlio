@@ -174,6 +174,125 @@ export type Database = {
           },
         ]
       }
+      daily_cash_adjustments: {
+        Row: {
+          adjustment_date: string
+          amount_delta: number
+          created_at: string
+          created_by: string
+          id: string
+          reason: string
+        }
+        Insert: {
+          adjustment_date: string
+          amount_delta: number
+          created_at?: string
+          created_by: string
+          id?: string
+          reason: string
+        }
+        Update: {
+          adjustment_date?: string
+          amount_delta?: number
+          created_at?: string
+          created_by?: string
+          id?: string
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_cash_adjustments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_cash_openings: {
+        Row: {
+          created_at: string
+          created_by: string
+          opening_cash: number
+          opening_date: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          opening_cash: number
+          opening_date: string
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          opening_cash?: number
+          opening_date?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_cash_openings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_cash_openings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_cash_opening_audit: {
+        Row: {
+          actor_id: string
+          created_at: string
+          event: string
+          id: number
+          opening_cash: number
+          opening_date: string
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          event: string
+          id?: never
+          opening_cash: number
+          opening_date: string
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          event?: string
+          id?: never
+          opening_cash?: number
+          opening_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_cash_opening_audit_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_cash_opening_audit_opening_date_fkey"
+            columns: ["opening_date"]
+            isOneToOne: false
+            referencedRelation: "daily_cash_openings"
+            referencedColumns: ["opening_date"]
+          },
+        ]
+      }
       account_audit_log: {
         Row: {
           actor_id: string | null
@@ -940,6 +1059,127 @@ export type Database = {
           },
         ]
       }
+      electricity_meter_readings: {
+        Row: {
+          created_at: string
+          current: number | null
+          id: string
+          meter: string
+          meter_reset: boolean
+          period: string
+          previous: number | null
+          reading_event: string
+          recorded_by: string | null
+          rollover_at: number | null
+          room_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current?: number | null
+          id?: string
+          meter: string
+          meter_reset?: boolean
+          period: string
+          previous?: number | null
+          reading_event?: string
+          recorded_by?: string | null
+          rollover_at?: number | null
+          room_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current?: number | null
+          id?: string
+          meter?: string
+          meter_reset?: boolean
+          period?: string
+          previous?: number | null
+          reading_event?: string
+          recorded_by?: string | null
+          rollover_at?: number | null
+          room_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "electricity_meter_readings_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electricity_meter_readings_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      electricity_meter_reading_audit: {
+        Row: {
+          action: string
+          changed_at: string
+          changed_by: string | null
+          id: string
+          meter: string
+          new_values: Json
+          old_values: Json | null
+          period: string
+          reading_id: string
+          room_id: string
+        }
+        Insert: {
+          action: string
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          meter: string
+          new_values: Json
+          old_values?: Json | null
+          period: string
+          reading_id: string
+          room_id: string
+        }
+        Update: {
+          action?: string
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          meter?: string
+          new_values?: Json
+          old_values?: Json | null
+          period?: string
+          reading_id?: string
+          room_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "electricity_meter_reading_audit_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electricity_meter_reading_audit_reading_id_fkey"
+            columns: ["reading_id"]
+            isOneToOne: false
+            referencedRelation: "electricity_meter_readings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electricity_meter_reading_audit_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       water_rate_schedule: {
         Row: {
           changed_by: string | null
@@ -1559,6 +1799,7 @@ export type Database = {
           capacity: number
           created_at: string
           description: string | null
+          electricity_meters: string[]
           floor: number | null
           id: string
           is_under_maintenance: boolean
@@ -1570,6 +1811,7 @@ export type Database = {
           capacity?: number
           created_at?: string
           description?: string | null
+          electricity_meters?: string[]
           floor?: number | null
           id?: string
           is_under_maintenance?: boolean
@@ -1581,6 +1823,7 @@ export type Database = {
           capacity?: number
           created_at?: string
           description?: string | null
+          electricity_meters?: string[]
           floor?: number | null
           id?: string
           is_under_maintenance?: boolean
@@ -2073,6 +2316,14 @@ export type Database = {
         Args: { p_checkout_id: string }
         Returns: Database["public"]["Tables"]["payment_checkouts"]["Row"]
       }
+      record_daily_cash_adjustment: {
+        Args: { p_adjustment_date: string; p_amount_delta: number; p_reason: string }
+        Returns: string
+      }
+      save_daily_cash_opening: {
+        Args: { p_opening_date: string; p_opening_cash: number }
+        Returns: string
+      }
       create_manual_tenant: {
         Args: {
           p_deposit_amount?: number
@@ -2104,12 +2355,28 @@ export type Database = {
       meter_reading_sheet: {
         Args: { p_period: string }
         Returns: {
+          aircon_current: number
+          aircon_previous: number
+          aircon_reset: boolean
+          aircon_event: string
+          aircon_rollover_at: number
           bill_finalized: boolean
           bill_id: string
+          electricity_meters: string[]
           electricity_current: number
           electricity_previous: number
           floor: number
           is_billable: boolean
+          light_current: number
+          light_previous: number
+          light_reset: boolean
+          light_event: string
+          light_rollover_at: number
+          outlet_current: number
+          outlet_previous: number
+          outlet_reset: boolean
+          outlet_event: string
+          outlet_rollover_at: number
           reading_id: string
           room_id: string
           room_number: string
@@ -2152,6 +2419,10 @@ export type Database = {
         Returns: string
       }
       record_meter_readings: {
+        Args: { p_period: string; p_readings: Json }
+        Returns: number
+      }
+      record_room_readings: {
         Args: { p_period: string; p_readings: Json }
         Returns: number
       }

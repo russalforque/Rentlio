@@ -31,12 +31,10 @@ interface Checkout {
   checkout_url: string | null
 }
 
-/** Where the provider sends the tenant back to: the bill in the app they paid from. */
-function appUrl(req: Request): string {
+/** Where the provider sends the tenant back after checkout. */
+function appUrl(): string {
   const configured = Deno.env.get('APP_URL')
   if (configured) return configured.replace(/\/+$/, '')
-  const origin = req.headers.get('Origin')
-  if (origin && /^https?:\/\/[^/]+$/.test(origin)) return origin
   throw new HttpError(500, 'APP_URL is not configured')
 }
 
@@ -74,7 +72,7 @@ serve(async (req) => {
 
   const month = new Date(`${bill.period}T00:00:00Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
   const partial = checkout.amount < bill.balance
-  const base = appUrl(req)
+  const base = appUrl()
   let session
   try {
     session = await createCheckoutSession({

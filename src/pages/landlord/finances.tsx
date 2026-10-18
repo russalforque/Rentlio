@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDeleteFinanceTransaction, useFinanceCategories, useFinanceReceiptUrl, useFinanceTransactions, type FinanceTransaction, type TransactionType, INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '@/features/finances/api'
+import { DailyCashReport } from '@/features/finances/daily-cash-report'
 import { TransactionDialog } from '@/features/finances/transaction-dialog'
 import { METHOD_LABEL } from '@/features/payments/api'
 import { useRoomOverview } from '@/features/rooms/api'
@@ -239,6 +240,7 @@ export function FinancesPage() {
         description="A clear view of verified income and day-to-day property expenses."
         actions={
           <div className="flex flex-wrap items-center gap-2 print:hidden">
+            <DailyCashReport />
             <Button variant="outline" onClick={exportCsv} disabled={!transactions.data}><Download /> <span className="hidden sm:inline">Export CSV</span></Button>
             <Button variant="outline" onClick={printReport}><Printer /> <span className="hidden sm:inline">Print / PDF</span></Button>
             <Button className="hidden md:inline-flex" onClick={() => setTypeChooserOpen(true)}><Plus /> Add transaction</Button>

@@ -12,11 +12,13 @@ export interface RoomBedWithType extends RoomBed {
   room_id: string
   bed_type: { name: string }
 }
+export type ElectricityMeter = 'aircon' | 'outlet' | 'light'
 
 export const roomKeys = {
   all: ['rooms'] as const,
   overview: () => [...roomKeys.all, 'overview'] as const,
   beds: () => [...roomKeys.all, 'beds'] as const,
+  electricityMeters: () => [...roomKeys.all, 'electricity-meters'] as const,
   bedTypes: () => [...roomKeys.all, 'bed-types'] as const,
 }
 
@@ -47,6 +49,24 @@ export function useRoomBeds() {
       for (const bed of data) byRoom.set(bed.room_id, [...(byRoom.get(bed.room_id) ?? []), bed])
       for (const beds of byRoom.values()) beds.sort((a, b) => a.bed_type.name.localeCompare(b.bed_type.name))
       return byRoom
+    },
+  })
+}
+
+export function useRoomElectricityMeters() {
+  return useQuery({
+    queryKey: roomKeys.electricityMeters(),
+    queryFn: async () => {
+      const { data, error } = await supabase.from('rooms').select('id, electricity_meters')
+      if (error) throw error
+      return new Map(
+        data.map((room) => [
+          room.id,
+          room.electricity_meters.filter(
+            (meter): meter is ElectricityMeter => meter === 'aircon' || meter === 'outlet' || meter === 'light',
+          ),
+        ]),
+      )
     },
   })
 }
@@ -111,7 +131,13 @@ export function useSaveRoom() {
       })
       if (bedsError) throw bedsError
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: roomKeys.all }),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: roomKeys.all }),
+        qc.invalidateQueries({ queryKey: ['billing'] }),
+        qc.invalidateQueries({ queryKey: ['tenants'] }),
+        qc.invalidateQueries({ queryKey: ['dashboard'] }),
+      ]),
   })
 }
 

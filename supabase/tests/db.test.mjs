@@ -1965,6 +1965,68 @@ await test('only landlords can create custom finance categories and manual trans
   assert.equal((await as(alice, `select id from public.financial_categories`)).length, 0)
   await rejects(as(landlord, `update public.financial_transactions set amount = 1 where id = $1`, [manualIncome]), /permission denied/)
 })
+await test('cash adjustments are landlord-only, dated and append-only', async () => {
+  await rejects(as(alice, `select public.record_daily_cash_adjustment('2026-10-18', 500, 'Starting float')`), /Only the landlord/)
+  assert.equal((await as(alice, `select id from public.daily_cash_adjustments`)).length, 0)
+  await rejects(as(alice, `
+    insert into public.daily_cash_adjustments (adjustment_date, amount_delta, reason, created_by)
+    values ('2026-10-18', 500, 'Starting float', $1)
+  `, [alice]), /permission denied/)
+  const [{ id }] = await on('2026-10-18', () =>
+    as(landlord, `select public.record_daily_cash_adjustment('2026-10-18', 500, 'Starting float') as id`))
+  const [adjustment] = await as(landlord, `
+    select adjustment_date, amount_delta, reason, created_by
+    from public.daily_cash_adjustments where id = $1
+  `, [id])
+  assert.deepEqual({
+    ...adjustment,
+    adjustment_date: adjustment.adjustment_date.toISOString().slice(0, 10),
+  }, {
+    adjustment_date: '2026-10-18',
+    amount_delta: '500.00',
+    reason: 'Starting float',
+    created_by: landlord,
+  })
+  await rejects(as(landlord, `update public.daily_cash_adjustments set amount_delta = 1 where id = $1`, [id]), /permission denied/)
+  await rejects(as(landlord, `delete from public.daily_cash_adjustments where id = $1`, [id]), /permission denied/)
+  await rejects(on('2026-10-18', () =>
+    as(landlord, `select public.record_daily_cash_adjustment('2026-10-19', 1, 'Future date')`)), /future/)
+  await rejects(as(landlord, `select public.record_daily_cash_adjustment('2026-10-18', 0, 'Zero')`), /non-zero/)
+})
+await test('daily opening cash is landlord-only, unique per date and audited on each save', async () => {
+  await rejects(as(alice, `select public.save_daily_cash_opening('2026-10-18', 500)`), /Only the landlord/)
+  assert.equal((await as(alice, `select opening_date from public.daily_cash_openings`)).length, 0)
+  await rejects(as(alice, `
+    insert into public.daily_cash_openings (opening_date, opening_cash, created_by, updated_by)
+    values ('2026-10-18', 500, $1, $1)
+  `, [alice]), /permission denied/)
+  const date = '2026-10-18'
+  await on(date, () => as(landlord, `select public.save_daily_cash_opening($1, 750)`, [date]))
+  await on(date, () => as(landlord, `select public.save_daily_cash_opening($1, 825.50)`, [date]))
+
+  const [saved] = await as(landlord, `
+    select opening_cash, created_by, updated_by, created_at, updated_at
+    from public.daily_cash_openings where opening_date = $1
+  `, [date])
+  assert.equal(saved.opening_cash, '825.50')
+  assert.equal(saved.created_by, landlord)
+  assert.equal(saved.updated_by, landlord)
+  assert.equal((await asAdmin(`select count(*)::int as n from public.daily_cash_openings where opening_date = $1`, [date]))[0].n, 1)
+  const audit = await as(landlord, `
+    select opening_cash, actor_id, event
+    from public.daily_cash_opening_audit where opening_date = $1 order by id
+  `, [date])
+  assert.deepEqual(audit, [
+    { opening_cash: '750.00', actor_id: landlord, event: 'created' },
+    { opening_cash: '825.50', actor_id: landlord, event: 'updated' },
+  ])
+  await rejects(as(landlord, `update public.daily_cash_openings set opening_cash = 1 where opening_date = $1`, [date]), /permission denied/)
+  await rejects(as(landlord, `delete from public.daily_cash_openings where opening_date = $1`, [date]), /permission denied/)
+  await rejects(as(landlord, `select public.save_daily_cash_opening($1, -1)`, [date]), /zero or greater/)
+  await rejects(as(landlord, `select public.save_daily_cash_opening($1, 1.001)`, [date]), /two decimal/)
+  await rejects(on(date, () => as(landlord, `select public.save_daily_cash_opening('2026-10-19', 1)`)), /future/)
+  await rejects(as(landlord, `update public.daily_cash_opening_audit set opening_cash = 1 where opening_date = $1`, [date]), /permission denied/)
+})
 await test('manual records are editable and deletions preserve an append-only audit trail', async () => {
   await as(landlord, `
     select public.save_financial_transaction('income', 1300.01, 'Rental Income', '2026-01-15',
@@ -2014,6 +2076,178 @@ await test('approved income is projected once from payment allocations, never fr
     select public.save_financial_transaction('income', 1, 'Rental Income', '2026-01-15',
       'Cannot edit verified payments', 'cash', null, null, null, $1)
   `, [qrPayment]), /Only the landlord/)
+})
+
+console.log('\nThree electricity meters')
+const meterTenant = await invite('meter-tenant@example.com', 'Meter Tenant')
+const meterRoom = (await as(landlord, `
+  insert into public.rooms (room_number, monthly_rent, electricity_meters)
+  values ('METER-TEST', 100, array['aircon', 'outlet', 'light'])
+  returning id
+`))[0].id
+let meterBill
+await test('three meter consumptions aggregate at the configured rate on the consolidated bill', async () => {
+  await as(landlord, `update public.app_settings set electricity_rate = 12.3456 where id`)
+  await as(landlord, `select public.assign_tenant($1, $2, '2026-10-01', 100)`, [meterTenant, meterRoom])
+  await on('2026-10-20', () => as(landlord, `select public.generate_bills('2026-10-01')`))
+  ;[{ id: meterBill }] = await asAdmin(`select id from public.bills where room_id = $1 and period = '2026-10-01'`, [meterRoom])
+  await as(landlord, `select public.record_room_readings($1, $2)`, [
+    '2026-10-01',
+    JSON.stringify([{ room_id: meterRoom, aircon_previous: 5, aircon_current: 7 }]),
+  ])
+  assert.equal((await asAdmin(`
+    select id from public.bill_items where bill_id = $1 and kind = 'electricity'
+  `, [meterBill])).length, 0)
+  const [{ record_room_readings: count }] = await as(landlord, `select public.record_room_readings($1, $2)`, [
+    '2026-10-01',
+    JSON.stringify([{
+      room_id: meterRoom,
+      aircon_previous: 5, aircon_current: 7,
+      outlet_previous: 10, outlet_current: 14,
+      light_previous: 1, light_current: 2.5,
+    }]),
+  ])
+  assert.equal(count, 1)
+  const [line] = await asAdmin(`
+    select quantity, unit_price, amount, description
+    from public.bill_items where bill_id = $1 and kind = 'electricity'
+  `, [meterBill])
+  assert.equal(num(line.quantity), 7.5)
+  assert.equal(num(line.unit_price), 12.3456)
+  assert.equal(num(line.amount), 92.59)
+  assert.match(line.description, /Aircon 2\.00 kWh/)
+  assert.match(line.description, /Outlet 4\.00 kWh/)
+  assert.match(line.description, /Light 1\.50 kWh/)
+  assert.match(line.description, /Total 7\.50 kWh/)
+  assert.equal(num((await bill(meterBill)).total_amount), 342.59)
+  await as(landlord, `select public.finalize_bill($1)`, [meterBill])
+  assert.equal((await as(meterTenant, `
+    select meter from public.electricity_meter_readings
+    where room_id = $1 and period = '2026-10-01' order by meter
+  `, [meterRoom])).length, 3)
+})
+await test('reset/replacement starts a new non-negative counter while historical periods and billed rates stay fixed', async () => {
+  const [carried] = await as(landlord, `
+    select aircon_previous, outlet_previous, light_previous
+    from public.meter_reading_sheet('2026-11-01')
+    where room_id = $1
+  `, [meterRoom])
+  assert.equal(num(carried.aircon_previous), 7)
+  assert.equal(num(carried.outlet_previous), 14)
+  assert.equal(num(carried.light_previous), 2.5)
+  await as(landlord, `select public.record_room_readings($1, $2)`, [
+    '2026-11-01',
+    JSON.stringify([{
+      room_id: meterRoom,
+      aircon_previous: 0, aircon_current: 1, aircon_reset: true,
+      outlet_previous: 14, outlet_current: 15,
+      light_previous: 2.5, light_current: 3,
+    }]),
+  ])
+  const [reset] = await asAdmin(`
+    select previous, current, meter_reset from public.electricity_meter_readings
+    where room_id = $1 and period = '2026-11-01' and meter = 'aircon'
+  `, [meterRoom])
+  assert.deepEqual(reset, { previous: '0.00', current: '1.00', meter_reset: true })
+  const [nextMonth] = await as(landlord, `
+    select aircon_previous from public.meter_reading_sheet('2026-12-01') where room_id = $1
+  `, [meterRoom])
+  assert.equal(num(nextMonth.aircon_previous), 7, 'unfinalized November current readings are not carried forward')
+
+  await on('2026-12-20', () => as(landlord, `select public.generate_bills('2026-12-01')`))
+  const [decemberBill] = await asAdmin(`
+    select id from public.bills where room_id = $1 and period = '2026-12-01'
+  `, [meterRoom])
+  await as(landlord, `select public.record_room_readings($1, $2)`, [
+    '2026-12-01',
+    JSON.stringify([{
+      room_id: meterRoom,
+      aircon_previous: 7, aircon_current: 1, aircon_event: 'review',
+      outlet_previous: 15, outlet_current: 16,
+      light_previous: 3, light_current: 4,
+    }]),
+  ])
+  const [review] = await asAdmin(`
+    select reading_event, previous, current from public.electricity_meter_readings
+    where room_id = $1 and period = '2026-12-01' and meter = 'aircon'
+  `, [meterRoom])
+  assert.deepEqual(review, { reading_event: 'review', previous: '7.00', current: '1.00' })
+  assert.equal((await asAdmin(`
+    select id from public.bill_items where bill_id = $1 and kind = 'electricity'
+  `, [decemberBill.id])).length, 0, 'review readings must not produce an electricity charge')
+
+  await as(landlord, `select public.record_room_readings($1, $2)`, [
+    '2026-12-01',
+    JSON.stringify([{
+      room_id: meterRoom,
+      aircon_previous: 0, aircon_current: 1, aircon_event: 'review',
+      outlet_previous: 15, outlet_current: 16,
+      light_previous: 3, light_current: 4,
+    }]),
+  ])
+  const [corrected] = await asAdmin(`
+    select reading_event, previous, current from public.electricity_meter_readings
+    where room_id = $1 and period = '2026-12-01' and meter = 'aircon'
+  `, [meterRoom])
+  assert.deepEqual(corrected, { reading_event: 'normal', previous: '0.00', current: '1.00' })
+  const [correctedLine] = await asAdmin(`
+    select quantity from public.bill_items where bill_id = $1 and kind = 'electricity'
+  `, [decemberBill.id])
+  assert.equal(num(correctedLine.quantity), 3)
+
+  await as(landlord, `select public.record_room_readings($1, $2)`, [
+    '2027-01-01',
+    JSON.stringify([{
+      room_id: meterRoom,
+      aircon_previous: 7, aircon_current: 1, aircon_event: 'rollover', aircon_rollover_at: 10,
+      outlet_previous: 16, outlet_current: 17,
+      light_previous: 4, light_current: 5,
+    }]),
+  ])
+  const [rollover] = await asAdmin(`
+    select reading_event, rollover_at, current - previous as naive_delta
+    from public.electricity_meter_readings
+    where room_id = $1 and period = '2027-01-01' and meter = 'aircon'
+  `, [meterRoom])
+  assert.deepEqual(rollover, { reading_event: 'rollover', rollover_at: '10.00', naive_delta: '-6.00' })
+  const [rolloverAudit] = await as(landlord, `
+    select action from public.electricity_meter_reading_audit
+    where room_id = $1 and period = '2027-01-01' and meter = 'aircon'
+  `, [meterRoom])
+  assert.equal(rolloverAudit.action, 'rollover')
+  await rejects(as(landlord, `delete from public.electricity_meter_reading_audit`), /permission denied/)
+
+  await as(landlord, `select public.record_room_readings($1, $2)`, [
+    '2027-02-01',
+    JSON.stringify([{
+      room_id: meterRoom,
+      aircon_previous: 5, aircon_current: 7, aircon_event: 'replacement',
+      outlet_previous: 17, outlet_current: 18,
+      light_previous: 5, light_current: 6,
+    }]),
+  ])
+  const [replacement] = await asAdmin(`
+    select previous, current, meter_reset, reading_event from public.electricity_meter_readings
+    where room_id = $1 and period = '2027-02-01' and meter = 'aircon'
+  `, [meterRoom])
+  assert.deepEqual(replacement, {
+    previous: '5.00', current: '7.00', meter_reset: true, reading_event: 'replacement',
+  })
+
+  await rejects(as(meterTenant, `select public.record_room_readings($1, $2)`, [
+    '2027-03-01',
+    JSON.stringify([{ room_id: meterRoom, aircon_previous: 7, aircon_current: 8 }]),
+  ]), /Only the landlord/)
+  await as(landlord, `update public.app_settings set electricity_rate = 13.1234 where id`)
+  const [preserved] = await asAdmin(`
+    select unit_price, amount from public.bill_items where bill_id = $1 and kind = 'electricity'
+  `, [meterBill])
+  assert.equal(num(preserved.unit_price), 12.3456)
+  assert.equal(num(preserved.amount), 92.59)
+  assert.equal((await asAdmin(`
+    select period from public.electricity_meter_readings
+    where room_id = $1 and meter = 'aircon' and period in ('2026-10-01', '2026-11-01')
+  `, [meterRoom])).length, 2)
 })
 
 console.log(`\n${passed} passed${process.exitCode ? ', some FAILED' : ''}\n`)

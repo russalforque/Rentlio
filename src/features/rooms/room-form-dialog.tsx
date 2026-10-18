@@ -25,7 +25,16 @@ import { Textarea } from '@/components/ui/textarea'
 import { getErrorMessage } from '@/lib/errors'
 import { intInput, moneyInput, optionalIntInput } from '@/lib/form-fields'
 import { optionalText } from '@/lib/validation'
-import { useBedTypes, useDeleteRoom, useRoomBeds, useSaveRoom, type RoomBed, type RoomOverview } from './api'
+import {
+  useBedTypes,
+  useDeleteRoom,
+  useRoomBeds,
+  useRoomElectricityMeters,
+  useSaveRoom,
+  type ElectricityMeter,
+  type RoomBed,
+  type RoomOverview,
+} from './api'
 import { BedTypesDialog } from './bed-types-dialog'
 
 const schema = z.object({
@@ -35,6 +44,7 @@ const schema = z.object({
   capacity: intInput(1, 20),
   description: optionalText(1000),
   is_under_maintenance: z.boolean(),
+  electricity_meters: z.array(z.enum(['aircon', 'outlet', 'light'])),
   beds: z
     .array(z.object({ bed_type_id: z.string().min(1, 'Choose a bed type'), quantity: intInput(1, 20) }))
     .superRefine((beds, ctx) => {
@@ -59,6 +69,7 @@ interface RoomFormDialogProps {
 
 export function RoomFormDialog({ open, onOpenChange, room }: RoomFormDialogProps) {
   const roomBeds = useRoomBeds()
+  const roomMeters = useRoomElectricityMeters()
   const [bedTypesOpen, setBedTypesOpen] = useState(false)
   return (
     <>
@@ -66,15 +77,26 @@ export function RoomFormDialog({ open, onOpenChange, room }: RoomFormDialogProps
         <DialogContent className="sm:max-w-lg">
           {/* Wait for the room's beds so saving never wipes them; remount per room so defaults are fresh. */}
           {open &&
-            (roomBeds.error ? (
-              <ErrorState error={roomBeds.error} onRetry={() => roomBeds.refetch()} />
-            ) : roomBeds.isPending ? (
+            (roomBeds.error || roomMeters.error ? (
+              <ErrorState
+                error={roomBeds.error ?? roomMeters.error}
+                onRetry={() => {
+                  void roomBeds.refetch()
+                  void roomMeters.refetch()
+                }}
+              />
+            ) : roomBeds.isPending || roomMeters.isPending ? (
               <Skeleton className="h-96" />
             ) : (
               <RoomForm
                 key={room?.id ?? 'new'}
                 room={room}
                 beds={room ? (roomBeds.data.get(room.id) ?? []) : []}
+                electricityMeters={
+                  room
+                    ? (roomMeters.data.get(room.id) ?? ['aircon'])
+                    : ['aircon', 'outlet', 'light']
+                }
                 onManageBedTypes={() => setBedTypesOpen(true)}
                 onDone={() => onOpenChange(false)}
               />
@@ -90,11 +112,12 @@ export function RoomFormDialog({ open, onOpenChange, room }: RoomFormDialogProps
 interface RoomFormProps {
   room?: RoomOverview
   beds: RoomBed[]
+  electricityMeters: ElectricityMeter[]
   onManageBedTypes: () => void
   onDone: () => void
 }
 
-function RoomForm({ room, beds, onManageBedTypes, onDone }: RoomFormProps) {
+function RoomForm({ room, beds, electricityMeters, onManageBedTypes, onDone }: RoomFormProps) {
   const { data: bedTypes } = useBedTypes()
   const save = useSaveRoom()
   const remove = useDeleteRoom()
@@ -113,6 +136,7 @@ function RoomForm({ room, beds, onManageBedTypes, onDone }: RoomFormProps) {
       capacity: String(room?.capacity ?? 1),
       description: room?.description ?? '',
       is_under_maintenance: room?.is_under_maintenance ?? false,
+      electricity_meters: electricityMeters,
       beds: beds.map((b) => ({ bed_type_id: b.bed_type_id, quantity: String(b.quantity) })),
     },
   })
@@ -192,6 +216,44 @@ function RoomForm({ room, beds, onManageBedTypes, onDone }: RoomFormProps) {
         <FormField id="capacity" label="Capacity (persons)" error={errors.capacity?.message}>
           <Input id="capacity" inputMode="numeric" aria-invalid={!!errors.capacity} {...register('capacity')} />
         </FormField>
+      </div>
+
+      <div className="grid gap-2">
+        <div>
+          <Label>Electricity meters</Label>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
+            Select the meters billed for this room. Each selected meter needs its own reading.
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {([
+            ['aircon', 'Aircon'],
+            ['outlet', 'Outlet'],
+            ['light', 'Light'],
+          ] as const).map(([meter, label]) => (
+            <Controller
+              key={meter}
+              control={control}
+              name="electricity_meters"
+              render={({ field }) => (
+                <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
+                  <Label htmlFor={`meter-${meter}`} className="font-medium">{label}</Label>
+                  <Switch
+                    id={`meter-${meter}`}
+                    checked={field.value.includes(meter)}
+                    onCheckedChange={(checked) =>
+                      field.onChange(
+                        checked
+                          ? [...field.value, meter]
+                          : field.value.filter((item) => item !== meter),
+                      )
+                    }
+                  />
+                </div>
+              )}
+            />
+          ))}
+        </div>
       </div>
 
       <div className="grid gap-2">

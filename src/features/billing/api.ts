@@ -175,17 +175,30 @@ export function useOverrideBillDueDate() {
 
 export type ReadingInput = {
   room_id: string
-  electricity_previous: number | null
-  electricity_current: number | null
-  water_previous: number | null
-  water_current: number | null
+  water_previous?: number | null
+  water_current?: number | null
+  aircon_previous?: number | null
+  aircon_current?: number | null
+  aircon_reset?: boolean
+  aircon_event?: 'normal' | 'review' | 'reset' | 'replacement' | 'rollover'
+  aircon_rollover_at?: number | null
+  outlet_previous?: number | null
+  outlet_current?: number | null
+  outlet_reset?: boolean
+  outlet_event?: 'normal' | 'review' | 'reset' | 'replacement' | 'rollover'
+  outlet_rollover_at?: number | null
+  light_previous?: number | null
+  light_current?: number | null
+  light_reset?: boolean
+  light_event?: 'normal' | 'review' | 'reset' | 'replacement' | 'rollover'
+  light_rollover_at?: number | null
 }
 
 export function useRecordReadings() {
   const invalidate = useInvalidateBilling()
   return useMutation({
     mutationFn: ({ period, readings }: { period: string; readings: ReadingInput[] }) =>
-      call(supabase.rpc('record_meter_readings', { p_period: period, p_readings: readings })),
+      call(supabase.rpc('record_room_readings', { p_period: period, p_readings: readings })),
     onSuccess: invalidate,
   })
 }
