@@ -93,6 +93,7 @@ export type Database = {
       }
       financial_transactions: {
         Row: {
+          client_request_id: string | null
           amount: number
           category: string
           created_at: string
@@ -110,6 +111,7 @@ export type Database = {
           updated_by: string
         }
         Insert: {
+          client_request_id?: string | null
           amount: number
           category: string
           created_at?: string
@@ -127,6 +129,7 @@ export type Database = {
           updated_by: string
         }
         Update: {
+          client_request_id?: string | null
           amount?: number
           category?: string
           created_at?: string
@@ -1374,6 +1377,7 @@ export type Database = {
       }
       payment_checkouts: {
         Row: {
+          creation_claimed_at: string | null
           amount: number
           bill_id: string
           checkout_url: string | null
@@ -1392,6 +1396,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          creation_claimed_at?: string | null
           amount: number
           bill_id: string
           checkout_url?: string | null
@@ -1410,6 +1415,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          creation_claimed_at?: string | null
           amount?: number
           bill_id?: string
           checkout_url?: string | null
@@ -2271,6 +2277,28 @@ export type Database = {
         }
         Returns: string
       }
+      save_financial_transaction_once: {
+        Args: Database["public"]["Functions"]["save_financial_transaction"]["Args"] & { p_request_id: string }
+        Returns: string
+      }
+      _claim_checkout_creation: {
+        Args: { p_checkout_id: string }
+        Returns: boolean
+      }
+      save_room_with_beds: {
+        Args: {
+          p_room_number: string
+          p_floor: number | null
+          p_monthly_rent: number
+          p_capacity: number
+          p_description: string | null
+          p_is_under_maintenance: boolean
+          p_electricity_meters: string[]
+          p_beds: Json
+          p_room_id?: string
+        }
+        Returns: string
+      }
       _assert_active_user: { Args: never; Returns: string }
       _assert_landlord: { Args: never; Returns: undefined }
       _generate_bills: { Args: { p_period: string }; Returns: number }
@@ -2532,6 +2560,10 @@ export type Database = {
       }
       update_lease_rent: {
         Args: { p_lease_id: string; p_monthly_rent: number }
+        Returns: undefined
+      }
+      update_lease_start_date: {
+        Args: { p_lease_id: string; p_start_date: string }
         Returns: undefined
       }
       void_bill: {

@@ -382,5 +382,6 @@ export type FunctionOverrides = {
   }
   update_bill_item: { Args: { p_item_id: string; p_description: string | null; p_amount: number }; Returns: undefined }
   update_lease_rent: { Args: { p_lease_id: string; p_monthly_rent: number }; Returns: undefined }
+  update_lease_start_date: { Args: { p_lease_id: string; p_start_date: string }; Returns: undefined }
   void_bill: { Args: { p_bill_id: string; p_reason: string }; Returns: undefined }
 }

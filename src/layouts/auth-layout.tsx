@@ -1,8 +1,9 @@
 import { Building2, CalendarClock, Inbox, ShieldCheck, TrendingUp, Wallet } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { Outlet } from 'react-router'
+import { Outlet, useLocation } from 'react-router'
 import { Brand, BrandMark } from '@/components/app/brand'
 import { IconChip } from '@/components/app/panel'
+import { AuthEntryLayout } from './auth-entry-layout'
 
 const BARS = [
   [62, 58],
@@ -74,6 +75,9 @@ function Preview() {
 }
 
 export function AuthLayout() {
+  const { pathname } = useLocation()
+  if (['/login', '/register'].includes(pathname.replace(/\/+$/, ''))) return <AuthEntryLayout />
+
   return (
     <div className="min-h-dvh bg-background lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-3 lg:p-3">
       <div className="flex min-h-dvh flex-col lg:min-h-0">
@@ -129,15 +133,18 @@ export function AuthHeading({
   description,
   icon,
   titleId,
+  eyebrow,
 }: {
   title: string
   description: ReactNode
   icon?: ReactNode
   titleId?: string
+  eyebrow?: string
 }) {
   return (
-    <div className="mb-7">
+    <div className="auth-heading mb-7">
       {icon}
+      {eyebrow && <p className="auth-entry-eyebrow">{eyebrow}</p>}
       <h1 id={titleId} className="font-display text-[28px] leading-tight font-semibold">{title}</h1>
       <p className="mt-2 text-sm text-muted-foreground">{description}</p>
     </div>

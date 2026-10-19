@@ -3,6 +3,7 @@
 // top (database.overrides.ts). Import from this file, never from the generated one.
 import type { Database as Generated, Json } from './database.generated'
 import type { FunctionOverrides, ViewRows } from './database.overrides'
+import type { DemoFunctions } from '@/features/demo-data/types'
 
 export type { Json }
 
@@ -15,7 +16,7 @@ export type Database = Omit<Generated, 'public'> & {
         ? Omit<G['Views'][K], 'Row'> & { Row: ViewRows[K]['Row'] }
         : G['Views'][K]
     }
-    Functions: Omit<G['Functions'], keyof FunctionOverrides> & FunctionOverrides
+    Functions: Omit<G['Functions'], keyof FunctionOverrides | keyof DemoFunctions> & FunctionOverrides & DemoFunctions
   }
 }
 

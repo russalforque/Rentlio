@@ -2,6 +2,7 @@ import { CheckCircle2, FileText, Hourglass, ReceiptText, Wallet, XCircle } from 
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { Callout, Meter } from '@/components/app/panel'
+import { TenantPageHeader } from '@/components/app/tenant-page-header'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -73,28 +74,24 @@ export function TenantBillPage() {
   const pendingTotal = payments.data?.filter((p) => p.status === 'pending').reduce((t, p) => t + p.amount, 0) ?? 0
 
   return (
-    <div className="tenant-page mx-auto max-w-3xl space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="font-display text-2xl font-semibold">{formatPeriod(b.period)}</h1>
-            <BillStatusBadge status={b.status} overdue={b.is_overdue} />
-          </div>
-          <p className="mt-1 text-[13px] text-muted-foreground">
+    <div className="tenant-page tenant-bill-page @container mx-auto space-y-5 sm:space-y-6">
+      <TenantPageHeader
+        title={formatPeriod(b.period)}
+        badge={<BillStatusBadge status={b.status} overdue={b.is_overdue} />}
+        description={<>
             Room {b.room_number} · Bill #{b.bill_number} · Due {formatDate(b.due_date)}
-          </p>
-        </div>
-        {b.balance > 0 && (
+        </>}
+        actions={b.balance > 0 && (
           <Button size="lg" className="hidden sm:inline-flex" onClick={() => setPaying(true)}>
             <Wallet /> Pay {formatMoney(b.balance, currency)}
           </Button>
         )}
-      </div>
+      />
 
       <section aria-label="Balance" className="surface grid grid-cols-1 gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
         <div className="min-w-0">
           <p className="text-[13px] font-medium text-muted-foreground">{b.balance > 0 ? 'Balance due' : 'Paid in full'}</p>
-          <p className={cn('mt-1 text-[32px] leading-none font-semibold tracking-tight', b.is_overdue && b.balance > 0 && 'text-destructive')}>
+          <p className={cn('tenant-summary-amount font-display mt-2 font-semibold tabular', b.is_overdue && b.balance > 0 && 'text-destructive')}>
             {formatMoney(b.balance, currency)}
           </p>
           <p className="mt-2 text-[13px] text-muted-foreground">
@@ -183,7 +180,7 @@ export function TenantBillPage() {
                         {METHOD_LABEL[p.method]} · {formatDate(p.paid_on)}
                       </p>
                     </div>
-                    <PaymentStatusBadge status={p.status} />
+                    <PaymentStatusBadge status={p.status} className="max-w-[45%] text-right whitespace-normal" />
                   </div>
                   {p.rejection_reason && <p className="mt-1.5 text-[13px] text-destructive">Reason: {p.rejection_reason}</p>}
                   {p.status === 'verified' && (
@@ -202,7 +199,7 @@ export function TenantBillPage() {
 
       {/* Phones: the pay action stays in reach above the tab bar while reading the bill. */}
       {b.balance > 0 && (
-        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 -mx-1 flex items-center gap-3 rounded-2xl border bg-card/95 p-2 pl-4 shadow-lg backdrop-blur-md sm:hidden">
+        <div className="tenant-payment-dock sticky z-10 flex items-center gap-3 rounded-2xl border bg-card/95 p-2 pl-4 shadow-sm backdrop-blur-md sm:hidden">
           <div className="min-w-0 flex-1">
             <p className="text-xs text-muted-foreground">Balance due</p>
             <p className="truncate text-base font-semibold tabular">{formatMoney(b.balance, currency)}</p>

@@ -1,7 +1,10 @@
 import { CalendarDays, CheckCircle2, ChevronRight, ReceiptText, Wallet } from 'lucide-react'
 import { Link } from 'react-router'
-import { PageHeader } from '@/components/app/page-header'
+import { TenantPageHeader } from '@/components/app/tenant-page-header'
 import { Panel } from '@/components/app/panel'
+import { TenantIllustration } from '@/components/app/tenant-illustration'
+import noBillsIllustration from '@/assets/empty_no_bills.png'
+import billsIllustration from '@/assets/bills.png'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -21,17 +24,19 @@ export function TenantBillsPage() {
   const paidThisYear = (data ?? []).filter((b) => b.period.startsWith(year)).reduce((t, b) => t + b.amount_paid, 0)
 
   return (
-    <div className="tenant-page space-y-6">
-      <PageHeader
+    <div className="tenant-page tenant-bills-page @container space-y-5 sm:space-y-6">
+      <TenantPageHeader
         title="Bills"
         description="Rent and utilities, all in one place."
+        actions={!isPending && !error && !!data?.length && <TenantIllustration src={billsIllustration} width={186} height={235} decorative size="thumbnail" />}
       />
       {error ? (
         <ErrorState error={error} onRetry={() => refetch()} />
       ) : isPending ? (
         <Skeleton className="h-64 rounded-xl" />
       ) : data.length === 0 ? (
-        <EmptyState icon={ReceiptText} title="No bills yet" description="Bills appear here once your landlord issues them." />
+        <EmptyState icon={ReceiptText} title="No bills yet" description="Bills appear here once your landlord issues them."
+          illustration={<TenantIllustration src={noBillsIllustration} width={134} height={144} decorative loading="eager" className="mb-4" />} />
       ) : (
         <>
         <section className="surface grid gap-5 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center" aria-label="Bill summary">
@@ -40,7 +45,7 @@ export function TenantBillsPage() {
               <Wallet className="size-4" aria-hidden />
               Total outstanding
             </p>
-            <p className="font-display mt-2 text-4xl leading-none font-semibold tracking-tight tabular sm:text-5xl">
+            <p className="tenant-summary-amount font-display mt-3 font-semibold tabular">
               {formatMoney(outstanding, currency)}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -72,21 +77,21 @@ export function TenantBillsPage() {
         <ul className="divide-y border-t">
           {data.map((b) => (
             <li key={b.id}>
-              <Link to={`/my/bills/${b.id}`} className="group flex min-h-[4.75rem] items-center gap-3 px-4 py-3.5 transition-colors hover:bg-muted/50 sm:gap-4 sm:px-5">
-                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground transition-colors group-hover:bg-card" aria-hidden>
+              <Link to={`/my/bills/${b.id}`} className="tenant-list-row group flex min-h-[4.75rem] items-center transition-colors hover:bg-muted/50">
+                <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-muted text-muted-foreground transition-colors group-hover:bg-card" aria-hidden>
                   <ReceiptText className="size-4" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px] font-semibold md:text-[13px]">{formatPeriod(b.period)}</p>
+                  <p className="text-[13px] font-semibold break-words">{formatPeriod(b.period)}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">Due {formatDate(b.due_date)}</p>
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <span className="text-sm font-semibold tabular md:text-[13px]">
+                <div className="tenant-list-amount flex flex-col items-end gap-1.5">
+                  <span className="text-[13px] font-semibold tabular">
                     {formatMoney(b.status === 'paid' ? b.total_amount : b.balance, currency)}
                   </span>
                   <BillStatusBadge status={b.status} overdue={b.is_overdue} />
                 </div>
-                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                <ChevronRight className="hidden size-4 shrink-0 text-muted-foreground min-[380px]:block" aria-hidden />
               </Link>
             </li>
           ))}

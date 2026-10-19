@@ -84,6 +84,11 @@ describe('whole numbers', () => {
 })
 
 describe('dates', () => {
+  test('date fields reject nonexistent calendar dates', () => {
+    bad(dateInput(), '2026-02-29')
+    bad(dateInput(), '2026-04-31')
+    ok(dateInput(), '2028-02-29')
+  })
   test('date inputs need a full date', () => {
     ok(dateInput(), '2026-10-13')
     bad(dateInput(), '')

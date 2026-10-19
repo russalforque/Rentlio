@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback } from 'react'
 import { roomKeys } from '@/features/rooms/api'
 import { tenantKeys } from '@/features/tenants/api'
 import type { Database, Views } from '@/lib/database.types'
@@ -118,14 +119,15 @@ export function useBillDueDateAudit(billId: string) {
 /** Bills feed balances shown on rooms, tenants and the dashboard. */
 export function useInvalidateBilling() {
   const qc = useQueryClient()
-  return () =>
+  return useCallback(() =>
     Promise.all([
       qc.invalidateQueries({ queryKey: billingKeys.all }),
       qc.invalidateQueries({ queryKey: tenantKeys.all }),
       qc.invalidateQueries({ queryKey: roomKeys.all }),
       qc.invalidateQueries({ queryKey: ['payments'] }),
       qc.invalidateQueries({ queryKey: ['dashboard'] }),
-    ])
+      qc.invalidateQueries({ queryKey: ['finances'] }),
+    ]), [qc])
 }
 
 async function call<T>(promise: PromiseLike<{ data: T; error: unknown }>): Promise<T> {

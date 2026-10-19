@@ -265,6 +265,32 @@
   box-shadow: 0 6px 22px hsl(var(--shadow-color) / 0.055);
 }
 
+/* Home prioritizes the balance and activity over decorative card treatments. */
+.tenant-portal .tenant-home h1 {
+  font-size: clamp(1.5rem, 2.4vw, 1.875rem);
+  line-height: 1.25;
+}
+
+.tenant-portal .tenant-home .surface,
+.tenant-portal .tenant-home .surface:hover {
+  border-radius: 1rem;
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+/* Room details use the same quiet, compact treatment as the tenant overview. */
+.tenant-portal .tenant-room h1 {
+  font-size: clamp(1.5rem, 2.4vw, 1.875rem);
+  line-height: 1.25;
+}
+
+.tenant-portal .tenant-room .surface,
+.tenant-portal .tenant-room .surface:hover {
+  border-radius: 1rem;
+  border-color: var(--border);
+  box-shadow: none;
+}
+
 .tenant-portal main button,
 .tenant-portal main a[role='button'] {
   transition:

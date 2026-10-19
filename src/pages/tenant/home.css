@@ -1,0 +1,82 @@
+/* All home content uses the tenant's local monochrome tokens. */
+.tenant-home {
+  --home-chart: var(--chart-1);
+}
+
+.home-live-dot {
+  display: inline-block;
+  width: .375rem;
+  height: .375rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+}
+
+.home-balance-amount {
+  font-size: clamp(2rem, 7.5cqi, 3rem);
+  line-height: 1.15;
+  letter-spacing: -.055em;
+}
+
+.home-clear-balance > div { width: 100%; }
+.home-neutral-chip { background: var(--muted); color: var(--foreground); }
+.home-breakdown dd:last-child { font-size: .6875rem; }
+.home-breakdown dd:nth-child(2) { font-size: .8125rem; }
+
+.tenant-home .home-primary {
+  min-height: 3rem;
+  padding-inline: 1.25rem;
+}
+
+.tenant-home .home-segments { height: 3.125rem; }
+.tenant-home .home-segments [data-slot='tabs-trigger'] { font-size: .75rem; }
+
+.tenant-home .home-status {
+  border-radius: 999px;
+  font-size: .6875rem;
+  padding: .2rem .5rem;
+}
+
+.home-room-summary { background: var(--muted); }
+.home-room-icon { background: var(--card); color: var(--foreground); }
+
+.tenant-home .home-tenancy header a {
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border-radius: 50%;
+  justify-content: center;
+}
+
+.home-calendar table { border-spacing: 0 .35rem; }
+.home-calendar table td > span { font-size: .75rem; }
+.home-calendar ul[aria-label='Legend'] { font-size: .6875rem; }
+
+.home-room-link,
+.home-view-all {
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+
+.home-room-link:hover,
+.home-view-all:hover { background: var(--muted); }
+
+.tenant-home a:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .home-tab-content[data-state='active'] { animation: home-reveal 180ms ease-out; }
+}
+
+@keyframes home-reveal {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (min-width: 64rem) {
+  .home-balance > div:first-child { padding: 1.75rem; }
+  .home-balance > div + div { padding-inline: 1.75rem; padding-bottom: 1.75rem; }
+}
+

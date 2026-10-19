@@ -1,5 +1,5 @@
 import { BellOff, CheckCheck, Loader2, RotateCw } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { useProfile } from '@/hooks/use-auth'
@@ -111,13 +111,15 @@ interface ListProps {
   compact?: boolean
   /** Called after a notice is opened, e.g. to close the dropdown. */
   onNavigate?: () => void
+  /** Page-specific artwork, shown only after a successful empty response. */
+  emptyIllustration?: ReactNode
 }
 
 /**
  * Newest-first notices grouped into Today / Yesterday / Earlier. Older pages
  * load as the end of the list scrolls into view, with a button as fallback.
  */
-export function NotificationList({ filter, compact, onNavigate }: ListProps) {
+export function NotificationList({ filter, compact, onNavigate, emptyIllustration }: ListProps) {
   const profile = useProfile()
   const navigate = useNavigate()
   const now = useNow()
@@ -166,10 +168,10 @@ export function NotificationList({ filter, compact, onNavigate }: ListProps) {
   if (items.length === 0) {
     const Icon = filter === 'unread' ? CheckCheck : BellOff
     return (
-      <div className={cn('flex flex-col items-center px-6 text-center', compact ? 'py-10' : 'py-16')}>
-        <span className="mb-3 grid size-11 place-items-center rounded-xl border bg-muted text-foreground/60">
+      <div className={cn('flex flex-col items-center px-6 text-center', compact || emptyIllustration ? 'py-10' : 'py-16')}>
+        {emptyIllustration ?? <span className="mb-3 grid size-11 place-items-center rounded-xl border bg-muted text-foreground/60">
           <Icon className="size-5" aria-hidden />
-        </span>
+        </span>}
         <p className="text-[14px] font-semibold">{filter === 'unread' ? "You're all caught up" : 'No notifications yet'}</p>
         <p className="mt-1 max-w-xs text-[13px] text-muted-foreground">
           {filter === 'unread'

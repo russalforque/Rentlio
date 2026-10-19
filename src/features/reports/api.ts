@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { fetchAllRows } from '@/lib/pagination'
 
 export const reportKeys = {
   billsSince: (from: string) => ['billing', 'since', from] as const,
@@ -7,21 +8,20 @@ export const reportKeys = {
   recentPayments: ['payments', 'recent-verified'] as const,
 }
 
-/** Non-void bills from a period onwards (at most 28 rooms x 12 months). */
+/** Complete non-void bill history from a period onwards, including room moves. */
 export function useBillsSince(fromPeriod: string) {
   return useQuery({
     queryKey: reportKeys.billsSince(fromPeriod),
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchAllRows((from, to) => supabase
         .from('bill_overview')
         .select(
           'id, period, lease_id, tenant_id, total_amount, amount_paid, balance, status, is_overdue, is_finalized, rent_amount, electricity_amount, water_amount, other_amount, rent_paid, electricity_paid, water_paid, other_paid',
+          { count: 'exact' },
         )
         .gte('period', fromPeriod)
         .neq('status', 'void')
-      if (error) throw error
-      return data
-    },
+        .order('id')
+        .range(from, to)),
   })
 }
 
@@ -29,16 +29,14 @@ export function useBillsSince(fromPeriod: string) {
 export function useOpenBills() {
   return useQuery({
     queryKey: reportKeys.open,
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchAllRows((from, to) => supabase
         .from('bill_overview')
-        .select('id, period, due_date, tenant_id, tenant_name, room_number, balance, is_overdue, status')
+        .select('id, period, due_date, tenant_id, tenant_name, room_number, balance, is_overdue, status', { count: 'exact' })
         .in('status', ['unpaid', 'partial'])
         .eq('is_finalized', true)
         .order('due_date')
-      if (error) throw error
-      return data
-    },
+        .order('id')
+        .range(from, to)),
   })
 }
 

@@ -2,6 +2,9 @@ import { Megaphone, Settings2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { PageHeader } from '@/components/app/page-header'
+import { TenantPageHeader } from '@/components/app/tenant-page-header'
+import { TenantIllustration } from '@/components/app/tenant-illustration'
+import noNotificationsIllustration from '@/assets/empty_no_notifications.png'
 import { FilterChips } from '@/components/app/panel'
 import { Button } from '@/components/ui/button'
 import { AnnouncementDialog } from '@/features/notifications/announcement-dialog'
@@ -16,10 +19,11 @@ export function NotificationsPage() {
   const [announcing, setAnnouncing] = useState(false)
   const { data: unread = 0 } = useUnreadCount()
   const isLandlord = profile.role === 'landlord'
+  const Header = isLandlord ? PageHeader : TenantPageHeader
 
   return (
     <div className={`${isLandlord ? '' : 'tenant-page'} mx-auto max-w-3xl space-y-6`}>
-      <PageHeader
+      <Header
         title="Notifications"
         description={
           isLandlord
@@ -60,7 +64,9 @@ export function NotificationsPage() {
 
       {/* overflow-clip keeps the rounded corners without breaking the sticky day headings. */}
       <div className="surface overflow-clip">
-        <NotificationList filter={filter} />
+        <NotificationList filter={filter} emptyIllustration={!isLandlord
+          ? <TenantIllustration src={noNotificationsIllustration} width={156} height={145} decorative loading="eager" className="mb-4" />
+          : undefined} />
       </div>
 
       {isLandlord && <AnnouncementDialog open={announcing} onOpenChange={setAnnouncing} />}

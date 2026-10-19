@@ -73,6 +73,9 @@ serve(async (req) => {
   const month = new Date(`${bill.period}T00:00:00Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
   const partial = checkout.amount < bill.balance
   const base = appUrl()
+  const { data: claimed, error: claimError } = await admin.rpc('_claim_checkout_creation', { p_checkout_id: checkout.id })
+  if (claimError) throw dbError(claimError)
+  if (!claimed) throw new HttpError(409, 'Your checkout is being prepared. Please try again in a moment.')
   let session
   try {
     session = await createCheckoutSession({
@@ -97,6 +100,9 @@ serve(async (req) => {
   })
   if (attachError) throw dbError(attachError)
   const url = (opened as Checkout).checkout_url
+  if ((opened as Checkout).provider_session_id !== session.id) {
+    await expireCheckoutSession(session.id).catch((err) => console.warn('Unused checkout expiration failed:', err))
+  }
   if (!url) throw new HttpError(409, 'This checkout is no longer available. Please start again.')
   return json({ checkout_url: url })
 })

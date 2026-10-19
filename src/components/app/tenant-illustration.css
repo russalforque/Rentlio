@@ -1,0 +1,17 @@
+/* The original PNGs are opaque. Keep their white canvas intact in either theme. */
+.tenant-illustration {
+  width: 8rem;
+  max-width: 100%;
+  height: auto;
+  flex-shrink: 0;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 1rem;
+}
+
+.tenant-illustration[data-size='thumbnail'] { width: 4rem; border-radius: .75rem; }
+.tenant-illustration[data-size='compact'] { width: 5.5rem; border-radius: .875rem; }
+
+@media (max-width: 22.499rem) {
+  .tenant-illustration[data-size='empty'] { width: 7rem; }
+}

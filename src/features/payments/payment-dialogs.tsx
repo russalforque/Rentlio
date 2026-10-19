@@ -424,7 +424,7 @@ export function SubmitPaymentDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[94dvh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="tenant-dialog max-h-[94dvh] overflow-y-auto sm:max-w-2xl">
         {open && <SubmitForm bill={bill} onDone={() => onOpenChange(false)} />}
       </DialogContent>
     </Dialog>

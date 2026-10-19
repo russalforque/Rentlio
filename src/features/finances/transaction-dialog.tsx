@@ -66,6 +66,7 @@ export function TransactionDialog({ open, onOpenChange, type, transaction }: Tra
   const [clearReceipt, setClearReceipt] = useState(false)
   const [addCategoryOpen, setAddCategoryOpen] = useState(false)
   const [newCategory, setNewCategory] = useState('')
+  const [requestId] = useState(() => crypto.randomUUID())
 
   const builtIns = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
   const categoryNames = [...builtIns, ...(categories.data ?? []).map((item) => item.name)]
@@ -74,6 +75,7 @@ export function TransactionDialog({ open, onOpenChange, type, transaction }: Tra
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (save.isPending) return
     const trimmedDescription = description.trim()
     const decimal = /^\d{1,10}(?:\.\d{1,2})?$/
     if (!decimal.test(amount) || Number(amount) <= 0) {
@@ -97,6 +99,7 @@ export function TransactionDialog({ open, onOpenChange, type, transaction }: Tra
     }
     save.mutate(
       {
+        requestId,
         id: transaction?.source === 'manual' ? transaction.id : undefined,
         transactionType: type,
         amount: Math.round(Number(amount) * 100) / 100,

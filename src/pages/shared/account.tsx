@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { FormField } from '@/components/app/form-field'
 import { PageHeader } from '@/components/app/page-header'
+import { TenantPageHeader } from '@/components/app/tenant-page-header'
 import { PasswordInput } from '@/components/app/password-input'
 import { Button } from '@/components/ui/button'
 import { SettingsSection, StatusPill } from '@/components/app/panel'
@@ -276,10 +277,11 @@ function PasswordCard() {
 
 export function AccountPage() {
   const profile = useProfile()
+  const Header = profile.role === 'tenant' ? TenantPageHeader : PageHeader
   const { signOut } = useAuth()
   return (
     <div className={`${profile.role === 'tenant' ? 'tenant-page' : ''} space-y-8`}>
-      <PageHeader
+      <Header
         title={profile.role === 'tenant' ? 'Profile' : 'Account'}
         description="Your profile and sign-in settings."
       />

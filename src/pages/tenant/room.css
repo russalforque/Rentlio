@@ -1,0 +1,202 @@
+/* My Room only: existing portal tokens provide both monochrome themes. */
+.tenant-portal .tenant-page.tenant-room { max-width: 64rem; }
+
+.tenant-room .room-overview-body { padding: 1.25rem; }
+
+.tenant-room .room-overview-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(7rem, 25cqi, 11rem);
+  align-items: center;
+  gap: 1rem;
+}
+
+.tenant-room .room-overview-copy { min-width: 0; }
+
+.tenant-room .room-eyebrow {
+  margin-top: 1.5rem;
+  color: var(--muted-foreground);
+  font-size: .625rem;
+  font-weight: 600;
+  letter-spacing: .14em;
+}
+
+.tenant-room .room-number {
+  margin-top: .375rem;
+  font-size: clamp(2.5rem, 7cqi, 4rem);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -.065em;
+  overflow-wrap: anywhere;
+}
+
+.tenant-room .room-property-name {
+  display: flex;
+  align-items: flex-start;
+  gap: .375rem;
+  margin-top: .875rem;
+  color: var(--muted-foreground);
+  font-size: .75rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.tenant-room .room-property-name svg { margin-top: .125rem; }
+
+.tenant-room .room-artwork {
+  min-width: 0;
+  padding: .5rem;
+  border-radius: 1.25rem;
+  background: #fff;
+}
+
+.tenant-room .room-hero-image.tenant-illustration {
+  width: 100%;
+  max-width: 11rem;
+  margin-inline: auto;
+  border-radius: 1rem;
+}
+
+.tenant-room .room-artwork figcaption {
+  padding-top: .375rem;
+  padding-bottom: .125rem;
+  color: #737373;
+  font-size: .5625rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.tenant-room .room-description {
+  max-width: 42rem;
+  margin-top: 1.25rem;
+  color: var(--muted-foreground);
+  font-size: .8125rem;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.tenant-room .room-financials {
+  display: grid;
+  min-width: 0;
+  gap: 1.25rem;
+  margin: 0 1.25rem;
+  padding: 1.125rem;
+  border-radius: 1.125rem;
+  background: var(--muted);
+}
+
+.tenant-room .room-field-label {
+  color: var(--muted-foreground);
+  font-size: .6875rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.tenant-room .room-rent-amount,
+.tenant-room .room-deposit-amount {
+  margin-top: .5rem;
+  font-size: clamp(1.75rem, 4cqi, 2.25rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -.045em;
+  overflow-wrap: anywhere;
+}
+
+.tenant-room .room-upcoming {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .875rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.tenant-room .room-facts {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .875rem;
+  padding: 1.25rem;
+}
+
+.tenant-room .room-facts dt { font-size: .6875rem; line-height: 1.5; }
+.tenant-room .room-facts dd { font-size: .75rem; line-height: 1.65; overflow-wrap: anywhere; }
+
+.tenant-room .room-section-icon,
+.tenant-room .room-ledger-icon {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.tenant-room .room-deposit-total {
+  padding: 1rem;
+  border-radius: 1rem;
+  background: var(--muted);
+}
+
+.tenant-room .room-ledger-entry {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  align-items: start;
+  gap: .75rem;
+  padding-block: 1rem;
+}
+
+.tenant-room .room-ledger-entry:last-child { padding-bottom: 0; }
+.tenant-room .room-ledger-icon { width: 2rem; height: 2rem; }
+.tenant-room .room-ledger-entry > div > p:first-child { font-size: .75rem; }
+
+.tenant-room .room-ledger-amount {
+  max-width: 7.5rem;
+  min-width: 0;
+  font-size: .75rem;
+  font-weight: 600;
+  line-height: 1.65;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.tenant-room .room-info-block {
+  min-width: 0;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: var(--muted);
+}
+
+.tenant-room .room-contact-links { display: grid; gap: .5rem; }
+
+.tenant-room .room-contact-links a {
+  display: flex;
+  min-width: 0;
+  min-height: 3rem;
+  align-items: center;
+  gap: .625rem;
+  padding: .75rem;
+  border: 1px solid var(--border);
+  border-radius: .875rem;
+  font-size: .75rem;
+}
+
+.tenant-room .room-contact-links a:hover { background: var(--muted); }
+.tenant-room .room-contact-links a:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+
+@container (min-width: 36rem) {
+  .tenant-room .room-overview-body { padding: 1.75rem; }
+  .tenant-room .room-financials { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); align-items: center; margin-inline: 1.75rem; padding: 1.25rem; }
+  .tenant-room .room-upcoming { border-top: 0; border-left: 1px solid var(--border); padding-top: 0; padding-left: 1.25rem; }
+  .tenant-room .room-facts { padding: 1.5rem 1.75rem; }
+}
+
+@media (max-width: 22.499rem) {
+  .tenant-room .room-overview-main { gap: .75rem; }
+  .tenant-room .room-ledger-entry { grid-template-columns: 2rem minmax(0, 1fr); }
+  .tenant-room .room-ledger-amount { grid-column: 2; max-width: 100%; text-align: left; }
+}

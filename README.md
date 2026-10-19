@@ -24,7 +24,7 @@ Rent, utilities and payments for a 28-room rental property. The landlord manages
 
 ### A landlord's month
 
-1. Day 1 (configurable): one **draft** bill per occupied room is generated automatically, with that month's rent.
+1. On each tenancy's move-in anniversary, one **draft** consolidated monthly bill is generated automatically. Short months use their last calendar day.
 2. Open **Billing → Meter readings** and enter each configured Aircon, Outlet and Light current value. Previous values carry forward from the last finalized bill. Monthly consumption is calculated separately per meter, then totalled at the configured electricity rate and added automatically to the consolidated draft. A lower cumulative reading can be saved for review without a charge; correct the previous value or record a reset, replacement or rollover before finalizing.
 3. **Billing → Finalize ready bills** (or **Finalize and send** on one bill). The charges lock and each tenant is notified that their one consolidated bill is ready.
 4. Tenants **Pay online** with a landlord-configured transfer account, submit a transaction reference and screenshot, or use the optional PayMongo checkout. Transfer proofs stay pending until reviewed under **Payments → To verify**; displaying a QR code does not process a payment.
@@ -130,6 +130,13 @@ In the PayMongo dashboard, add a webhook for `checkout_session.payment.paid` poi
 
 ### 1. Supabase project
 
+These installation commands are for a **new, disposable project**. For the existing
+deployment, [the recorded catalog review](docs/demo-data-live-catalog-review.md)
+identifies migration-history drift. Do not run a blanket `db push`, reset, or config
+push against production. Reconcile the deployed definitions first and review the
+new migrations individually. The production-readiness migration aborts if a
+function it would replace differs from the reviewed source.
+
 ```bash
 npx supabase login
 npx supabase projects create rentlio      # or create one in the dashboard
@@ -141,7 +148,7 @@ npm run db:types                          # regenerate src/lib/database.types.ts
 
 The Edge Functions use the built-in `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` secrets; nothing else to configure. They verify the caller's JWT themselves (`verify_jwt = false` in `config.toml`).
 
-Auth settings (sign-up disabled, password policy, site URL, redirect URLs) live in `supabase/config.toml`:
+Local Auth settings (sign-up enabled, password policy, site URL, redirect URLs) live in `supabase/config.toml`:
 
 ```bash
 npx supabase config diff    # review
@@ -151,7 +158,7 @@ npx supabase config push
 Then in the Supabase dashboard:
 
 - **Authentication → Users → Add user:** create the landlord account (email + password, auto-confirm). Then in the **SQL editor** run `select public.bootstrap_landlord('you@example.com');` once. (Existing projects that already have a landlord need nothing.)
-- **Tenant self-registration** needs email sign-up enabled with confirmations on (both set in `config.toml`; or Authentication → Sign In / Providers → Email). Add your production `/auth/confirm` URL to the redirect URLs. Consider enabling CAPTCHA (`[auth.captcha]`) against sign-up spam: a spam sign-up can only ever create a pending request.
+- **Tenant self-registration** uses email sign-up with landlord approval. The checked-in configuration disables email confirmations; do not change the deployed policy implicitly. Add only your own production `/auth/confirm` URL to the redirect allowlist. Consider CAPTCHA against sign-up spam: a sign-up can only create a pending request.
 - When deployed, set the **Site URL** in `config.toml` to the Vercel URL and push again.
 - **Email:** the default Supabase emails work (the app accepts both link styles). The built-in sender allows only a few emails per hour, so for real use configure custom SMTP (Authentication → Emails → SMTP). With SMTP set, you can also enable the branded templates in `supabase/templates` by uncommenting them in `config.toml`; Supabase blocks custom templates on the free tier without SMTP.
 

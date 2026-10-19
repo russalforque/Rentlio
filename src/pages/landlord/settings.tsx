@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { settingsQueryKey, useSettings } from '@/hooks/use-settings'
 import { useSetWaterRate, useWaterRateSchedule } from '@/features/billing/api'
 import { PaymentAccountSettings } from '@/features/payments/payment-account-settings'
+import { DemoDataSection } from '@/features/demo-data/demo-data-section'
 import type { Tables } from '@/lib/database.types'
 import { getErrorMessage } from '@/lib/errors'
 import { intInput } from '@/lib/form-fields'
@@ -405,6 +406,7 @@ const SECTIONS = [
   { id: 'payments', label: 'Payments' },
   { id: 'payment-accounts', label: 'Payment methods' },
   { id: 'tenants', label: 'Tenant information' },
+  { id: 'demo-data', label: 'Demo Data' },
 ]
 
 export function SettingsPage() {
@@ -436,7 +438,7 @@ export function SettingsPage() {
           <Skeleton className="h-48 rounded-xl" />
         </div>
       ) : (
-        <SettingsForm settings={data} />
+        <><SettingsForm settings={data} /><DemoDataSection /></>
       )}
     </div>
   )

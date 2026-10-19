@@ -30,6 +30,14 @@ const transaction = (overrides: Partial<{
 })
 
 describe('daily cash report', () => {
+  test('ending cash stays exact at centavo precision', () => {
+    const report = calculateDailyCashReport('2026-10-18', [
+      transaction({ amount: 0.1, transaction_date: '2026-10-17' }),
+      transaction({ id: 'income', amount: 0.2 }),
+      transaction({ id: 'expense', amount: 0.1, transaction_type: 'expense' }),
+    ], [])
+    assert.equal(report.endingCash, 0.2)
+  })
   test('carries forward cash movements and applies dated opening adjustments', () => {
     const report = calculateDailyCashReport(
       '2026-10-18',

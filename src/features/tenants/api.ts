@@ -3,6 +3,7 @@ import { roomKeys } from '@/features/rooms/api'
 import type { Enums, TablesUpdate, Views } from '@/lib/database.types'
 import { invokeFunction } from '@/lib/functions'
 import { supabase } from '@/lib/supabase'
+import { fetchAllRows } from '@/lib/pagination'
 
 export type TenantOverview = Views<'tenant_overview'>
 
@@ -19,11 +20,8 @@ export const tenantKeys = {
 export function useTenants() {
   return useQuery({
     queryKey: tenantKeys.list(),
-    queryFn: async () => {
-      const { data, error } = await supabase.from('tenant_overview').select('*').order('full_name')
-      if (error) throw error
-      return data
-    },
+    queryFn: () => fetchAllRows((from, to) => supabase.from('tenant_overview')
+      .select('*', { count: 'exact' }).order('full_name').order('id').range(from, to)),
   })
 }
 
@@ -41,15 +39,13 @@ export function useTenant(id: string) {
 export function useTenantLeases(tenantId: string) {
   return useQuery({
     queryKey: tenantKeys.leases(tenantId),
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchAllRows((from, to) => supabase
         .from('leases')
-        .select('*, rooms(room_number, capacity)')
+        .select('*, rooms(room_number, capacity)', { count: 'exact' })
         .eq('tenant_id', tenantId)
         .order('start_date', { ascending: false })
-      if (error) throw error
-      return data
-    },
+        .order('id')
+        .range(from, to)),
   })
 }
 
@@ -73,16 +69,14 @@ export function useLeaseOccupantAudit(leaseId: string | null) {
 export function useDepositLedger(tenantId: string) {
   return useQuery({
     queryKey: tenantKeys.deposits(tenantId),
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchAllRows((from, to) => supabase
         .from('deposit_transactions')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('tenant_id', tenantId)
         .order('transaction_date', { ascending: false })
         .order('created_at', { ascending: false })
-      if (error) throw error
-      return data
-    },
+        .order('id')
+        .range(from, to)),
   })
 }
 
@@ -248,6 +242,21 @@ export function useUpdateLeaseRent() {
     mutationFn: ({ leaseId, rent }: { leaseId: string; rent: number }) =>
       throwing(supabase.rpc('update_lease_rent', { p_lease_id: leaseId, p_monthly_rent: rent })),
     onSuccess: invalidate,
+  })
+}
+
+export function useUpdateLeaseStartDate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ leaseId, startDate }: { leaseId: string; startDate: string }) =>
+      throwing(supabase.rpc('update_lease_start_date', { p_lease_id: leaseId, p_start_date: startDate })),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: tenantKeys.all }),
+        qc.invalidateQueries({ queryKey: roomKeys.all }),
+        qc.invalidateQueries({ queryKey: ['dashboard'] }),
+        qc.invalidateQueries({ queryKey: ['portal', 'tenancy'] }),
+      ]),
   })
 }
 

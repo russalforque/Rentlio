@@ -29,6 +29,7 @@ import { useSettings } from '@/hooks/use-settings'
 import { cn } from '@/lib/utils'
 import { HOME_BY_ROLE } from '@/routes/home'
 import { NAV, type NavItem } from './nav'
+import '@/pages/tenant/tenant.css'
 
 const COLLAPSE_KEY = 'rentlio:sidebar-collapsed'
 
@@ -424,7 +425,7 @@ export function AppShell() {
   const offMenu = location.pathname.startsWith('/notifications')
   const nested = offMenu || (!!current && location.pathname.replace(/\/$/, '') !== current.to)
   const tabs = items.filter((n) => n.mobileTab)
-  const more = items.filter((n) => !n.mobileTab)
+  const more = items.filter((n) => !n.mobileTab && (profile.role !== 'tenant' || n.to !== '/notifications'))
   const isLandlord = profile.role === 'landlord'
 
   const toggleSidebar = () => {
@@ -460,7 +461,7 @@ export function AppShell() {
     <div className={cn('min-h-dvh md:pl-18', profile.role === 'tenant' && 'tenant-portal', wide ? 'lg:pl-60' : 'lg:pl-18')}>
       <Sidebar wide={wide} onToggle={toggleSidebar} />
 
-      <header className="px-gutter sticky top-0 z-30 flex h-[calc(4rem+env(safe-area-inset-top))] items-center gap-2 bg-background/90 pt-[env(safe-area-inset-top)] backdrop-blur-md sm:gap-3">
+      <header className={cn('px-gutter sticky top-0 z-30 flex h-[calc(4rem+env(safe-area-inset-top))] items-center gap-2 bg-background/90 pt-[env(safe-area-inset-top)] backdrop-blur-md sm:gap-3', !isLandlord && 'tenant-shell-header')}>
         {nested ? (
           <button
             type="button"

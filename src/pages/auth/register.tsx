@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft, ArrowRight, Loader2, MailCheck, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Loader2, MailCheck, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router'
@@ -63,7 +63,7 @@ function VerifyEmail({ email, onBack }: { email: string; onBack: () => void }) {
     <div role="status">
       <AuthHeading
         icon={
-          <span className="mb-6 grid size-14 place-items-center rounded-xl border bg-card text-foreground/70">
+          <span className="auth-verification-icon mb-6 grid size-14 place-items-center text-foreground">
             <MailCheck className="size-6" aria-hidden />
           </span>
         }
@@ -76,7 +76,7 @@ function VerifyEmail({ email, onBack }: { email: string; onBack: () => void }) {
         }
       />
 
-      <ol className="surface grid gap-3 p-4 text-[13px] text-muted-foreground">
+      <ol className="auth-verification-steps grid gap-3 text-[13px] text-muted-foreground">
         {[
           'Confirm your email with the link we sent.',
           'Your landlord reviews your request and confirms who you are.',
@@ -173,86 +173,89 @@ export function RegisterPage() {
   }
 
   return (
-    <>
+    <section aria-labelledby="register-title">
       <AuthHeading
-        title="Register as a tenant"
-        description="Create your login. Your landlord confirms who you are before you can see your rental records."
+        eyebrow="A SIMPLER RENTAL STARTS HERE"
+        title="Create your account"
+        titleId="register-title"
+        description="Register as a tenant. Your landlord will verify your details before you can access your rental."
       />
 
-      <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4" noValidate>
-        {serverError && (
-          <Alert variant="destructive">
-            <AlertDescription>{serverError}</AlertDescription>
-          </Alert>
-        )}
+      <form onSubmit={handleSubmit(onSubmit)} noValidate aria-busy={isSubmitting}>
+        <fieldset disabled={isSubmitting}>
+          <legend className="sr-only">Tenant registration details</legend>
+          {serverError && (
+            <Alert variant="destructive">
+              <AlertDescription>{serverError}</AlertDescription>
+            </Alert>
+          )}
 
-        <FormField id="full_name" label="Full name" error={errors.full_name?.message}>
-          <Input id="full_name" autoComplete="name" className="h-11" aria-invalid={!!errors.full_name} {...register('full_name')} />
-        </FormField>
-        <FormField id="email" label="Email" error={errors.email?.message}>
-          <Input
-            id="email"
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            placeholder="you@example.com"
-            className="h-11"
-            aria-invalid={!!errors.email}
-            {...register('email')}
-          />
-        </FormField>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField id="requested_room" label="Room number" error={errors.requested_room?.message}>
+          <FormField id="full_name" label="Full name" error={errors.full_name?.message}>
+            <Input id="full_name" autoComplete="name" autoCapitalize="words" enterKeyHint="next" placeholder="Your full name" aria-invalid={!!errors.full_name} aria-describedby={errors.full_name ? 'full_name-error' : undefined} {...register('full_name')} />
+          </FormField>
+          <FormField id="email" label="Email" error={errors.email?.message}>
             <Input
-              id="requested_room"
-              autoComplete="off"
-              placeholder="e.g. 104"
-              className="h-11"
-              aria-invalid={!!errors.requested_room}
-              {...register('requested_room')}
+              id="email"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              enterKeyHint="next"
+              placeholder="you@example.com"
+              aria-invalid={!!errors.email}
+              aria-describedby={errors.email ? 'email-error' : undefined}
+              {...register('email')}
             />
           </FormField>
-          <FormField id="phone" label="Phone (optional)" error={errors.phone?.message}>
-            <Input id="phone" type="tel" autoComplete="tel" className="h-11" aria-invalid={!!errors.phone} {...register('phone')} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField id="requested_room" label="Room number" error={errors.requested_room?.message}>
+              <Input
+                id="requested_room"
+                autoComplete="off"
+                enterKeyHint="next"
+                placeholder="e.g. 104"
+                aria-invalid={!!errors.requested_room}
+                aria-describedby={errors.requested_room ? 'requested_room-error' : undefined}
+                {...register('requested_room')}
+              />
+            </FormField>
+            <FormField id="phone" label="Phone (optional)" error={errors.phone?.message}>
+              <Input id="phone" type="tel" inputMode="tel" autoComplete="tel" enterKeyHint="next" placeholder="Your phone number" aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'phone-error' : undefined} {...register('phone')} />
+            </FormField>
+          </div>
+          <FormField id="password" label="Password" error={errors.password?.message}>
+            <PasswordInput
+              id="password"
+              autoComplete="new-password"
+              placeholder="Create a strong password"
+              enterKeyHint="next"
+              aria-invalid={!!errors.password}
+              aria-describedby={errors.password ? 'password-error password-requirements' : 'password-requirements'}
+              {...register('password')}
+            />
           </FormField>
-        </div>
-        <FormField id="password" label="Password" error={errors.password?.message}>
-          <PasswordInput
-            id="password"
-            autoComplete="new-password"
-            className="h-11"
-            aria-invalid={!!errors.password}
-            {...register('password')}
-          />
-        </FormField>
-        <PasswordChecklist value={password} />
-        <FormField id="confirm" label="Confirm password" error={errors.confirm?.message}>
-          <PasswordInput id="confirm" autoComplete="new-password" className="h-11" aria-invalid={!!errors.confirm} {...register('confirm')} />
-        </FormField>
+          <div id="password-requirements"><PasswordChecklist value={password} /></div>
+          <FormField id="confirm" label="Confirm password" error={errors.confirm?.message}>
+            <PasswordInput id="confirm" autoComplete="new-password" enterKeyHint="go" placeholder="Re-enter your password" aria-invalid={!!errors.confirm} aria-describedby={errors.confirm ? 'confirm-error' : undefined} {...register('confirm')} />
+          </FormField>
 
-        <Button type="submit" size="lg" className="mt-1 w-full" disabled={isSubmitting}>
-          {isSubmitting ? <Loader2 className="animate-spin" /> : null}
-          {isSubmitting ? 'Creating account…' : 'Create account'}
-          {!isSubmitting && <ArrowRight />}
-        </Button>
+          <Button type="submit" size="lg" className="auth-submit w-full" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="animate-spin" /> : null}
+            <span aria-live="polite">{isSubmitting ? 'Creating account…' : 'Create account'}</span>
+            {!isSubmitting && <ArrowRight />}
+          </Button>
+        </fieldset>
       </form>
 
-      <div className="surface mt-6 flex items-start gap-3 p-4 text-[13px] text-muted-foreground">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg border bg-muted text-foreground/80">
-          <ShieldCheck className="size-4" aria-hidden />
-        </span>
+      <div className="auth-registration-note">
+        <ShieldCheck aria-hidden />
         <p>
-          <span className="font-semibold text-foreground">Your records stay private.</span> Nothing is shared with your
-          account until your landlord verifies your identity, so a room number alone never grants access.
+          <span className="font-semibold text-foreground">Private until approved.</span> A room number alone never grants access to rental records. Your landlord verifies your identity first.
         </p>
       </div>
 
-      <Link
-        to="/login"
-        className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" /> Already have an account? Sign in
-      </Link>
-    </>
+      <div className="auth-switch"><p>Already have an account? <Link to="/login" className="auth-text-link gap-1">Sign in <ArrowRight className="size-3.5" aria-hidden /></Link></p></div>
+    </section>
   )
 }

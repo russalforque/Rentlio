@@ -3,6 +3,7 @@
 // filters below exist only to shape the results.
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { fetchAllRows } from '@/lib/pagination'
 
 export const portalKeys = {
   tenancy: ['portal', 'tenancy'] as const,
@@ -14,11 +15,12 @@ export function useMyTenancy() {
   return useQuery({
     queryKey: portalKeys.tenancy,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const data = await fetchAllRows((from, to) => supabase
         .from('leases')
-        .select('*, rooms(room_number, floor, description, capacity)')
+        .select('*, rooms(room_number, floor, description, capacity)', { count: 'exact' })
         .order('start_date', { ascending: false })
-      if (error) throw error
+        .order('id')
+        .range(from, to))
       return { current: data.find((l) => l.status === 'active') ?? null, history: data }
     },
   })
@@ -27,15 +29,13 @@ export function useMyTenancy() {
 export function useMyBills() {
   return useQuery({
     queryKey: portalKeys.bills,
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchAllRows((from, to) => supabase
         .from('bill_overview')
-        .select('*')
+        .select('*', { count: 'exact' })
         .neq('status', 'void')
         .order('period', { ascending: false })
-      if (error) throw error
-      return data
-    },
+        .order('id')
+        .range(from, to)),
   })
 }
 

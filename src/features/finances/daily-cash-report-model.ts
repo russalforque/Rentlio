@@ -190,6 +190,6 @@ export function calculateDailyCashReport(
     income,
     expenseEntries: compactExpenseEntries,
     expenses,
-    endingCash: beginningCash + income - expenses,
+    endingCash: (cents(beginningCash) + cents(income) - cents(expenses)) / 100,
   }
 }

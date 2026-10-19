@@ -3,23 +3,30 @@ import { AlertCircle, RotateCw } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { getErrorMessage } from '@/lib/errors'
+import { cn } from '@/lib/utils'
 
 export function EmptyState({
   icon: Icon,
   title,
   description,
   action,
+  illustration,
+  variant = 'card',
+  className,
 }: {
   icon: LucideIcon
   title: string
   description?: string
   action?: ReactNode
+  illustration?: ReactNode
+  variant?: 'card' | 'inline'
+  className?: string
 }) {
   return (
-    <div className="surface flex flex-col items-center justify-center px-6 py-14 text-center">
-      <span className="mb-4 grid size-12 place-items-center rounded-xl border bg-muted text-foreground/70">
+    <div className={cn('flex flex-col items-center justify-center text-center', variant === 'card' ? 'surface px-6 py-14' : 'px-2 py-5', className)}>
+      {illustration ?? <span className="mb-4 grid size-12 place-items-center rounded-xl border bg-muted text-foreground/70">
         <Icon className="size-5" aria-hidden />
-      </span>
+      </span>}
       <p className="text-[15px] font-semibold">{title}</p>
       {description && <p className="mt-1 max-w-sm text-[13px] text-muted-foreground">{description}</p>}
       {action && <div className="mt-6">{action}</div>}

@@ -32,13 +32,14 @@ export function isConfigured(): boolean {
   return !!Deno.env.get('PAYMONGO_SECRET_KEY')
 }
 
-async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown, idempotencyKey?: string): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     method,
     headers: {
       Authorization: `Basic ${btoa(`${env('PAYMONGO_SECRET_KEY')}:`)}`,
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
@@ -76,7 +77,7 @@ export function createCheckoutSession(input: {
         metadata: input.metadata,
       },
     },
-  })
+  }, input.metadata.checkout_id)
 }
 
 export function getCheckoutSession(id: string): Promise<CheckoutSession> {
@@ -90,10 +91,18 @@ export async function expireCheckoutSession(id: string): Promise<void> {
 
 /** Amounts are numeric(12,2) pesos in the database and integer centavos at PayMongo. */
 export function toCentavos(amount: number): number {
-  return Math.round(amount * 100)
+  const centavos = Math.round(amount * 100)
+  if (!Number.isFinite(amount) || !Number.isSafeInteger(centavos) || centavos <= 0
+      || Math.abs(amount * 100 - centavos) > 0.000001) {
+    throw new HttpError(400, 'Enter a positive amount with at most two decimal places.')
+  }
+  return centavos
 }
 
-export function fromCentavos(centavos: number): number {
+export function fromCentavos(centavos: number, currency?: string): number {
+  if (currency !== 'PHP' || !Number.isSafeInteger(centavos) || centavos <= 0) {
+    throw new Error('The provider returned an invalid payment amount or currency')
+  }
   return centavos / 100
 }
 

@@ -1,7 +1,7 @@
 import { ArrowRight, Building2, CheckCircle2, CreditCard, LockKeyhole, ReceiptText, Smartphone, Wallet } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { PageHeader } from '@/components/app/page-header'
+import { TenantPageHeader } from '@/components/app/tenant-page-header'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -56,7 +56,7 @@ function BillChoice({
       aria-pressed={selected}
       onClick={onSelect}
       className={cn(
-        'flex w-full min-h-16 items-center gap-3 rounded-2xl border bg-card px-4 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-foreground/25 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'tenant-bill-choice flex w-full min-h-16 items-center gap-3 rounded-2xl border bg-card px-4 py-4 text-left transition-colors duration-200 hover:border-foreground/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         selected && 'border-foreground/70 ring-1 ring-foreground/70',
       )}
     >
@@ -64,11 +64,11 @@ function BillChoice({
         <ReceiptText className="size-4" aria-hidden />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold">{formatPeriod(bill.period)}</span>
+        <span className="block text-[13px] font-semibold break-words">{formatPeriod(bill.period)}</span>
         <span className="mt-0.5 block text-xs text-muted-foreground">Due {formatDate(bill.due_date)}</span>
       </span>
-      <span className="shrink-0 text-right">
-        <span className="block text-sm font-semibold tabular">{formatMoney(bill.balance, currency)}</span>
+      <span className="tenant-list-amount">
+        <span className="block text-[13px] font-semibold tabular">{formatMoney(bill.balance, currency)}</span>
         <span className="block text-[11px] text-muted-foreground">{bill.is_overdue ? 'Overdue' : 'Balance due'}</span>
       </span>
     </button>
@@ -95,9 +95,8 @@ export function TenantPayOnlinePage() {
   if (bills.error) return <ErrorState error={bills.error} onRetry={() => void bills.refetch()} />
 
   return (
-    <div className="tenant-page mx-auto max-w-5xl space-y-6">
-      <PageHeader
-        eyebrow="Simple, secure payments"
+    <div className="tenant-page tenant-pay-page @container mx-auto space-y-5 sm:space-y-6">
+      <TenantPageHeader
         title="Pay online"
         description="Choose a bill and the payment method that works best for you."
       />
@@ -136,7 +135,7 @@ export function TenantPayOnlinePage() {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-xs font-medium text-muted-foreground">Total to settle</p>
-                    <p className="font-display mt-1 text-3xl font-semibold tabular">{formatMoney(selected.balance, currency)}</p>
+                    <p className="tenant-summary-amount font-display mt-2 font-semibold tabular">{formatMoney(selected.balance, currency)}</p>
                   </div>
                   <span className="grid size-11 shrink-0 place-items-center rounded-full bg-card">
                     <Building2 className="size-5 text-muted-foreground" aria-hidden />
@@ -152,7 +151,7 @@ export function TenantPayOnlinePage() {
             )}
           </section>
 
-          <section className="surface space-y-4 p-5 sm:p-7" aria-labelledby="payment-method-title">
+          <section className="tenant-pay-summary surface space-y-4 p-5 sm:p-7" aria-labelledby="payment-method-title">
             <div>
               <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Step 2</p>
               <h2 id="payment-method-title" className="mt-1 text-lg font-semibold">Choose how to pay</h2>

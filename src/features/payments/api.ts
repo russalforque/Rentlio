@@ -3,6 +3,7 @@ import { useInvalidateBilling } from '@/features/billing/api'
 import type { Enums, Tables, Views } from '@/lib/database.types'
 import { invokeFunction } from '@/lib/functions'
 import { STORAGE_BUCKETS, supabase } from '@/lib/supabase'
+import { fetchAllRows } from '@/lib/pagination'
 
 export type PaymentOverview = Views<'payment_overview'>
 export type PaymentAccount = Tables<'landlord_payment_accounts'>
@@ -41,15 +42,13 @@ export const MANUAL_METHODS = (Object.entries(METHOD_LABEL) as [Enums<'payment_m
 export function usePendingPayments() {
   return useQuery({
     queryKey: paymentKeys.pending(),
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchAllRows((from, to) => supabase
         .from('payment_overview')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('status', 'pending')
         .order('created_at', { ascending: true })
-      if (error) throw error
-      return data
-    },
+        .order('id')
+        .range(from, to)),
     refetchInterval: 60_000,
   })
 }
@@ -90,33 +89,29 @@ export function usePaymentQrUrl(path: string | null) {
 export function usePaymentHistory(period: string, nextPeriod: string) {
   return useQuery({
     queryKey: paymentKeys.history(period),
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchAllRows((from, to) => supabase
         .from('payment_overview')
-        .select('*')
+        .select('*', { count: 'exact' })
         .neq('status', 'pending')
         .gte('paid_on', period)
         .lt('paid_on', nextPeriod)
         .order('paid_on', { ascending: false })
         .order('created_at', { ascending: false })
-      if (error) throw error
-      return data
-    },
+        .order('id')
+        .range(from, to)),
   })
 }
 
 export function useBillPayments(billId: string) {
   return useQuery({
     queryKey: paymentKeys.forBill(billId),
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchAllRows((from, to) => supabase
         .from('payment_overview')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('bill_id', billId)
         .order('created_at', { ascending: false })
-      if (error) throw error
-      return data
-    },
+        .order('id')
+        .range(from, to)),
   })
 }
 
@@ -125,8 +120,8 @@ export function useBillAllocations(billId: string) {
   return useQuery({
     queryKey: paymentKeys.allocations(billId),
     queryFn: async () => {
-      const { data, error } = await supabase.from('payment_allocations').select('bill_item_id, amount').eq('bill_id', billId)
-      if (error) throw error
+      const data = await fetchAllRows((from, to) => supabase.from('payment_allocations')
+        .select('id, bill_item_id, amount', { count: 'exact' }).eq('bill_id', billId).order('id').range(from, to))
       const paid = new Map<string, number>()
       for (const a of data) paid.set(a.bill_item_id, (paid.get(a.bill_item_id) ?? 0) + a.amount)
       return paid
@@ -150,14 +145,12 @@ export function usePaymentReceipt(paymentId: string) {
 export function useMyPayments() {
   return useQuery({
     queryKey: paymentKeys.mine(),
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchAllRows((from, to) => supabase
         .from('payment_overview')
-        .select('*')
+        .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
-      if (error) throw error
-      return data
-    },
+        .order('id')
+        .range(from, to)),
   })
 }
 

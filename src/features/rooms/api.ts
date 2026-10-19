@@ -108,7 +108,7 @@ export function useDeleteBedType() {
   })
 }
 
-/** Saves the room, then replaces its beds. */
+/** Saves the room and replaces its beds atomically. */
 export function useSaveRoom() {
   const qc = useQueryClient()
   return useMutation({
@@ -121,15 +121,18 @@ export function useSaveRoom() {
       values: Omit<TablesInsert<'rooms'>, 'id'> & TablesUpdate<'rooms'>
       beds: RoomBed[]
     }) => {
-      const { data, error } = id
-        ? await supabase.from('rooms').update(values).eq('id', id).select('id').single()
-        : await supabase.from('rooms').insert(values).select('id').single()
-      if (error) throw error
-      const { error: bedsError } = await supabase.rpc('set_room_beds', {
-        p_room_id: data.id,
+      const { error } = await supabase.rpc('save_room_with_beds', {
+        p_room_id: id,
+        p_room_number: values.room_number,
+        p_floor: values.floor ?? null,
+        p_monthly_rent: values.monthly_rent ?? 0,
+        p_capacity: values.capacity ?? 1,
+        p_description: values.description ?? null,
+        p_is_under_maintenance: values.is_under_maintenance ?? false,
+        p_electricity_meters: values.electricity_meters ?? ['aircon', 'outlet', 'light'],
         p_beds: beds.map((b) => ({ bed_type_id: b.bed_type_id, quantity: b.quantity })),
       })
-      if (bedsError) throw bedsError
+      if (error) throw error
     },
     onSuccess: () =>
       Promise.all([

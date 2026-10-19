@@ -194,7 +194,7 @@ export function DailyCashReport() {
     ? {
         ...report.data,
         beginningCash: openingAmount,
-        endingCash: openingAmount + report.data.income - report.data.expenses,
+        endingCash: (Math.round(openingAmount * 100) + Math.round(report.data.income * 100) - Math.round(report.data.expenses * 100)) / 100,
       }
     : null
   const ready = !!reportPreview && !report.isFetching && !report.error

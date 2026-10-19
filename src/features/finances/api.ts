@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Enums, Tables, Views } from '@/lib/database.types'
 import { STORAGE_BUCKETS, supabase } from '@/lib/supabase'
+import { fetchAllRows } from '@/lib/pagination'
 import {
   calculateDailyCashReport,
-  type CashReportTransaction,
 } from './daily-cash-report-model'
 
 export type FinanceTransaction = Views<'financial_transaction_overview'>
@@ -35,15 +35,13 @@ export const financeKeys = {
 export function useFinanceTransactions() {
   return useQuery({
     queryKey: financeKeys.transactions(),
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchAllRows((from, to) => supabase
         .from('financial_transaction_overview')
-        .select('*')
+        .select('*', { count: 'exact' })
         .order('transaction_date', { ascending: false })
         .order('created_at', { ascending: false })
-      if (error) throw error
-      return data
-    },
+        .order('id')
+        .range(from, to)),
   })
 }
 
@@ -52,35 +50,22 @@ export function useDailyCashReport(date: string, enabled: boolean) {
     queryKey: financeKeys.dailyCashReport(date),
     enabled,
     queryFn: async () => {
-      const transactions: CashReportTransaction[] = []
-      const pageSize = 1000
-      for (let offset = 0; ; offset += pageSize) {
-        const { data, error } = await supabase
+      const transactions = await fetchAllRows((from, to) => supabase
           .from('financial_transaction_overview')
-          .select('id, amount, category, description, payment_id, room_number, source, tenant_name, transaction_date, transaction_type, method')
+          .select('id, amount, category, description, payment_id, room_number, source, tenant_name, transaction_date, transaction_type, method', { count: 'exact' })
           .eq('method', 'cash')
           .lte('transaction_date', date)
           .order('transaction_date')
           .order('id')
-          .range(offset, offset + pageSize - 1)
-        if (error) throw error
-        transactions.push(...data)
-        if (data.length < pageSize) break
-      }
+          .range(from, to))
 
-      const adjustments: { adjustment_date: string; amount_delta: number }[] = []
-      for (let offset = 0; ; offset += pageSize) {
-        const { data, error } = await supabase
+      const adjustments = await fetchAllRows((from, to) => supabase
           .from('daily_cash_adjustments')
-          .select('adjustment_date, amount_delta')
+          .select('adjustment_date, amount_delta', { count: 'exact' })
           .lte('adjustment_date', date)
           .order('adjustment_date')
           .order('id')
-          .range(offset, offset + pageSize - 1)
-        if (error) throw error
-        adjustments.push(...data)
-        if (data.length < pageSize) break
-      }
+          .range(from, to))
 
       const [openingForDate, previousOpening] = await Promise.all([
         supabase
@@ -193,6 +178,7 @@ async function uploadReceipt(file: File): Promise<string> {
 }
 
 export interface SaveFinanceTransaction {
+  requestId: string
   id?: string
   transactionType: TransactionType
   amount: number
@@ -213,7 +199,8 @@ export function useSaveFinanceTransaction() {
       const receiptPath = input.transactionType === 'expense'
         ? input.receipt ? await uploadReceipt(input.receipt) : input.receiptPath
         : null
-      const { data, error } = await supabase.rpc('save_financial_transaction', {
+      const { data, error } = await supabase.rpc('save_financial_transaction_once', {
+        p_request_id: input.requestId,
         p_id: input.id,
         p_transaction_type: input.transactionType,
         p_amount: input.amount,

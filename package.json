@@ -8,11 +8,14 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "lint": "eslint .",
+    "check:release": "node scripts/check-release.mjs",
     "preview": "vite preview",
     "test": "npm run test:unit && npm run test:db",
     "test:unit": "node --test \"tests/unit/*.test.ts\"",
     "test:db": "node supabase/tests/db.test.mjs",
-    "db:types": "supabase gen types typescript --linked --schema public > src/lib/database.generated.ts"
+    "db:types": "supabase gen types typescript --linked --schema public > src/lib/database.generated.ts",
+    "typecheck:edge": "deno check --config supabase/functions/deno.json supabase/functions/invite-tenant/index.ts supabase/functions/manage-tenant/index.ts supabase/functions/online-payment/index.ts supabase/functions/paymongo-webhook/index.ts",
+    "test:edge": "deno test --allow-env=PAYMONGO_SECRET_KEY --config supabase/functions/deno.json supabase/functions/_shared/paymongo.test.ts"
   },
   "dependencies": {
     "@fontsource-variable/manrope": "^5.3.0",

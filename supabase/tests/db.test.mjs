@@ -2250,4 +2250,399 @@ await test('reset/replacement starts a new non-negative counter while historical
   `, [meterRoom])).length, 2)
 })
 
+console.log('\nPrivate demo sandbox')
+const demoId = 'dddddddd-0000-4000-8000-000000000001'
+const demoId2 = 'dddddddd-0000-4000-8000-000000000002'
+const demoGet = async (id = demoId) => (await as(landlord, 'select public.demo_get_batch($1) as data', [id]))[0].data
+// All public business rows, view results, and sequence state: demo operations
+// must leave the entire simulated production surface byte-for-byte unchanged.
+async function publicState() {
+  const tables = await asAdmin(`select c.relname,c.relkind from pg_class c join pg_namespace n on n.oid=c.relnamespace
+    where n.nspname='public' and c.relkind in ('r','v','S') order by c.relname`)
+  const result = {}
+  for (const t of tables) {
+    result[t.relname] = t.relkind === 'S'
+      ? await asAdmin(`select last_value,is_called from public.${t.relname}`)
+      : await as(landlord, `select to_jsonb(t) as row from public.${t.relname} t order by to_jsonb(t)::text`)
+  }
+  return result
+}
+await asAdmin('select public.run_scheduled_billing()')
+await asAdmin('select public.run_notification_jobs()')
+const schedulerControlBefore = await publicState()
+await asAdmin('select public.run_scheduled_billing()')
+await asAdmin('select public.run_notification_jobs()')
+let demoProductionBefore = await publicState()
+const schedulerSequenceDeltas = Object.fromEntries(Object.entries(demoProductionBefore)
+  .filter(([, value]) => value[0] && 'last_value' in value[0])
+  .map(([key, value]) => [key, Number(value[0].last_value) - Number(schedulerControlBefore[key][0].last_value)]))
+await test('the post-install verification script confirms private grants, RLS and all eight RPC wrappers', async () => {
+  const results = await db.exec(readFileSync(join(migrationsDir,'..','audits','demo-sandbox-verification.sql'),'utf8'))
+  const result = results.find(r=>r.rows[0]?.demo_sandbox_verification).rows[0].demo_sandbox_verification
+  assert.equal(result.isolation_check,'passed')
+  assert.equal(result.read_only,'on')
+  assert.equal(result.private_table_count,10)
+  assert.equal(result.wrapper_count,8)
+  for (const key of ['anonymous_execute_revoked','service_role_execute_revoked','authenticated_execute_granted','wrappers_use_definer_and_empty_search_path']) assert.equal(result[key],true,key)
+})
+await test('demo generation is landlord-only, idempotent, and creates a complete fictional batch', async () => {
+  await rejects(as(null, 'select public.demo_generate_batch($1)', [demoId]), /permission denied/)
+  await rejects(as(alice, 'select public.demo_generate_batch($1)', [demoId]), /landlord/i)
+  await as(landlord, 'select public.demo_generate_batch($1)', [demoId])
+  const before = await demoGet()
+  await as(landlord, 'select public.demo_generate_batch($1)', [demoId])
+  assert.deepEqual(await demoGet(), before)
+  assert.deepEqual(before.counts, { batches: 1, tenants: 4, rooms: 4, leases: 4, bills: 4,
+    bill_items: 10, payments: 2, payment_allocations: 6, expenses: 1, cash_openings: 1 })
+  assert.equal(before.bills[0].total_amount, 5345)
+  assert.equal(before.bills[0].amount_paid, 0)
+})
+await test('tenants cannot invoke ANY demo RPC or access private tables; service role has no direct access', async () => {
+  const s = await demoGet()
+  const p = s.payments[0].id
+  for (const [sql, params] of [
+    ['select public.demo_list_batches()', []],
+    ['select public.demo_get_batch($1)', [demoId]],
+    ['select public.demo_record_payment($1,$2,10,\'cash\',$3,$4)', [demoId,s.bills[0].id,s.today,crypto.randomUUID()]],
+    ['select public.demo_review_payment($1,$2,true)', [demoId,p]],
+    ['select public.demo_save_cash_opening($1,$2,10)', [demoId,s.today]],
+    ['select public.demo_record_expense($1,$2,10,\'Demo\',$3)', [demoId,s.today,crypto.randomUUID()]],
+    ['select public.demo_delete_batch($1,$2)', [demoId,s.batch.revision]],
+  ]) await rejects(as(alice, sql, params), /landlord/i)
+  await rejects(as(landlord, 'select * from rentlio_demo.payments'), /permission denied/)
+  await rejects(as(alice, 'select rentlio_demo.verify_payment($1,$2)', [demoId,p]), /permission denied/)
+  await db.exec('set role service_role')
+  try { await rejects(db.query('select * from rentlio_demo.payments'), /permission denied/) }
+  finally { await db.exec('reset role') }
+})
+await test('one 5,345 collection allocates exactly 5,000 rent, 245 electricity and 100 water', async () => {
+  const s = await demoGet(), request = crypto.randomUUID(), billId = s.bills[0].id
+  const args = [demoId,billId,5345,'cash',s.today,request]
+  const [{ id }] = await as(landlord, 'select public.demo_record_payment($1,$2,$3,$4,$5,$6) as id', args)
+  const after = await demoGet(), payment = after.payments.find(p => p.id === id)
+  assert.equal(after.bills[0].amount_paid, 5345)
+  assert.equal(payment.balance_before, 5345)
+  assert.equal(payment.balance_after, 0)
+  assert.deepEqual(Object.fromEntries(after.allocations.filter(a => a.payment_id === id).map(a => [a.kind,a.amount])),
+    { electricity:245, water:100, rent:5000 })
+  assert.equal(after.payments.filter(p => p.id === id).length, 1)
+  await as(landlord, 'select public.demo_record_payment($1,$2,$3,$4,$5,$6)', args)
+  assert.deepEqual(await demoGet(), after)
+  await rejects(as(landlord, 'select public.demo_record_payment($1,$2,$3,$4,$5,$6)',
+    [demoId,billId,1,'cash',s.today,request]), /different payment/)
+})
+await test('the ordinary billing and notification jobs ignore the private demo records', async () => {
+  await asAdmin('select public.run_scheduled_billing()')
+  await asAdmin('select public.run_notification_jobs()')
+  const actual = await publicState(), normalized = structuredClone(actual)
+  // Existing notification INSERT ... ON CONFLICT attempts consume IDs even
+  // when deduplicated. Require the exact control-run increment, not zero.
+  for (const [key, delta] of Object.entries(schedulerSequenceDeltas)) {
+    assert.equal(Number(actual[key][0].last_value) - Number(demoProductionBefore[key][0].last_value),delta,key)
+    normalized[key]=demoProductionBefore[key]
+  }
+  assert.deepEqual(normalized,demoProductionBefore)
+  demoProductionBefore=actual
+})
+await test('a full rent-only collection clears its bill and creates one rent allocation', async () => {
+  const s = await demoGet(), billId = s.bills[2].id
+  assert.equal(s.bills[2].amount_paid,0)
+  const [{ id }] = await as(landlord,'select public.demo_record_payment($1,$2,5000,\'cash\',$3,$4) as id',
+    [demoId,billId,s.today,crypto.randomUUID()])
+  const after = await demoGet()
+  assert.equal(after.payments.find(p=>p.id===id).balance_after,0)
+  assert.deepEqual(after.allocations.filter(a=>a.payment_id===id).map(a=>[a.kind,a.amount]),[['rent',5000]])
+})
+await test('overpayments, fractional cents and forged production/batch IDs leave the ledger unchanged', async () => {
+  await as(landlord, 'select public.demo_generate_batch($1)', [demoId2])
+  const s = await demoGet(), other = await demoGet(demoId2)
+  const normalBill = (await asAdmin('select id from public.bills limit 1'))[0].id
+  for (const [batch, billId, amount] of [[demoId,s.bills[0].id,1], [demoId,s.bills[1].id,99999],
+    [demoId,s.bills[1].id,0.001], [demoId,other.bills[0].id,1], [demoId,normalBill,1]]) {
+    await rejects(as(landlord,'select public.demo_record_payment($1,$2,$3,\'cash\',$4,$5)',
+      [batch,billId,amount,s.today,crypto.randomUUID()]), /balance|two decimal|not in/)
+  }
+  assert.deepEqual(await demoGet(), s)
+  assert.deepEqual(await demoGet(demoId2), other)
+  const realTenant = (await asAdmin('select id from public.profiles limit 1'))[0].id
+  await rejects(asAdmin('update rentlio_demo.leases set tenant_id=$1 where batch_id=$2 and id=$3',
+    [realTenant,demoId,s.leases[0].id]), /foreign key/)
+  await rejects(asAdmin('insert into rentlio_demo.bills(batch_id,lease_id,period,due_date) values($1,$2,$3,$3)',
+    [demoId,other.leases[0].id,s.today]), /foreign key/)
+  await rejects(asAdmin('insert into rentlio_demo.payment_allocations(batch_id,payment_id,bill_item_id,bill_id,kind,amount) values($1,$2,$3,$4,$5,1)',
+    [demoId,s.payments[0].id,other.bill_items[0].id,s.payments[0].bill_id,other.bill_items[0].kind]), /foreign key/)
+  await rejects(as(landlord,'select public.demo_delete_batch($1,0)',[realTenant]),/not found|already deleted/)
+})
+await test('pending/rejected collections do not change balances, receipts or cash; approval uses current balance', async () => {
+  const s = await demoGet(demoId2), billId = s.bills[0].id
+  const [{ id }] = await as(landlord,'select public.demo_record_payment($1,$2,100,\'gcash\',$3,$4,\'pending\') as id',
+    [demoId2,billId,s.today,crypto.randomUUID()])
+  let after = await demoGet(demoId2)
+  assert.equal(after.bills[0].amount_paid, 0)
+  assert.equal(after.payments.find(p=>p.id===id).receipt_number, null)
+  await as(landlord,'select public.demo_review_payment($1,$2,true)',[demoId2,id])
+  after = await demoGet(demoId2)
+  assert.equal(after.bills[0].amount_paid,100)
+  assert.deepEqual(after.allocations.filter(a=>a.payment_id===id).map(a=>[a.kind,a.amount]),[['electricity',100]])
+  const [{ id: rejected }] = await as(landlord,'select public.demo_record_payment($1,$2,200,\'cash\',$3,$4,\'pending\') as id',
+    [demoId2,billId,s.today,crypto.randomUUID()])
+  await rejects(as(landlord,'select public.demo_review_payment($1,$2,false)',[demoId2,rejected]),/reason/)
+  await as(landlord,'select public.demo_review_payment($1,$2,false,\'Fictional proof rejected\')',[demoId2,rejected])
+  after = await demoGet(demoId2)
+  assert.equal(after.bills[0].amount_paid,100)
+  assert.equal(after.payments.find(p=>p.id===rejected).receipt_number,null)
+  const [{ id: stale }] = await as(landlord,'select public.demo_record_payment($1,$2,5245,\'cash\',$3,$4,\'pending\') as id',
+    [demoId2,billId,s.today,crypto.randomUUID()])
+  await as(landlord,'select public.demo_record_payment($1,$2,5245,\'cash\',$3,$4)',[demoId2,billId,s.today,crypto.randomUUID()])
+  const beforeReview = await demoGet(demoId2)
+  await rejects(as(landlord,'select public.demo_review_payment($1,$2,true)',[demoId2,stale]),/balance/)
+  assert.deepEqual(await demoGet(demoId2),beforeReview)
+})
+await test('cash openings and expenses are scoped, validated and expense retries are idempotent', async () => {
+  const s = await demoGet(), other = await demoGet(demoId2), request = crypto.randomUUID()
+  await as(landlord,'select public.demo_save_cash_opening($1,$2,2000)',[demoId,s.today])
+  await as(landlord,'select public.demo_record_expense($1,$2,50,\'Demo water delivery\',$3)',[demoId,s.today,request])
+  const after = await demoGet()
+  await as(landlord,'select public.demo_record_expense($1,$2,50,\'Demo water delivery\',$3)',[demoId,s.today,request])
+  assert.deepEqual(await demoGet(),after)
+  assert.deepEqual(await demoGet(demoId2),other)
+  await rejects(as(landlord,'select public.demo_save_cash_opening($1,$2,-1)',[demoId,s.today]),/non-negative/)
+})
+await test('stale deletion confirmation is rejected and a mid-cleanup failure rolls back every deletion', async () => {
+  const s = await demoGet()
+  await rejects(as(landlord,'select public.demo_delete_batch($1,$2)',[demoId,s.batch.revision-1]),/changed/)
+  assert.deepEqual(await demoGet(),s)
+  const [{ definition }] = await asAdmin("select pg_get_functiondef('rentlio_demo.counts(uuid)'::regprocedure) as definition")
+  // Inject a reconciliation failure after all scoped child/root deletes, in the
+  // disposable database only. The RPC must roll them ALL back atomically.
+  await asAdmin("create or replace function rentlio_demo.counts(p_batch_id uuid) returns jsonb language sql stable set search_path='' as $$ select '{}'::jsonb $$")
+  const before = await demoGet()
+  try {
+    await rejects(as(landlord,'select public.demo_delete_batch($1,$2)',[demoId,s.batch.revision]),/rolled back/)
+    assert.deepEqual(await demoGet(),before)
+  } finally { await asAdmin(definition) }
+})
+await test('unexpected triggers and active scheduler commands stop demo mutations before side effects', async () => {
+  const s = await demoGet()
+  await db.exec("create function rentlio_demo.test_side_effect() returns trigger language plpgsql as $$ begin raise exception 'TRIGGER RAN'; end $$; create trigger test_side_effect before delete on rentlio_demo.payments for each row execute function rentlio_demo.test_side_effect()")
+  try { await rejects(as(landlord,'select public.demo_delete_batch($1,$2)',[demoId,s.batch.revision]),/isolation checks failed/) }
+  finally { await db.exec('drop trigger test_side_effect on rentlio_demo.payments; drop function rentlio_demo.test_side_effect()') }
+  await db.exec("create schema cron; create table cron.job(active boolean, database text, command text); insert into cron.job values(true,current_database(),'select public.run_scheduled_billing();'),(true,current_database(),'select public.run_notification_jobs();')")
+  try {
+    await as(landlord,'select public.demo_save_cash_opening($1,$2,2000)',[demoId,s.today])
+    await asAdmin("insert into cron.job values(true,current_database(),'select unreviewed_job();')")
+    await rejects(as(landlord,'select public.demo_save_cash_opening($1,$2,999)',[demoId,s.today]),/unreviewed scheduled job/)
+  } finally { await db.exec('drop table cron.job; drop schema cron') }
+})
+await test('cross-schema foreign keys, production views, publications and client grants fail the isolation gate', async () => {
+  const s = await demoGet()
+  const mutate = () => as(landlord,'select public.demo_save_cash_opening($1,$2,42)',[demoId,s.today])
+  for (const [setup,cleanup] of [
+    ['alter table rentlio_demo.tenants add column real_tenant uuid references public.profiles(id)', 'alter table rentlio_demo.tenants drop column real_tenant'],
+    ['create view public.test_demo_bridge as select * from rentlio_demo.payments', 'drop view public.test_demo_bridge'],
+    ['create publication test_demo_broad_publication for all tables', 'drop publication test_demo_broad_publication'],
+    ['grant select on rentlio_demo.payments to authenticated', 'revoke select on rentlio_demo.payments from authenticated'],
+  ]) {
+    await db.exec(setup)
+    try { await rejects(mutate(),/isolation checks failed/) }
+    finally { await db.exec(cleanup) }
+  }
+  assert.deepEqual(await demoGet(),s)
+})
+await test('cleanup returns exact preview counts, removes only the selected batch, and cannot be repeated', async () => {
+  const s = await demoGet(), other = await demoGet(demoId2)
+  const [{ result }] = await as(landlord,'select public.demo_delete_batch($1,$2) as result',[demoId,s.batch.revision])
+  assert.deepEqual(result.removed,s.counts)
+  assert.deepEqual(await demoGet(demoId2),other)
+  await rejects(demoGet(),/not found|already deleted/)
+  await rejects(as(landlord,'select public.demo_delete_batch($1,$2)',[demoId,s.batch.revision]),/not found|already deleted/)
+  await as(landlord,'select public.demo_delete_batch($1,$2)',[demoId2,other.batch.revision])
+  assert.deepEqual((await as(landlord,'select public.demo_list_batches() as data'))[0].data,[])
+})
+await test('demo lifecycle leaves ALL normal rows, reports, cash, notices and sequence counters unchanged', async () => {
+  assert.deepEqual(await publicState(),demoProductionBefore)
+})
+await test('sandbox allocations match the production engine across a series of partial collections', async () => {
+  // Both ledgers below exist only in this disposable in-process database.
+  // Production fixtures intentionally change in this differential test, after
+  // the preceding full lifecycle non-interference assertion has completed.
+  const id = crypto.randomUUID()
+  await as(landlord,'select public.demo_generate_batch($1)',[id])
+  const s = await demoGet(id), demoBill = s.bills[0].id
+  const [{ id: tenant }] = await as(landlord,"select public.create_manual_tenant('Differential Fixture Only') as id")
+  const [{ id: room }] = await as(landlord,"insert into public.rooms(room_number,monthly_rent) values('TEST-DIFF',5000) returning id")
+  const [{ id: lease }] = await as(landlord,'select public.assign_tenant($1,$2,$3,5000,0,null) as id',[tenant,room,s.bills[0].period])
+  const [{ id: normalBill }] = await asAdmin('insert into public.bills(lease_id,tenant_id,room_id,period,issue_date,due_date) values($1,$2,$3,$4,$4,$5) returning id',
+    [lease,tenant,room,s.bills[0].period,s.today])
+  for (const [kind,amount,order] of [['rent',5000,0],['electricity',245,1],['water',100,2]]) {
+    await asAdmin('insert into public.bill_items(bill_id,kind,description,quantity,unit_price,amount,sort_order) values($1,$2,$5,1,$3,$3,$4)',[normalBill,kind,amount,order,kind])
+  }
+  await asAdmin('update public.bills set finalized_at=now(),revision=1 where id=$1',[normalBill])
+  for (const amount of [100,300,1000,3945]) {
+    const [{ id: dp }] = await as(landlord,'select public.demo_record_payment($1,$2,$3,\'cash\',$4,$5) as id',[id,demoBill,amount,s.today,crypto.randomUUID()])
+    const [{ id: pp }] = await as(landlord,'select public.record_payment($1,$2,\'cash\',$3,p_request_id:=$4) as id',[normalBill,amount,s.today,crypto.randomUUID()])
+    const normal = await asAdmin('select kind,amount from public.payment_allocations where payment_id=$1 order by kind',[pp])
+    const demo = await asAdmin('select kind,amount from rentlio_demo.payment_allocations where batch_id=$1 and payment_id=$2 order by kind',[id,dp])
+    assert.deepEqual(demo,normal)
+    const [{ receipt }] = await as(landlord,'select public.payment_receipt($1) as receipt',[pp])
+    const payment = (await demoGet(id)).payments.find(p=>p.id===dp)
+    assert.equal(payment.balance_before,receipt.balance_before)
+    assert.equal(payment.balance_after,receipt.balance_after)
+  }
+  const end = await demoGet(id)
+  await as(landlord,'select public.demo_delete_batch($1,$2)',[id,end.batch.revision])
+})
+
+await test('only the landlord can edit an active move-in date, without overlapping past tenancies', async () => {
+  const [{ id: tenant }] = await as(landlord, "select public.create_manual_tenant('Move-in edit fixture') as id")
+  const [{ id: previousTenant }] = await as(landlord, "select public.create_manual_tenant('Previous move-in fixture') as id")
+  const [{ id: room }] = await as(landlord, "insert into public.rooms(room_number,monthly_rent) values('TEST-START',5000) returning id")
+  const [{ id: previousRoom }] = await as(landlord, "insert into public.rooms(room_number,monthly_rent) values('TEST-START-PREV',5000) returning id")
+  const [{ id: previousLease }] = await as(landlord, "select public.assign_tenant($1,$2,'2026-01-01',5000) as id", [previousTenant, room])
+  await as(landlord, "select public.end_lease($1,'2026-03-15')", [previousLease])
+  const [{ id: tenantHistory }] = await as(landlord, "select public.assign_tenant($1,$2,'2026-01-01',5000) as id", [tenant, previousRoom])
+  await as(landlord, "select public.end_lease($1,'2026-04-15')", [tenantHistory])
+  const [{ id: lease }] = await as(landlord, "select public.assign_tenant($1,$2,'2026-05-01',5000) as id", [tenant, room])
+
+  await rejects(as(null, "select public.update_lease_start_date($1,'2026-05-10')", [lease]), /permission denied/)
+  await rejects(as(alice, "select public.update_lease_start_date($1,'2026-05-10')", [lease]), /Only the landlord/)
+  await rejects(as(landlord, 'select public.update_lease_start_date($1,null)', [lease]), /valid move-in date/)
+  await rejects(as(landlord, "select public.update_lease_start_date($1,'infinity')", [lease]), /valid move-in date/)
+  await rejects(as(landlord, "select public.update_lease_start_date($1,'2026-05-10')", [previousLease]), /Active lease not found/)
+  await rejects(as(landlord, "select public.update_lease_start_date($1,'2026-05-10')", [crypto.randomUUID()]), /Active lease not found/)
+  await rejects(as(landlord, "select public.update_lease_start_date($1,'2026-03-01')", [lease]), /room already has a tenancy that overlaps/)
+  await rejects(as(landlord, "select public.update_lease_start_date($1,'2026-04-01')", [lease]), /tenant already has a tenancy that overlaps/)
+  const [unchanged] = await asAdmin('select start_date::text from public.leases where id=$1', [lease])
+  assert.equal(unchanged.start_date, '2026-05-01')
+  // Matching the previous tenancy's last day is an allowed same-day handover.
+  await as(landlord, "select public.update_lease_start_date($1,'2026-04-15')", [lease])
+  const [updated] = await as(landlord, 'select lease_start_date::text from public.tenant_overview where id=$1', [tenant])
+  assert.equal(updated.lease_start_date, '2026-04-15')
+})
+
+await test('editing move-in preserves recorded finances and changes future billing anniversaries', async () => {
+  const [{ id: tenant }] = await as(landlord, "select public.create_manual_tenant('Move-in billing fixture') as id")
+  const [{ id: room }] = await as(landlord, "insert into public.rooms(room_number,monthly_rent) values('TEST-START-BILL',5000) returning id")
+  const [{ id: lease }] = await as(landlord, "select public.assign_tenant($1,$2,'2035-01-10',5000,1000) as id", [tenant, room])
+  await on('2035-01-31', async () => {
+    await as(landlord, "select public.generate_bills('2035-01-01')")
+    const [{ id: billId }] = await asAdmin('select id from public.bills where lease_id=$1', [lease])
+    await as(landlord, 'select public.finalize_bill($1,true)', [billId])
+    await as(landlord, "select public.record_payment($1,100,'cash','2035-01-10')", [billId])
+    const beforeBill = await bill(billId)
+    const beforePayments = await asAdmin('select * from public.payments where bill_id=$1', [billId])
+    const beforeDeposits = await asAdmin('select * from public.deposit_transactions where lease_id=$1', [lease])
+    await as(landlord, "select public.update_lease_start_date($1,'2035-01-31')", [lease])
+    assert.deepEqual(await bill(billId), beforeBill)
+    assert.deepEqual(await asAdmin('select * from public.payments where bill_id=$1', [billId]), beforePayments)
+    assert.deepEqual(await asAdmin('select * from public.deposit_transactions where lease_id=$1', [lease]), beforeDeposits)
+  })
+  await on('2035-02-27', () => as(landlord, "select public.generate_bills('2035-02-01')"))
+  assert.equal((await asAdmin("select id from public.bills where lease_id=$1 and period='2035-02-01'", [lease])).length, 0)
+  await on('2035-02-28', () => as(landlord, "select public.generate_bills('2035-02-01')"))
+  await on('2035-03-31', () => as(landlord, "select public.generate_bills('2035-03-01')"))
+  const dates = await asAdmin('select issue_date::text,due_date::text from public.bills where lease_id=$1 order by period', [lease])
+  assert.deepEqual(dates, [
+    { issue_date: '2035-01-10', due_date: '2035-01-10' },
+    { issue_date: '2035-02-28', due_date: '2035-02-28' },
+    { issue_date: '2035-03-31', due_date: '2035-03-31' },
+  ])
+})
+
+await test('manual income/expense retries record one transaction and reject changed or deleted reuse', async () => {
+  await on('2035-04-15', async () => {
+    const request = crypto.randomUUID()
+    const sql = "select public.save_financial_transaction_once($1,'expense',$2,'Repairs','2035-04-15','Retry-safe repair','cash') as id"
+    await rejects(as(alice, sql, [request, 12.35]), /Only the landlord/)
+    await rejects(as(landlord, sql, [null, 12.35]), /submission ID/)
+    const [{ id }] = await as(landlord, sql, [request, 12.35])
+    assert.equal((await as(landlord, sql, [request, 12.35]))[0].id, id)
+    const rows = await asAdmin('select amount from public.financial_transaction_overview where id=$1', [id])
+    assert.equal(rows.length, 1)
+    assert.equal(num(rows[0].amount), 12.35)
+    await rejects(as(landlord, sql, [request, 20]), /already used/)
+    await as(landlord, 'select public.delete_financial_transaction($1)', [id])
+    await rejects(as(landlord, sql, [request, 12.35]), /already used/)
+    assert.equal((await asAdmin('select id from public.financial_transaction_overview where id=$1', [id])).length, 0)
+    await rejects(as(landlord, "select public.save_financial_transaction_once($1,'income',10,'Other Income','2035-04-16','Future entry','cash')", [crypto.randomUUID()]), /cannot be in the future/)
+  })
+})
+
+await test('only the service role can claim one provider session creation per checkout', async () => {
+  const tenant = await invite('checkout-claim@example.com', 'Checkout claim fixture')
+  const [{ id: room }] = await as(landlord, "insert into public.rooms(room_number,monthly_rent) values('TEST-CLAIM',5000) returning id")
+  const [{ id: lease }] = await as(landlord, "select public.assign_tenant($1,$2,'2035-06-01',5000) as id", [tenant, room])
+  await on('2035-06-01', async () => {
+    await as(landlord, "select public.generate_bills('2035-06-01')")
+    const [{ id: billId }] = await asAdmin('select id from public.bills where lease_id=$1', [lease])
+    await as(landlord, 'select public.finalize_bill($1,true)', [billId])
+    await as(landlord, 'update public.app_settings set online_payments_enabled=true')
+    const [checkout] = await as(tenant, 'select * from public.start_online_payment($1,100)', [billId])
+    const [retry] = await as(tenant, 'select * from public.start_online_payment($1,100)', [billId])
+    assert.equal(checkout.id, retry.id)
+    for (const user of [null, tenant, landlord]) {
+      await rejects(as(user, 'select public._claim_checkout_creation($1)', [checkout.id]), /permission denied/)
+    }
+    assert.equal((await asSystem('select public._claim_checkout_creation($1) as claimed', [checkout.id]))[0].claimed, true)
+    assert.equal((await asSystem('select public._claim_checkout_creation($1) as claimed', [checkout.id]))[0].claimed, false)
+    assert.equal((await asSystem('select public._claim_checkout_creation($1) as claimed', [crypto.randomUUID()]))[0].claimed, false)
+    await as(tenant, 'select public.cancel_online_payment($1)', [checkout.id])
+    assert.equal((await asSystem('select public._claim_checkout_creation($1) as claimed', [checkout.id]))[0].claimed, false)
+  })
+})
+
+await test('security catalog has RLS on every app table and no anonymous security-definer access', async () => {
+  const tables = await asAdmin("select c.relname from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' and not c.relrowsecurity")
+  assert.deepEqual(tables, [])
+  const functions = await asAdmin("select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prosecdef and has_function_privilege('anon',p.oid,'execute')")
+  assert.deepEqual(functions, [])
+  const paths = await asAdmin("select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prosecdef and not coalesce(p.proconfig @> array['search_path=\"\"'],false)")
+  assert.deepEqual(paths, [])
+})
+
+await test('one Supabase project cannot silently acquire a second landlord', async () => {
+  await rejects(asAdmin("insert into public.profiles(id,user_id,role,full_name,email) values($1,$1,'landlord','Another owner','another-owner@example.com')", [stray]), /profiles_single_landlord/)
+})
+
+await test('saving a room with invalid beds rolls back both new rooms and existing room edits', async () => {
+  const [{ id: room }] = await as(landlord, "insert into public.rooms(room_number,monthly_rent) values('TEST-ATOMIC-ROOM',5000) returning id")
+  const args = ['TEST-ATOMIC-ROOM', 2, 6000, 2, 'Updated room', false, ['aircon'], JSON.stringify([{ bed_type_id: crypto.randomUUID(), quantity: 1 }]), room]
+  const sql = 'select public.save_room_with_beds($1,$2::smallint,$3,$4::smallint,$5,$6,$7,$8,$9) as id'
+  await rejects(as(alice, sql, args), /Only the landlord/)
+  const before = await asAdmin('select * from public.rooms where id=$1', [room])
+  await rejects(as(landlord, sql, args), /foreign key|bed type/i)
+  assert.deepEqual(await asAdmin('select * from public.rooms where id=$1', [room]), before)
+  await rejects(as(landlord, sql, ['TEST-ATOMIC-NEW', ...args.slice(1, 8), null]), /foreign key|bed type/i)
+  assert.equal((await asAdmin("select id from public.rooms where room_number='TEST-ATOMIC-NEW'")).length, 0)
+  args[7] = '[]'
+  assert.equal((await as(landlord, sql, args))[0].id, room)
+  const [updated] = await asAdmin('select monthly_rent,capacity from public.rooms where id=$1', [room])
+  assert.equal(num(updated.monthly_rent), 6000)
+  assert.equal(updated.capacity, 2)
+})
+
+await test('the release audit returns metadata and violation counts without changing any records or sequences', async () => {
+  const before = await publicState()
+  const results = await db.exec(readFileSync(join(migrationsDir, '..', 'audits', 'prepush-readiness.sql'), 'utf8'))
+  const report = results.flatMap(result => result.rows).find(row => row.production_readiness)?.production_readiness
+  assert.equal(report.read_only, 'on')
+  assert.equal(report.single_landlord, true)
+  for (const key of ['tables_without_rls', 'anonymous_definer_functions', 'unsafe_definer_search_paths', 'views_without_invoker_security']) assert.deepEqual(report[key], [])
+  assert.ok(Object.values(report.required_rpcs).every(Boolean))
+  assert.ok(Object.values(report.financial_violations).every(value => Number.isInteger(value)))
+  assert.deepEqual(await publicState(), before)
+})
+
+await test('readiness migration refuses unexpected replacement definitions before changing schema or records', async () => {
+  const before = await publicState()
+  // After the upgrade the function bodies differ from the pre-upgrade hashes.
+  // Reapplying must stop at the preflight, before any column/index changes.
+  try {
+    await rejects(db.exec(readFileSync(join(migrationsDir, '20261026000300_production_readiness.sql'), 'utf8')), /schema drift/)
+  } finally {
+    await db.exec('rollback')
+  }
+  assert.deepEqual(await publicState(), before)
+})
+
 console.log(`\n${passed} passed${process.exitCode ? ', some FAILED' : ''}\n`)

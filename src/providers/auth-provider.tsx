@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
+import { getErrorMessage } from '@/lib/errors'
+import { createSessionHandler } from '@/lib/auth-session'
 import { AuthContext, type AuthState, type BlockedReason, type Profile, type Registration } from './auth-context'
 
 interface Account {
@@ -40,14 +43,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // different user while the new one loads.
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [attempt, setAttempt] = useState(0)
+  const activeUserId = useRef<string | null>(null)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session))
     // Keep this callback synchronous: awaiting Supabase calls inside it can deadlock
-    // the auth client. Profile loading happens in the effect below.
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next))
+    // the auth client. INITIAL_SESSION also provides the persisted session.
+    const { data } = supabase.auth.onAuthStateChange(createSessionHandler<Session>(() => {
+      // Includes expiry and sign-out/account changes from another tab. Cached
+      // tenant data must never survive an identity change, even for 30 seconds.
+      queryClient.clear()
+      setLoaded(null)
+    }, next => {
+      activeUserId.current = next?.user.id ?? null
+      setSession(next)
+    }))
     return () => data.subscription.unsubscribe()
-  }, [])
+  }, [queryClient])
 
   // Re-fetch only when the signed-in user changes (or on retry), not on token refresh.
   const userId = session?.user.id
@@ -63,7 +74,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [userId, attempt])
 
   const refreshProfile = useCallback(async () => {
-    if (userId) setLoaded({ userId, account: await fetchAccount(userId), error: null })
+    if (!userId) return
+    const account = await fetchAccount(userId)
+    if (activeUserId.current === userId) setLoaded({ userId, account, error: null })
   }, [userId])
 
   const retry = useCallback(() => {
@@ -72,8 +85,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut()
-    queryClient.clear()
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+      queryClient.clear()
+    } catch (error) {
+      toast.error(getErrorMessage(error))
+    }
   }, [queryClient])
 
   const state = useMemo<AuthState>(() => {

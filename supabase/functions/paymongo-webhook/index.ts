@@ -34,8 +34,9 @@ Deno.serve(async (req) => {
   try {
     const session = await getCheckoutSession(sessionId)
     const admin = adminClient()
-    const { data: settings } = await admin.from('app_settings').select('timezone').single()
-    const timeZone = settings?.timezone ?? 'Asia/Manila'
+    const { data: settings, error: settingsError } = await admin.from('app_settings').select('timezone').single()
+    if (settingsError || !settings) throw new Error('Could not load the property timezone')
+    const timeZone = settings.timezone
 
     const recorded: string[] = []
     for (const payment of session.attributes.payments ?? []) {
@@ -45,7 +46,7 @@ Deno.serve(async (req) => {
         p_provider: 'paymongo',
         p_session_id: session.id,
         p_provider_payment_id: payment.id,
-        p_amount: fromCentavos(payment.attributes.amount),
+        p_amount: fromCentavos(payment.attributes.amount, payment.attributes.currency),
         p_method: methodFrom(payment.attributes.source?.type ?? session.attributes.payment_method_used),
         // en-CA formats as YYYY-MM-DD.
         p_paid_on: paidAt.toLocaleDateString('en-CA', { timeZone }),

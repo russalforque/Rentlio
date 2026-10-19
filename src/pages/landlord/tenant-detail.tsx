@@ -56,6 +56,7 @@ import {
   EndLeaseDialog,
   LeaseOccupantsDialog,
   LeaseRentDialog,
+  LeaseStartDateDialog,
   MoveRoomDialog,
 } from '@/features/tenants/tenancy-dialogs'
 import { TenantStatusBadge } from '@/features/tenants/tenant-status-badge'
@@ -71,6 +72,7 @@ type DialogName =
   | 'move'
   | 'end'
   | 'rent'
+  | 'start-date'
   | 'occupants'
   | 'deposit'
   | 'deactivate'
@@ -142,7 +144,18 @@ function CurrentRoomCard({
       </CardHeader>
       <CardContent className="space-y-5">
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <Detail label="Since">{formatDate(tenant.lease_start_date)}</Detail>
+          <Detail label="Move-in date">
+            <button
+              type="button"
+              onClick={() => open('start-date')}
+              className="inline-flex items-center gap-1.5 underline-offset-2 hover:underline"
+              aria-label="Edit move-in date"
+              title="Edit move-in date"
+            >
+              {formatDate(tenant.lease_start_date)}
+              <Pencil className="size-3.5 text-muted-foreground" />
+            </button>
+          </Detail>
           <Detail label="Next payment due">
             {tenant.lease_start_date ? nextLeaseDueDate(tenant.lease_start_date, todayISO(new Date(), settings.data?.timezone)) : '—'}
           </Detail>
@@ -580,6 +593,7 @@ export function TenantDetailPage() {
       {dialog === 'move' && <MoveRoomDialog tenant={tenant} open onOpenChange={close} />}
       {dialog === 'end' && <EndLeaseDialog tenant={tenant} open onOpenChange={close} />}
       {dialog === 'rent' && <LeaseRentDialog tenant={tenant} open onOpenChange={close} />}
+      {dialog === 'start-date' && <LeaseStartDateDialog tenant={tenant} open onOpenChange={close} />}
       {dialog === 'occupants' && activeLease && (
         <LeaseOccupantsDialog
           tenant={tenant}

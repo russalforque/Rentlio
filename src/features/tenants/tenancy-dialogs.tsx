@@ -31,6 +31,7 @@ import {
   useRecordDeposit,
   useUpdateLeaseOccupants,
   useUpdateLeaseRent,
+  useUpdateLeaseStartDate,
   useUpdateTenantProfile,
   type TenantOverview,
 } from './api'
@@ -323,6 +324,54 @@ export function LeaseRentDialog({ tenant, open, onOpenChange }: DialogProps) {
           <Input id="lease-rent" inputMode="decimal" className="tabular" autoFocus aria-invalid={!!errors.rent} {...register('rent')} />
         </FormField>
         <SubmitButton pending={update.isPending}>Save rent</SubmitButton>
+      </form>
+    </FormDialog>
+  )
+}
+
+const startDateSchema = z.object({ start_date: z.iso.date('Choose a valid move-in date') })
+
+export function LeaseStartDateDialog({ tenant, open, onOpenChange }: DialogProps) {
+  const update = useUpdateLeaseStartDate()
+  const { register, handleSubmit, formState: { errors } } = useForm<z.infer<typeof startDateSchema>>({
+    resolver: zodResolver(startDateSchema),
+    defaultValues: { start_date: tenant.lease_start_date ?? '' },
+  })
+
+  const onSubmit = ({ start_date }: z.infer<typeof startDateSchema>) => {
+    if (!tenant.lease_id) return
+    update.mutate(
+      { leaseId: tenant.lease_id, startDate: start_date },
+      {
+        onSuccess: () => {
+          toast.success('Move-in date updated')
+          onOpenChange(false)
+        },
+        onError: (err) => toast.error(getErrorMessage(err)),
+      },
+    )
+  }
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Edit move-in date"
+      description="Future bills follow the new move-in anniversary. Existing bills and recorded payments stay unchanged."
+    >
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid gap-4">
+        <FormField id="lease-start-date" label="Move-in date" error={errors.start_date?.message}>
+          <Input
+            id="lease-start-date"
+            type="date"
+            autoFocus
+            disabled={update.isPending}
+            aria-invalid={!!errors.start_date}
+            aria-describedby={errors.start_date ? 'lease-start-date-error' : undefined}
+            {...register('start_date')}
+          />
+        </FormField>
+        <SubmitButton pending={update.isPending}>Save move-in date</SubmitButton>
       </form>
     </FormDialog>
   )

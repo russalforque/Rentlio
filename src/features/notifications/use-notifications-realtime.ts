@@ -5,7 +5,7 @@ import { bumpUnread, notificationKeys, patchNotifications, prependNotification, 
 
 /** Data on screen that a new notice of each category means has changed. */
 const STALE_BY_CATEGORY: Record<NotificationCategory, QueryKey[]> = {
-  payment: [['payments'], ['billing']],
+  payment: [['payments'], ['billing'], ['finances'], ['tenants'], ['rooms'], ['dashboard']],
   billing: [['billing']],
   account: [['registrations'], ['tenants']],
   rental: [['portal'], ['tenants'], ['rooms']],

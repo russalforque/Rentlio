@@ -37,4 +37,4 @@ export const optionalMoneyInput = () =>
     .transform((v) => (v === '' ? null : Number(v.replace(/,/g, ''))))
 
 export const dateInput = (label = 'date') =>
-  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, `Choose a ${label}`)
+  z.iso.date(`Choose a valid ${label}`)

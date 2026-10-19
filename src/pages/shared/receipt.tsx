@@ -3,6 +3,8 @@ import { useEffect, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { BrandMark } from '@/components/app/brand'
 import { EmptyState, ErrorState } from '@/components/app/states'
+import { TenantIllustration } from '@/components/app/tenant-illustration'
+import noReceiptsIllustration from '@/assets/empty_no_receipts.png'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { METHOD_LABEL, usePaymentReceipt } from '@/features/payments/api'
@@ -215,6 +217,9 @@ export function ReceiptPage() {
         ) : !r ? (
           <EmptyState
             icon={ReceiptText}
+            illustration={profile.role === 'tenant'
+              ? <TenantIllustration src={noReceiptsIllustration} width={153} height={144} decorative loading="eager" className="mb-4" />
+              : undefined}
             title="Receipt not found"
             description="Receipts exist only for verified payments on your own bills."
             action={

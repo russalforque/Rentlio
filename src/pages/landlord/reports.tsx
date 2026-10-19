@@ -291,7 +291,7 @@ function ArrearsCard({ currency }: { currency: string }) {
 }
 
 function OccupancyCard({ currency }: { currency: string }) {
-  const { data, isPending } = useRoomOverview()
+  const { data, isPending, error, refetch } = useRoomOverview()
   const rooms = data ?? []
   const occupied = rooms.filter((r) => r.occupancy === 'occupied')
   const vacant = rooms.filter((r) => r.occupancy === 'vacant')
@@ -302,7 +302,9 @@ function OccupancyCard({ currency }: { currency: string }) {
 
   return (
     <Panel title="Occupancy" description="Current snapshot" className="h-full">
-      {isPending ? (
+      {error ? (
+        <ErrorState error={error} onRetry={() => refetch()} />
+      ) : isPending ? (
         <Skeleton className="h-32" />
       ) : (
         <div className="space-y-5">
@@ -338,9 +340,12 @@ function OccupancyCard({ currency }: { currency: string }) {
 
 export function ReportsPage() {
   const currency = useCurrency()
-  const { totals, isPending } = useMonths()
+  const { totals, isPending, error, refetch } = useMonths()
   const arrears = useArrears()
   const owed = arrears.rows.reduce((t, r) => t + r.amount, 0)
+  if (error || arrears.error) {
+    return <ErrorState error={error ?? arrears.error} onRetry={() => Promise.all([refetch(), arrears.refetch()])} />
+  }
 
   return (
     <div className="space-y-5">

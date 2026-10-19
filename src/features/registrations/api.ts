@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { tenantKeys } from '@/features/tenants/api'
 import type { Enums, Tables } from '@/lib/database.types'
 import { supabase } from '@/lib/supabase'
+import { fetchAllRows } from '@/lib/pagination'
 
 export type RegistrationRequest = Tables<'registration_requests'>
 export type AuditEntry = Tables<'account_audit_log'>
@@ -17,15 +18,12 @@ export const registrationKeys = {
 export function useRegistrations() {
   return useQuery({
     queryKey: registrationKeys.list(),
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchAllRows((from, to) => supabase
         .from('registration_requests')
-        .select('*')
+        .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
-        .limit(500)
-      if (error) throw error
-      return data
-    },
+        .order('id')
+        .range(from, to)),
   })
 }
 

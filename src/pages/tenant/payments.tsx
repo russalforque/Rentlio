@@ -1,7 +1,10 @@
 import { CheckCircle2, Eye, FileText, Hourglass, Wallet, XCircle } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { PageHeader } from '@/components/app/page-header'
+import { TenantPageHeader } from '@/components/app/tenant-page-header'
+import { TenantIllustration } from '@/components/app/tenant-illustration'
+import paymentsIllustration from '@/assets/payments.png'
+import noPaymentsIllustration from '@/assets/empty_no_payments.png'
 import { Panel, StatGrid, StatTile } from '@/components/app/panel'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
@@ -21,10 +24,11 @@ export function TenantPaymentsPage() {
   const rejected = (data ?? []).filter((p) => p.status === 'rejected').length
 
   return (
-    <div className="tenant-page space-y-6">
-      <PageHeader
+    <div className="tenant-page tenant-payments-page @container space-y-5 sm:space-y-6">
+      <TenantPageHeader
         title="Payment history"
         description="Every payment you have made or submitted."
+        actions={!isPending && !error && !!data?.length && <TenantIllustration src={paymentsIllustration} width={185} height={239} decorative size="thumbnail" />}
       />
       {error ? (
         <ErrorState error={error} onRetry={() => refetch()} />
@@ -33,13 +37,14 @@ export function TenantPaymentsPage() {
       ) : data.length === 0 ? (
         <EmptyState
           icon={Wallet}
+          illustration={<TenantIllustration src={noPaymentsIllustration} width={148} height={145} decorative loading="eager" className="mb-4" />}
           title="No payments yet"
           description="Pay a bill from the Bills page and upload your proof of payment."
           action={<Button asChild><Link to="/my/bills">Go to bills</Link></Button>}
         />
       ) : (
         <>
-        <StatGrid className="lg:grid-cols-3">
+        <StatGrid className="tenant-stat-grid lg:grid-cols-3">
           <StatTile label="Verified" value={formatMoney(verified, currency)} icon={CheckCircle2} sub={<span className="text-xs text-muted-foreground">Counted toward your bills</span>} />
           <StatTile
             label="Awaiting check"
@@ -59,11 +64,11 @@ export function TenantPaymentsPage() {
         <Panel title="All payments" description={`${data.length} ${data.length === 1 ? 'payment' : 'payments'}`} flush>
         <ul className="divide-y border-t">
           {data.map((p) => (
-            <li key={p.id} className="px-5 py-3.5">
+            <li key={p.id} className="tenant-list-row">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[15px] font-semibold tabular md:text-[13px]">{formatMoney(p.amount, currency)}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs leading-relaxed break-words text-muted-foreground">
                     <Link to={`/my/bills/${p.bill_id}`} className="hover:text-foreground hover:underline">
                       {formatPeriod(p.period)} bill
                     </Link>{' '}
@@ -71,7 +76,7 @@ export function TenantPaymentsPage() {
                     {p.provider ? ' · paid online' : p.reference_number && ` · Ref ${p.reference_number}`}
                   </p>
                 </div>
-                <PaymentStatusBadge status={p.status} />
+                <PaymentStatusBadge status={p.status} className="max-w-[45%] shrink-0 text-right whitespace-normal" />
               </div>
               {p.rejection_reason && (
                 <p className="mt-2 rounded-lg bg-destructive/5 px-3 py-2 text-xs text-destructive">
@@ -102,7 +107,7 @@ export function TenantPaymentsPage() {
       )}
 
       <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
-        <DialogContent className="max-h-[94dvh] overflow-y-auto sm:max-w-xl">
+        <DialogContent className="tenant-dialog max-h-[94dvh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Proof of payment</DialogTitle>
             <DialogDescription>
