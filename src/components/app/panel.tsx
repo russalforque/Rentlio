@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import { ChevronRight, Search, TrendingDown, TrendingUp } from 'lucide-react'
-import { useId, type ComponentProps, type ReactNode } from 'react'
+import { useContext, useId, type ComponentProps, type KeyboardEvent, type ReactNode } from 'react'
+import { LandlordWorkspace } from './workspace-context'
 import { Link } from 'react-router'
 import { cn } from '@/lib/utils'
 
@@ -85,7 +86,7 @@ const CHIP: Record<Accent, string> = {
 /** Solid rounded square with a white glyph, as on the stat cards. */
 export function IconChip({ icon: Icon, accent, className }: { icon: LucideIcon; accent: Accent; className?: string }) {
   return (
-    <span className={cn('grid size-8 shrink-0 place-items-center rounded-lg text-white shadow-xs', CHIP[accent], className)} aria-hidden>
+    <span className={cn('icon-chip grid size-8 shrink-0 place-items-center rounded-lg text-white shadow-xs', CHIP[accent], className)} aria-hidden>
       <Icon className="size-4" strokeWidth={2} />
     </span>
   )
@@ -128,14 +129,15 @@ interface StatTileProps {
 
 /** KPI cell in a <StatGrid> strip: quiet label and icon, a large figure, a note below. */
 export function StatTile({ label, value, icon: Icon, sub, to, children }: StatTileProps) {
+  const landlord = useContext(LandlordWorkspace)
   const body = (
     <>
       <span className="flex items-center justify-between gap-2">
         <span className="truncate text-[13px] font-medium text-muted-foreground">{label}</span>
         <Icon className="size-4 shrink-0 text-muted-foreground/70 transition-colors group-hover:text-foreground" aria-hidden />
       </span>
-      <span className="mt-2 block truncate text-[22px] leading-tight font-semibold tracking-tight min-[400px]:text-2xl sm:text-[28px]">{value}</span>
-      {sub && <span className="mt-1.5 block min-w-0 truncate">{sub}</span>}
+      <span title={value} className={cn('stat-value mt-2 block text-[22px] leading-tight font-semibold tracking-tight min-[400px]:text-2xl sm:text-[28px]', !landlord && 'truncate')}>{value}</span>
+      {sub && <span className={cn('stat-note mt-1.5 block min-w-0', !landlord && 'truncate')}>{sub}</span>}
       {children && <span className="mt-auto block pt-4">{children}</span>}
     </>
   )
@@ -245,16 +247,29 @@ interface SegmentedProps<T extends string> {
   onChange: (v: T) => void
 }
 
+function navigateRadioGroup(event: KeyboardEvent<HTMLDivElement>) {
+  if (!['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+  const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="radio"]:not(:disabled)')]
+  const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
+  if (index < 0 || !buttons.length) return
+  event.preventDefault()
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+    : (index + (event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1) + buttons.length) % buttons.length
+  buttons[next]?.focus()
+  buttons[next]?.click()
+}
+
 /** Small pill switch, e.g. "6M / 12M". */
 export function Segmented<T extends string>({ label, value, options, onChange }: SegmentedProps<T>) {
   return (
-    <div role="radiogroup" aria-label={label} className="flex rounded-lg bg-muted p-0.5">
+    <div role="radiogroup" aria-label={label} onKeyDown={navigateRadioGroup} className="flex rounded-lg bg-muted p-0.5">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           role="radio"
           aria-checked={value === o.value}
+          tabIndex={value === o.value ? 0 : -1}
           onClick={() => onChange(o.value)}
           className={cn(
             'h-9 rounded-md px-3 text-[13px] font-medium dense:h-7 dense:px-2.5 dense:text-xs text-muted-foreground transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
@@ -282,7 +297,8 @@ export function FilterChips<T extends string>({ label, value, options, onChange,
     <div
       role="radiogroup"
       aria-label={label}
-      className={cn('-mx-4 flex gap-1 overflow-x-auto px-4 scrollbar-none sm:mx-0 sm:px-0', className)}
+      onKeyDown={navigateRadioGroup}
+      className={cn('workspace-filter -mx-4 flex min-w-0 gap-1 overflow-x-auto px-4 scrollbar-none sm:mx-0 sm:px-0', className)}
     >
       {options.map((o) => {
         const active = value === o.value
@@ -292,6 +308,7 @@ export function FilterChips<T extends string>({ label, value, options, onChange,
             type="button"
             role="radio"
             aria-checked={active}
+            tabIndex={active ? 0 : -1}
             onClick={() => onChange(o.value)}
             className={cn(
               'inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3.5 text-sm dense:h-8 dense:px-3 dense:text-[13px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',

@@ -8,9 +8,10 @@ import { z } from 'zod'
 import { FormField } from '@/components/app/form-field'
 import { NativeSelect } from '@/components/app/native-select'
 import { ErrorState } from '@/components/app/states'
+import { ResponsiveSheet } from '@/components/app/responsive-sheet'
+import { useSheetFormState } from '@/hooks/use-sheet-form-state'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -73,7 +74,7 @@ export function RoomFormDialog({ open, onOpenChange, room }: RoomFormDialogProps
   const [bedTypesOpen, setBedTypesOpen] = useState(false)
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveSheet open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-lg">
           {/* Wait for the room's beds so saving never wipes them; remount per room so defaults are fresh. */}
           {open &&
@@ -102,7 +103,7 @@ export function RoomFormDialog({ open, onOpenChange, room }: RoomFormDialogProps
               />
             ))}
         </DialogContent>
-      </Dialog>
+      </ResponsiveSheet>
       {/* Outside the room form: React bubbles submit events through portals. */}
       <BedTypesDialog open={bedTypesOpen} onOpenChange={setBedTypesOpen} />
     </>
@@ -126,7 +127,7 @@ function RoomForm({ room, beds, electricityMeters, onManageBedTypes, onDone }: R
     register,
     control,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<Input, unknown, Output>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -140,6 +141,7 @@ function RoomForm({ room, beds, electricityMeters, onManageBedTypes, onDone }: R
       beds: beds.map((b) => ({ bed_type_id: b.bed_type_id, quantity: String(b.quantity) })),
     },
   })
+  useSheetFormState(isDirty, save.isPending || remove.isPending)
   const bedRows = useFieldArray({ control, name: 'beds' })
 
   const onSubmit = ({ beds: newBeds, ...values }: Output) =>

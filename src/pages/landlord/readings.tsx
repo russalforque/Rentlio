@@ -1,8 +1,9 @@
 import { Gauge, Loader2, Save } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
+import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
 import { PageHeader } from '@/components/app/page-header'
-import { Meter, StatusPill } from '@/components/app/panel'
+import { FilterChips, Meter, SearchField, StatusPill } from '@/components/app/panel'
 import { PeriodPicker } from '@/components/app/period-picker'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { NativeSelect } from '@/components/app/native-select'
@@ -124,7 +125,7 @@ function MeterInputs({
   const needsReview = lower && event === 'review'
   const used = usage(prev, curr, event, rolloverAt)
   return (
-    <fieldset className="min-w-0">
+    <fieldset className="min-w-0" aria-describedby={`${idPrefix}-usage`}>
       <legend className="mb-1.5 w-full text-xs font-semibold text-muted-foreground">
         {label} meter · cumulative readings
       </legend>
@@ -207,9 +208,9 @@ function MeterInputs({
         </div>
       )}
       {error ? (
-        <p className="mt-1 text-[12px] text-destructive">{error}</p>
+        <p id={`${idPrefix}-usage`} role="alert" className="mt-1 text-[12px] text-destructive">{error}</p>
       ) : (
-        <p className="mt-1 text-[12px] tabular text-muted-foreground">
+        <p id={`${idPrefix}-usage`} className="mt-1 text-[12px] tabular text-muted-foreground">
           {used !== null
             ? `Monthly consumption ${used.toLocaleString()} ${unit} · ${formatMoney(electricityCharge(used, rate), currency)}`
             : needsReview || event === 'review'
@@ -239,6 +240,8 @@ function ReadingGrid({
 }) {
   const save = useRecordReadings()
   const [showAll, setShowAll] = useState(false)
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState<'all' | 'missing' | 'changed'>('all')
   const initial = useMemo(
     () =>
       Object.fromEntries(
@@ -368,7 +371,6 @@ function ReadingGrid({
     })
   }
 
-  const visible = rows.filter((r) => showAll || r.is_billable || r.reading_id)
   const changed = rows.filter((r) =>
     r.electricity_meters.some((meter) => {
       const values = drafts[r.room_id]?.meters[meter]
@@ -381,6 +383,7 @@ function ReadingGrid({
       )
     }),
   )
+  useUnsavedChanges(changed.length > 0)
   const invalid = changed.some((r) => {
     const d = drafts[r.room_id]
     if (!d) return true
@@ -405,6 +408,11 @@ function ReadingGrid({
     )
   }
   const readCount = billable.filter(isRead).length
+  const changedIds = new Set(changed.map((room) => room.room_id))
+  const query = search.trim().toLowerCase()
+  const visible = rows.filter((room) => (showAll || room.is_billable || room.reading_id)
+    && `${room.room_number} ${room.tenant_name ?? ''}`.toLowerCase().includes(query)
+    && (filter === 'all' || (filter === 'changed' ? changedIds.has(room.room_id) : room.is_billable && !isRead(room) && !room.bill_finalized)))
 
   const onSave = () => {
     const readings: ReadingInput[] = changed.map((r) => {
@@ -448,7 +456,7 @@ function ReadingGrid({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-unsaved-readings={changed.length > 0}>
       <section aria-label="Progress" className="surface flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-6 sm:p-5">
         <div className="shrink-0">
           <p className="text-[13px] font-medium text-muted-foreground">Rooms read</p>
@@ -479,8 +487,17 @@ function ReadingGrid({
         </div>
       </div>
 
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <FilterChips label="Filter meter readings" value={filter} onChange={setFilter} options={[
+          { value: 'all', label: 'All rooms' },
+          { value: 'missing', label: 'Incomplete', count: billable.filter((room) => !isRead(room) && !room.bill_finalized).length },
+          { value: 'changed', label: 'Unsaved', count: changed.length },
+        ]} />
+        <SearchField aria-label="Find a room for readings" placeholder="Find room or tenant…" value={search} onChange={(event) => setSearch(event.target.value)} className="w-full sm:w-64" />
+      </div>
+
       {visible.length === 0 ? (
-        <EmptyState icon={Gauge} title="No occupied rooms this month" description="Readings are needed only for occupied rooms." />
+        <EmptyState icon={Gauge} title={query || filter !== 'all' ? 'No rooms match this view' : 'No occupied rooms this month'} description={query || filter !== 'all' ? 'Clear the search or choose All rooms to see the full reading sheet.' : 'Readings are needed only for occupied rooms.'} />
       ) : (
         <ul className="grid grid-cols-1 gap-3">
           {visible.map((r) => {
@@ -526,14 +543,14 @@ function ReadingGrid({
                   </p>
                 ) : (
                   <div className="grid gap-3">
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
                       {METERS.filter(({ id }) => activeMeters.includes(id)).map(({ id, label }) => {
                         const value = d.meters[id]
                         return (
                           <MeterInputs
                             key={id}
                             idPrefix={`e-${id}-${r.room_id}`}
-                            disabled={r.bill_finalized}
+                            disabled={r.bill_finalized || save.isPending}
                             label={label}
                             unit="kWh"
                             rate={settings.electricity_rate}
@@ -585,13 +602,14 @@ function ReadingGrid({
 
 export function ReadingsPage() {
   const [period, setPeriod] = usePeriodParam()
-  const sheet = useReadingSheet(period)
+  const sheet = useReadingSheet(period, true)
   const settings = useSettings()
   const error = sheet.error ?? settings.error
 
   return (
     <div className="space-y-5">
       <PageHeader
+        eyebrow="BILLING / UTILITIES"
         title="Meter readings"
         description={`Electricity readings for ${formatPeriod(period)}. Water is billed per person; draft bills update when readings are saved, and bills already sent are locked.`}
       />

@@ -4,6 +4,9 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { toast } from 'sonner'
 import { ColumnChart } from '@/components/app/column-chart'
+import { ConfirmDialog } from '@/components/app/confirm-dialog'
+import { CashOverview } from '@/features/finances/cash-overview'
+import { RecordPaymentButton } from '@/features/payments/record-payment-button'
 import { Fab } from '@/components/app/fab'
 import { PageHeader } from '@/components/app/page-header'
 import { IconChip, Panel, StatGrid, StatTile } from '@/components/app/panel'
@@ -51,7 +54,7 @@ function TransactionRow({
   const isManual = item.source === 'manual'
   const receipt = useFinanceReceiptUrl(item.receipt_path)
   return (
-    <li className="flex min-w-0 items-start gap-3 border-b px-4 py-3 last:border-b-0 sm:px-5">
+    <li className="finance-row flex min-w-0 items-start gap-3 border-b px-4 py-3 last:border-b-0 sm:px-5">
       <span className={`mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl ${income ? 'bg-success/10 text-success' : 'bg-destructive/8 text-destructive'}`}>
         {income ? <ArrowDownRight className="size-4" /> : <ArrowUpRight className="size-4" />}
       </span>
@@ -84,7 +87,7 @@ function TransactionRow({
         {item.receipt_path && receipt.error && <p className="mt-1 text-xs text-destructive">Receipt could not be loaded.</p>}
       </div>
       {isManual && (
-        <div className="ml-1 flex shrink-0 items-center gap-1">
+        <div className="finance-row-actions ml-1 flex shrink-0 items-center gap-1">
           <Button variant="ghost" size="sm" className="h-8 px-2 print:hidden" onClick={() => onEdit(item)}>Edit</Button>
           <Button variant="ghost" size="sm" className="h-8 px-2 text-destructive hover:text-destructive print:hidden" onClick={() => onDelete(item)}>Delete</Button>
         </div>
@@ -111,6 +114,7 @@ export function FinancesPage() {
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [sort, setSort] = useState<SortMode>('newest')
+  const [deleting, setDeleting] = useState<FinanceTransaction | null>(null)
 
   const allTransactions = useMemo(() => transactions.data ?? [], [transactions.data])
   const totals = useMemo(() => {
@@ -207,9 +211,8 @@ export function FinancesPage() {
 
   function deleteTransaction(item: FinanceTransaction) {
     if (item.source !== 'manual') return
-    if (!window.confirm(`Delete this ${item.transaction_type} record? It will be removed from totals but retained in the audit history.`)) return
     remove.mutate(item.id, {
-      onSuccess: () => toast.success('Transaction deleted'),
+      onSuccess: () => { setDeleting(null); toast.success('Transaction deleted') },
       onError: (error) => toast.error(getErrorMessage(error)),
     })
   }
@@ -240,9 +243,10 @@ export function FinancesPage() {
         description="A clear view of verified income and day-to-day property expenses."
         actions={
           <div className="flex flex-wrap items-center gap-2 print:hidden">
+            <Button onClick={() => openNew('expense')}><Plus /> Add expense</Button>
             <DailyCashReport />
-            <Button variant="outline" onClick={exportCsv} disabled={!transactions.data}><Download /> <span className="hidden sm:inline">Export CSV</span></Button>
-            <Button variant="outline" onClick={printReport}><Printer /> <span className="hidden sm:inline">Print / PDF</span></Button>
+            <Button variant="outline" aria-label="Export transactions to CSV" onClick={exportCsv} disabled={!transactions.data}><Download /> <span className="hidden sm:inline">Export CSV</span></Button>
+            <Button variant="outline" aria-label="Print or save as PDF" onClick={printReport}><Printer /> <span className="hidden sm:inline">Print / PDF</span></Button>
             <Button className="hidden md:inline-flex" onClick={() => setTypeChooserOpen(true)}><Plus /> Add transaction</Button>
           </div>
         }
@@ -257,7 +261,7 @@ export function FinancesPage() {
           <StatGrid>
             <StatTile label="Total income" value={formatMoney(amountFromCents(totals.income), currency)} icon={ArrowDownRight} sub={`${allTransactions.filter((item) => item.transaction_type === 'income').length} recorded transactions`} />
             <StatTile label="Total expenses" value={formatMoney(amountFromCents(totals.expense), currency)} icon={ArrowUpRight} sub={`${allTransactions.filter((item) => item.transaction_type === 'expense').length} recorded transactions`} />
-            <StatTile label="Net profit" value={formatMoney(amountFromCents(totals.net), currency)} icon={Wallet} sub="Income minus expenses" />
+            <StatTile label="Net income" value={formatMoney(amountFromCents(totals.net), currency)} icon={Wallet} sub="Income minus expenses" />
             <StatTile label="This month" value={formatMoney(amountFromCents(currentMonth.cashFlow), currency)} icon={currentMonth.cashFlow < 0 ? ArrowUpRight : ArrowDownRight} sub={`${formatMoney(amountFromCents(currentMonth.income), currency)} in · ${formatMoney(amountFromCents(currentMonth.expense), currency)} out`} />
           </StatGrid>
 
@@ -300,14 +304,16 @@ export function FinancesPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 @4xl:grid-cols-12">
-            <Panel title="Recent transactions" description="Latest activity across your property" className="@4xl:col-span-5" flush>
+            <CashOverview className="@4xl:col-span-5" />
+            <Panel title="Recent transactions" description="Latest activity across your property" className="@4xl:col-span-7" flush>
               {recent.length ? (
                 <ul>
-                  {recent.map((item) => <TransactionRow key={item.id} item={item} currency={currency} onEdit={edit} onDelete={deleteTransaction} />)}
+                  {recent.map((item) => <TransactionRow key={item.id} item={item} currency={currency} onEdit={edit} onDelete={setDeleting} />)}
                 </ul>
               ) : <p className="px-5 pb-5 text-sm text-muted-foreground">Transactions will appear here as you record income and expenses.</p>}
             </Panel>
-            <Panel title="Quick actions" description="Keep your records up to date" className="@4xl:col-span-7">
+            <Panel title="Quick actions" description="Keep your records up to date" className="@4xl:col-span-12">
+              <div className="mb-3"><RecordPaymentButton variant="outline" /></div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
@@ -315,7 +321,7 @@ export function FinancesPage() {
                   className="flex min-h-24 items-center gap-3 rounded-xl border p-4 text-left transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 >
                   <IconChip icon={ArrowDownRight} accent="green" />
-                  <span><span className="block text-sm font-semibold">Record income</span><span className="mt-1 block text-xs text-muted-foreground">Add rent, utilities, or other income.</span></span>
+                  <span><span className="block text-sm font-semibold">Record income</span><span className="mt-1 block text-xs text-muted-foreground">Record other income outside tenant bills.</span></span>
                 </button>
                 <button
                   type="button"
@@ -392,7 +398,7 @@ export function FinancesPage() {
             </div>
             {filtered.length ? (
               <ul>
-                {filtered.map((item) => <TransactionRow key={item.id} item={item} currency={currency} onEdit={edit} onDelete={deleteTransaction} />)}
+                {filtered.map((item) => <TransactionRow key={item.id} item={item} currency={currency} onEdit={edit} onDelete={setDeleting} />)}
               </ul>
             ) : (
               <div className="px-5 py-12 text-center">
@@ -430,8 +436,9 @@ export function FinancesPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <ConfirmDialog open={!!deleting} onOpenChange={(next) => { if (!next && !remove.isPending) setDeleting(null) }} title="Delete this transaction?" description={deleting ? `${deleting.description} · ${formatMoney(deleting.amount, currency)}. It will be removed from totals and retained in audit history.` : ''} confirmLabel="Delete transaction" destructive pending={remove.isPending} onConfirm={() => { if (deleting) deleteTransaction(deleting) }} />
       {dialogOpen && (
-        <TransactionDialog
+      <TransactionDialog
           key={editing?.id ?? 'new'}
           open={dialogOpen}
           onOpenChange={setDialogOpen}

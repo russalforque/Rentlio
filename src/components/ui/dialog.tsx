@@ -4,6 +4,7 @@ import { XIcon } from "lucide-react"
 import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
+import { LandlordWorkspace } from "@/components/app/workspace-context"
 
 function Dialog({
   ...props
@@ -53,6 +54,7 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  const landlord = React.useContext(LandlordWorkspace)
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -62,6 +64,7 @@ function DialogContent({
           "fixed top-[50%] left-[50%] z-50 grid max-h-[92dvh] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-5 overflow-y-auto rounded-2xl border bg-card p-6 shadow-xl duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 sm:max-w-lg sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:zoom-in-95",
           // Phones: a bottom sheet within thumb reach.
           "max-sm:top-auto max-sm:bottom-0 max-sm:pt-7 max-sm:before:absolute max-sm:before:top-2.5 max-sm:before:left-1/2 max-sm:before:h-1.5 max-sm:before:w-10 max-sm:before:-translate-x-1/2 max-sm:before:rounded-full max-sm:before:bg-muted-foreground/25 max-sm:left-0 max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0 max-sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))] max-sm:data-[state=closed]:slide-out-to-bottom max-sm:data-[state=open]:slide-in-from-bottom",
+          landlord && 'landlord-dialog',
           className
         )}
         {...props}

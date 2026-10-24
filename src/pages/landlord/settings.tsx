@@ -17,6 +17,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { settingsQueryKey, useSettings } from '@/hooks/use-settings'
 import { useSetWaterRate, useWaterRateSchedule } from '@/features/billing/api'
+import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
 import { PaymentAccountSettings } from '@/features/payments/payment-account-settings'
 import { DemoDataSection } from '@/features/demo-data/demo-data-section'
 import type { Tables } from '@/lib/database.types'
@@ -124,6 +125,7 @@ function SettingsForm({ settings }: { settings: Tables<'app_settings'> }) {
       ? `Sent ${stages.join(', ').replace(/, ([^,]*)$/, ' and $1')}, from 8 AM.`
       : 'No reminder stages are on.'
   const submitSettings = handleSubmit((v) => save.mutate(v))
+  useUnsavedChanges(isDirty, 'settings')
 
   return (
     <div className="space-y-8 pb-4 lg:space-y-10">
@@ -414,6 +416,7 @@ export function SettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="WORKSPACE PREFERENCES"
         title="Settings"
         description="Property details, billing schedule and utility rates."
         tabs={

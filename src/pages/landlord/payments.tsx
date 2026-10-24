@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { METHOD_LABEL, usePaymentHistory, usePendingPayments, type PaymentOverview } from '@/features/payments/api'
 import { PaymentStatusBadge } from '@/features/payments/components'
+import { RecordPaymentButton } from '@/features/payments/record-payment-button'
 import { ReviewPaymentDialog } from '@/features/payments/payment-dialogs'
 import { usePeriodParam } from '@/hooks/use-period-param'
 import { useCurrency } from '@/hooks/use-settings'
@@ -133,6 +134,7 @@ function History({ currency }: { currency: string }) {
                   <PaymentStatusBadge status={p.status} />
                 </span>
               </Link>
+              {p.status === 'verified' && <Link to={`/receipts/${p.id}`} className="mx-5 mb-2 inline-flex min-h-10 items-center text-xs font-medium underline-offset-4 hover:underline">View receipt</Link>}
             </li>
           ))}
         </ul>
@@ -206,7 +208,8 @@ export function PaymentsPage() {
     <div className="space-y-5">
       <PageHeader
         title="Payments"
-        description="Verify payment proofs from tenants and browse payment history. To record cash, open the bill."
+        description="Record money received, verify transfer proofs, and find receipts."
+        actions={<RecordPaymentButton />}
         tabs={
           <FilterChips
             label="Payments view"

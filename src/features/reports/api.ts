@@ -31,7 +31,7 @@ export function useOpenBills() {
     queryKey: reportKeys.open,
     queryFn: () => fetchAllRows((from, to) => supabase
         .from('bill_overview')
-        .select('id, period, due_date, tenant_id, tenant_name, room_number, balance, is_overdue, status', { count: 'exact' })
+        .select('id, period, due_date, tenant_id, tenant_name, room_number, balance, pending_amount, is_overdue, status', { count: 'exact' })
         .in('status', ['unpaid', 'partial'])
         .eq('is_finalized', true)
         .order('due_date')

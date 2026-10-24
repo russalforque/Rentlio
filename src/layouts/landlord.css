@@ -1,0 +1,137 @@
+/* Landlord-only tokens. Tenant surfaces and navigation retain their existing theme. */
+.landlord-portal,
+.landlord-dialog,
+.landlord-overlay {
+  --background: #f7f8fa;
+  --foreground: #202329;
+  --card: #fff;
+  --card-foreground: #202329;
+  --popover: #fff;
+  --popover-foreground: #202329;
+  --muted: #f1f3f5;
+  --muted-foreground: #626974;
+  --border: #e3e6ea;
+  --input: #d5d9df;
+  --primary: #252930;
+  --primary-foreground: #fff;
+  --secondary: #f1f3f5;
+  --secondary-foreground: #303640;
+  --accent: #edf0f3;
+  --accent-foreground: #202329;
+  --sidebar: #fff;
+  --sidebar-foreground: #626974;
+  --sidebar-accent: #edf0f3;
+  --sidebar-accent-foreground: #202329;
+  --sidebar-border: #e3e6ea;
+  --success: #21754b;
+  --warning-foreground: #88570c;
+  --info: #456a97;
+  --chip-violet: #626974;
+  --chip-blue: #456a97;
+  --chart-1: #75869d;
+  --chart-2: #377b60;
+  --workspace-radius: 10px;
+  --workspace-control-radius: 7px;
+  --workspace-header-height: 4rem;
+  color: var(--foreground);
+}
+
+.dark .landlord-portal,
+.dark .landlord-dialog,
+.dark .landlord-overlay {
+  --background: #16181c;
+  --foreground: #eceef1;
+  --card: #1d2025;
+  --card-foreground: #eceef1;
+  --popover: #24272d;
+  --popover-foreground: #eceef1;
+  --muted: #292d34;
+  --muted-foreground: #a5adb9;
+  --border: #333840;
+  --input: #454b55;
+  --primary: #eceef1;
+  --primary-foreground: #202329;
+  --secondary: #292d34;
+  --secondary-foreground: #eceef1;
+  --accent: #292d34;
+  --accent-foreground: #eceef1;
+  --sidebar: #1b1e23;
+  --sidebar-foreground: #a5adb9;
+  --sidebar-accent: #2b3038;
+  --sidebar-accent-foreground: #fff;
+  --sidebar-border: #333840;
+  --success: #80c6a0;
+  --warning-foreground: #e4ba70;
+  --info: #9dbbe3;
+  --chart-1: #98aac2;
+  --chart-2: #80c6a0;
+}
+
+.landlord-portal { background: var(--background); }
+.landlord-portal > aside { border-right: 1px solid var(--border); }
+.landlord-portal > header { border-bottom: 1px solid var(--border); background: var(--card); }
+.landlord-portal main { padding-top: 1.5rem; }
+.landlord-portal main > div { min-width: 0; }
+.landlord-portal .surface,
+.landlord-portal [data-slot='card'] {
+  border-radius: var(--workspace-radius);
+  box-shadow: none;
+}
+.landlord-portal [aria-label='Key figures'] { box-shadow: none; border-radius: var(--workspace-radius); }
+.landlord-portal [data-slot='card-header'] { padding: 1.25rem 1.25rem .75rem; }
+.landlord-portal [data-slot='card-content'] { padding: 0 1.25rem 1.25rem; }
+.landlord-portal .page-header { padding-bottom: 1.25rem; border-bottom: 1px solid var(--border); }
+.landlord-portal .page-header h1 { font-size: clamp(1.5rem, 2.1vw, 1.875rem); letter-spacing: -.04em; }
+.landlord-portal .page-header-description { line-height: 1.6; }
+.landlord-portal [data-slot='button'],
+.landlord-dialog [data-slot='button'] { border-radius: var(--workspace-control-radius); box-shadow: none; }
+.landlord-portal [data-slot='table-container'] { overscroll-behavior-inline: contain; }
+.landlord-portal [data-slot='table-head'] { height: 2.75rem; font-size: .6875rem; letter-spacing: .045em; text-transform: uppercase; }
+.landlord-portal [data-slot='table-cell'] { padding-block: 1rem; }
+.landlord-portal .stat-value { font-size: clamp(1.125rem, 2.2vw, 1.875rem); overflow-wrap: anywhere; }
+.landlord-portal .stat-note { min-height: 1rem; font-size: .75rem; line-height: 1.5; color: var(--muted-foreground); }
+.landlord-portal .icon-chip { background: var(--muted); color: var(--muted-foreground); box-shadow: none; }
+.landlord-dialog { border-radius: 12px; gap: 1.25rem; }
+.landlord-overlay { border-radius: var(--workspace-radius); }
+.landlord-dialog input,
+.landlord-dialog textarea,
+.landlord-dialog select { max-width: 100%; }
+.landlord-dialog [data-slot='dialog-footer'] { background: var(--card); }
+.landlord-portal .workspace-filter { margin-inline: 0; padding-inline: 0; max-width: 100%; }
+.landlord-portal .workspace-filter button { min-height: 2.75rem; }
+.landlord-portal .workspace-filter button[aria-checked='true'] { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); box-shadow: none; }
+.landlord-portal .workspace-filter button[aria-checked='true'] > span { color: inherit; opacity: .8; }
+.landlord-portal .workspace-breadcrumb { display: flex; gap: .5rem; align-items: center; font-size: .75rem; font-weight: 500; }
+.landlord-portal .workspace-breadcrumb > span:first-child { color: var(--muted-foreground); }
+.landlord-portal .detail-header { padding-block: .25rem 1.25rem; border-bottom: 1px solid var(--border); }
+.landlord-portal [data-slot='select-trigger'],
+.landlord-dialog [data-slot='select-trigger'] { min-width: 0; font-size: 1rem; }
+@media (pointer: coarse) {
+  .landlord-portal [data-slot='select-trigger'],
+  .landlord-dialog [data-slot='select-trigger'],
+  .landlord-portal [data-slot='button'],
+  .landlord-dialog [data-slot='button'] { min-height: 2.75rem; }
+}
+
+@media (max-width: 47.999rem) {
+  .landlord-portal main { padding-top: 1.125rem; }
+  .landlord-portal .page-header-actions { width: 100%; }
+  .landlord-portal .page-header-actions > :only-child { max-width: 100%; }
+  .landlord-portal .stat-value { font-size: clamp(1.125rem, 5.1vw, 1.5rem); }
+  .landlord-portal .finance-row { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; gap: .625rem; }
+  .landlord-portal .finance-row-actions { grid-column: 2 / -1; justify-content: flex-end; }
+  .landlord-dialog[data-slot='dialog-content'] { border-radius: 14px 14px 0 0; padding-inline: 1rem; }
+  .landlord-dialog [data-slot='dialog-footer'] { margin-inline: -1rem; padding-inline: 1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+}
+
+@media (min-width: 48rem) and (pointer: fine) {
+  .landlord-portal .workspace-filter button { min-height: 2rem; }
+  .landlord-portal [data-slot='select-trigger'],
+  .landlord-dialog [data-slot='select-trigger'] { font-size: .8125rem; }
+}
+@media (min-width: 64rem) {
+  .landlord-portal main { padding: 2rem 2rem 3rem; }
+}
+@media print {
+  .landlord-portal .page-header { border: 0; }
+}

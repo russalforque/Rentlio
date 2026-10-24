@@ -110,7 +110,7 @@ export function KpiStrip({
         <OccupancyBar {...occupancy} className="mb-1" />
       </StatTile>
       <StatTile
-        label="To verify"
+        label="To review"
         icon={Inbox}
         value={String(pending.length)}
         to="/payments"

@@ -1,5 +1,6 @@
 import { BedDouble, BedSingle, Building2, ChevronRight, CircleCheck, DoorOpen, Plus, Tags, TriangleAlert, Wallet, Wrench } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router'
 import { Fab } from '@/components/app/fab'
 import { ActionsMenu, PageHeader } from '@/components/app/page-header'
 import { Callout, FilterChips, InitialsBadge, Panel, SearchField, StatGrid, StatGridSkeleton, StatTile, StatusPill, type Tone } from '@/components/app/panel'
@@ -178,8 +179,9 @@ export function RoomsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
+        eyebrow="YOUR PROPERTY"
         title="Rooms overview"
-        description={rooms?.length ? 'Select a room to edit it. Assign tenants from the Tenants page.' : 'Add your rooms, then assign tenants to them.'}
+        description={rooms?.length ? 'Occupancy, monthly rent, and balances at a glance. Open a room to manage its details.' : 'Add your rooms, then assign tenants to them.'}
         tabs={
           !!rooms?.length && (
             <FilterChips
@@ -308,18 +310,21 @@ export function RoomsPage() {
                     {list.map((room) => (
                       <li key={room.id}>
                         <RoomRow room={room} beds={roomBeds?.get(room.id) ?? []} currency={currency} onOpen={() => setEditing(room)} />
+                        {room.tenant_id && <Link className="mx-5 mb-2 inline-flex min-h-10 items-center gap-1 text-xs font-medium underline-offset-4 hover:underline" to={`/tenants/${room.tenant_id}`}>Tenant & billing <ChevronRight className="size-3" aria-hidden /></Link>}
                       </li>
                     ))}
                   </ul>
                   <div className="hidden grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))] gap-3 sm:grid">
                     {list.map((room) => (
+                      <div key={room.id} className="min-w-0">
                       <RoomCard
-                        key={room.id}
                         room={room}
                         beds={roomBeds?.get(room.id) ?? []}
                         currency={currency}
                         onOpen={() => setEditing(room)}
                       />
+                      {room.tenant_id && <Link className="mt-1 inline-flex min-h-10 items-center gap-1 px-1 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" to={`/tenants/${room.tenant_id}`}>Tenant & billing <ChevronRight className="size-3" aria-hidden /></Link>}
+                      </div>
                     ))}
                   </div>
                 </Panel>

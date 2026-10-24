@@ -191,6 +191,7 @@ Import the repo, framework preset **Vite**, and add `VITE_SUPABASE_URL` and `VIT
 | "Connect Supabase" screen | `.env.local` is missing or the dev server was not restarted after creating it. |
 | Landlord login shows "Waiting for approval" | The landlord was never set up: run `select public.bootstrap_landlord('<email>');` in the SQL editor. |
 | A rejected applicant wants to try again | Their email is taken by the rejected login. Delete that user under Authentication → Users (the request goes with it; the audit entries remain), then they can register again. |
-| Invite/reset link says it can't be used | The email template still uses the default `{{ .ConfirmationURL }}`; paste the templates from `supabase/templates`. Links are single-use. |
+| Reset email opens login instead of the new-password form | Deploy the callback routing fix. Dashboard emails can return to the configured Site URL; the app now recognizes recovery tokens there before login redirects run. Set **Authentication > URL Configuration > Site URL** to the deployed app origin and allow its `/auth/confirm` URL for app-requested resets. |
+| Invite/reset link says it can't be used | Request a fresh link; links expire and are single-use. Both default `{{ .ConfirmationURL }}` emails and the custom templates in `supabase/templates` are supported. Check that Site URL points to this app. |
 | Bills not generated automatically | Check `auto_billing_enabled` and `billing_day` in settings, and that the `rentlio-monthly-billing` job exists under **Integrations → Cron**. |
 | No rent reminders or notifications in real time | Check that `rentlio-notifications` exists under **Integrations → Cron**, and that `notifications` is listed under **Database → Publications → supabase_realtime**. |

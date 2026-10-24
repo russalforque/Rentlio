@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/app/confirm-dialog'
 import { PageHeader } from '@/components/app/page-header'
-import { Callout, FilterChips, Panel, Meter, StatGrid, StatGridSkeleton, StatTile, Toolbar } from '@/components/app/panel'
+import { Callout, FilterChips, Panel, Meter, SearchField, StatGrid, StatGridSkeleton, StatTile, Toolbar } from '@/components/app/panel'
 import { PeriodPicker } from '@/components/app/period-picker'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
@@ -44,6 +44,7 @@ export function BillingPage() {
   const finalizeAll = useFinalizeBills()
   const navigate = useNavigate()
   const [filter, setFilter] = useState<Filter>('all')
+  const [search, setSearch] = useState('')
   const [confirming, setConfirming] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
 
@@ -68,7 +69,8 @@ export function BillingPage() {
     }
   }, [bills])
 
-  const visible = (bills ?? []).filter((b) => matches(b, filter))
+  const visible = (bills ?? []).filter((b) => matches(b, filter)
+    && `${b.tenant_name} ${b.room_number} ${b.bill_number}`.toLowerCase().includes(search.trim().toLowerCase()))
   const lastAuto = runs?.find((r) => r.triggered_by === 'schedule')
   // The database refuses months that have not started; say so before the landlord tries.
   const future = isFuturePeriod(period)
@@ -95,6 +97,7 @@ export function BillingPage() {
   return (
     <div className="space-y-5">
       <PageHeader
+        eyebrow="RENT & UTILITIES"
         title="Billing overview"
         description={
           settings?.auto_billing_enabled
@@ -116,7 +119,14 @@ export function BillingPage() {
         }
       />
 
-      <Toolbar className="surface px-3 py-2">
+      <nav aria-label="Monthly billing workflow" className="grid grid-cols-1 divide-y rounded-lg border bg-card sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        {[
+          { step: '01', title: 'Enter readings', note: 'Review electricity consumption', to: `/billing/readings?period=${period}` },
+          { step: '02', title: 'Review bills', note: 'Check rent and utility charges', to: '#bill-list' },
+          { step: '03', title: 'Finalize & send', note: 'Issue complete drafts to tenants', to: '#bill-list' },
+        ].map((item) => <Link key={item.step} to={item.to} className="flex min-w-0 items-center gap-3 px-4 py-3 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"><span className="text-xs font-medium text-muted-foreground tabular">{item.step}</span><span className="min-w-0"><span className="block text-sm font-semibold">{item.title}</span><span className="block truncate text-xs text-muted-foreground">{item.note}</span></span></Link>)}
+      </nav>
+      <Toolbar className="px-0 py-1">
         <PeriodPicker value={period} onChange={setPeriod} />
         {future && (
           <p className="px-1 pb-1 text-xs text-muted-foreground sm:pb-0">
@@ -224,10 +234,15 @@ export function BillingPage() {
               }
             />
           ) : (
+            <div id="bill-list" className="min-w-0 scroll-mt-24">
             <Panel
               title={`Bills · ${formatPeriod(period)}`}
               flush
               action={
+                <SearchField aria-label="Search bills" placeholder="Search room, tenant or bill…" value={search} onChange={(event) => setSearch(event.target.value)} className="w-full sm:w-64" />
+              }
+            >
+              <div className="min-w-0 border-t px-4 py-3">
                 <FilterChips
                   label="Filter bills"
                   value={filter}
@@ -241,8 +256,7 @@ export function BillingPage() {
                     ...(stats.voided > 0 ? [{ value: 'void' as const, label: 'Void', count: stats.voided }] : []),
                   ]}
                 />
-              }
-            >
+              </div>
               {visible.length === 0 ? (
                 <p className="border-t px-5 py-10 text-center text-[13px] text-muted-foreground">No bills match this filter.</p>
               ) : (
@@ -316,6 +330,7 @@ export function BillingPage() {
                 </>
               )}
             </Panel>
+            </div>
           )}
         </>
       )}

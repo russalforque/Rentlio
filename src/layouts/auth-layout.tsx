@@ -76,7 +76,7 @@ function Preview() {
 
 export function AuthLayout() {
   const { pathname } = useLocation()
-  if (['/login', '/register'].includes(pathname.replace(/\/+$/, ''))) return <AuthEntryLayout />
+  if (['/login', '/register', '/forgot-password', '/set-password'].includes(pathname.replace(/\/+$/, ''))) return <AuthEntryLayout />
 
   return (
     <div className="min-h-dvh bg-background lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-3 lg:p-3">

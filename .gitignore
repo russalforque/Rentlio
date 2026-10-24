@@ -32,3 +32,7 @@ dist-ssr
 *.backup
 *.sql.gz
 supabase/.temp/
+
+# Synthetic browser QA output; regenerate with tests/ui/landlord-smoke.mjs.
+/artifacts/landlord-qa/
+/artifacts/auth-qa/

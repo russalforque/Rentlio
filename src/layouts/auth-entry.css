@@ -1,4 +1,4 @@
-/* Scoped to login and registration. Other authentication routes keep their UI. */
+/* Shared presentation for sign-in, registration and password recovery. */
 .auth-entry {
   --background: #fff;
   --foreground: #171717;
@@ -147,6 +147,20 @@
 .auth-entry-note { margin-top: .875rem; font-size: .6875rem; line-height: 1.7; text-align: center; color: var(--muted-foreground); text-wrap: pretty; }
 .auth-registration-note { display: flex; align-items: flex-start; gap: .625rem; margin-top: 1.25rem; padding: .875rem 1rem; border-radius: 1rem; background: var(--muted); font-size: .6875rem; line-height: 1.7; color: var(--muted-foreground); }
 .auth-registration-note > svg { flex-shrink: 0; width: 1rem; height: 1rem; margin-top: .125rem; color: var(--foreground); }
+
+.auth-recovery-icon { display: grid; width: 3.25rem; height: 3.25rem; margin-bottom: 1.5rem; place-items: center; border: 1px solid var(--border); border-radius: 1rem; background: var(--muted); }
+.auth-recovery-icon svg { width: 1.375rem; height: 1.375rem; }
+.auth-recovery-summary { margin-bottom: 1.5rem; padding: 1rem 1.125rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--muted); }
+.auth-recovery-summary > p:first-child { color: var(--muted-foreground); font-size: .6875rem; }
+.auth-recovery-summary > p:last-child { margin-top: .375rem; font-size: .8125rem; font-weight: 600; overflow-wrap: anywhere; }
+.auth-recovery-help { margin-block: 1.25rem; font-size: .75rem; line-height: 1.75; color: var(--muted-foreground); text-wrap: pretty; }
+.auth-recovery-change { display: flex; justify-content: center; margin-top: .5rem; }
+.auth-recovery-back { display: flex; justify-content: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.auth-recovery-back a { gap: .5rem; }
+.auth-recovery-feedback { margin-bottom: 1.25rem; }
+.auth-recovery-status { min-height: 1.5rem; margin-top: .75rem; font-size: .6875rem; line-height: 1.7; color: var(--muted-foreground); text-align: center; }
+.auth-recovery-note { display: flex; justify-content: center; align-items: flex-start; gap: .5rem; margin-top: 1.25rem; font-size: .6875rem; line-height: 1.7; color: var(--muted-foreground); }
+.auth-recovery-note svg { width: .875rem; height: .875rem; flex-shrink: 0; margin-top: .125rem; }
 
 .auth-entry ul[aria-label='Password requirements'] { gap: .5rem .875rem; }
 .auth-entry ul[aria-label='Password requirements'] li { font-size: .6875rem; }

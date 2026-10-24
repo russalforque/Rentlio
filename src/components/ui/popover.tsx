@@ -1,3 +1,4 @@
+import { LandlordWorkspace } from '@/components/app/workspace-context'
 import * as React from "react"
 import { Popover as PopoverPrimitive } from "radix-ui"
 
@@ -17,6 +18,7 @@ function PopoverContent({
   sideOffset = 6,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+  const landlord = React.useContext(LandlordWorkspace)
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Content
@@ -25,6 +27,7 @@ function PopoverContent({
         sideOffset={sideOffset}
         className={cn(
           "z-50 w-72 origin-(--radix-popover-content-transform-origin) rounded-xl border bg-popover p-4 text-popover-foreground shadow-lg outline-hidden data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
+          landlord && 'landlord-overlay',
           className
         )}
         {...props}

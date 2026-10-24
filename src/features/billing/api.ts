@@ -62,9 +62,12 @@ export function useBillItems(billId: string) {
   })
 }
 
-export function useReadingSheet(period: string) {
+export function useReadingSheet(period: string, editing = false) {
   return useQuery({
     queryKey: billingKeys.sheet(period),
+    // Refocusing a phone after checking a meter photo must not replace an unsaved grid.
+    refetchOnWindowFocus: !editing,
+    refetchOnReconnect: !editing,
     queryFn: async () => {
       const { data, error } = await supabase.rpc('meter_reading_sheet', { p_period: period })
       if (error) throw error

@@ -1,5 +1,5 @@
 import { Monitor, Moon, Sun } from 'lucide-react'
-import { useTheme } from 'next-themes'
+import { useTheme } from '@/providers/theme-context'
 import { cn } from '@/lib/utils'
 
 const OPTIONS = [

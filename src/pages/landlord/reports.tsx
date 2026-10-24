@@ -3,6 +3,7 @@ import { AlertTriangle, Download, Percent, ReceiptText, Wallet } from 'lucide-re
 import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { ColumnChart } from '@/components/app/column-chart'
+import { DailyCashReport } from '@/features/finances/daily-cash-report'
 import { PageHeader } from '@/components/app/page-header'
 import { Detail, InitialsBadge, Panel, StatGrid, StatGridSkeleton, StatTile } from '@/components/app/panel'
 import { ErrorState } from '@/components/app/states'
@@ -349,7 +350,7 @@ export function ReportsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Reports" description="Collections, arrears and occupancy. Export any table to CSV." />
+      <PageHeader eyebrow="PROPERTY INSIGHTS" title="Reports" description="Review collections, outstanding balances, and occupancy. Export a table or download your daily cash report." actions={<DailyCashReport />} />
       {isPending || arrears.isPending ? (
         <StatGridSkeleton />
       ) : (

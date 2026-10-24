@@ -1,10 +1,12 @@
 import { FileText, Plus, Upload, X } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { ResponsiveSheet } from '@/components/app/responsive-sheet'
+import { useSheetFormState } from '@/hooks/use-sheet-form-state'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
   DialogContent,
+  DialogClose,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -47,7 +49,11 @@ interface TransactionDialogProps {
 
 const NONE = 'none'
 
-export function TransactionDialog({ open, onOpenChange, type, transaction }: TransactionDialogProps) {
+export function TransactionDialog(props: TransactionDialogProps) {
+  return <ResponsiveSheet open={props.open} onOpenChange={props.onOpenChange}><TransactionForm {...props} /></ResponsiveSheet>
+}
+
+function TransactionForm({ onOpenChange, type, transaction }: TransactionDialogProps) {
   const rooms = useRoomOverview()
   const tenants = useTenants()
   const categories = useFinanceCategories(type)
@@ -59,14 +65,20 @@ export function TransactionDialog({ open, onOpenChange, type, transaction }: Tra
   const [category, setCategory] = useState(transaction?.category ?? '')
   const [date, setDate] = useState(transaction?.transaction_date ?? todayISO())
   const [description, setDescription] = useState(transaction?.description ?? '')
-  const [method, setMethod] = useState<Enums<'payment_method'>>(transaction?.method ?? 'bank_transfer')
+  const [method, setMethod] = useState<Enums<'payment_method'>>(transaction?.method ?? 'cash')
   const [roomId, setRoomId] = useState(transaction?.room_id ?? NONE)
   const [tenantId, setTenantId] = useState(transaction?.tenant_id ?? NONE)
   const [file, setFile] = useState<File | null>(null)
   const [clearReceipt, setClearReceipt] = useState(false)
   const [addCategoryOpen, setAddCategoryOpen] = useState(false)
   const [newCategory, setNewCategory] = useState('')
+  const [validation, setValidation] = useState<Record<string, string>>({})
   const [requestId] = useState(() => crypto.randomUUID())
+  const dirty = amount !== (transaction?.amount.toFixed(2) ?? '') || category !== (transaction?.category ?? '')
+    || date !== (transaction?.transaction_date ?? todayISO()) || description !== (transaction?.description ?? '')
+    || method !== (transaction?.method ?? 'cash') || roomId !== (transaction?.room_id ?? NONE)
+    || tenantId !== (transaction?.tenant_id ?? NONE) || !!file || clearReceipt
+  useSheetFormState(dirty, save.isPending)
 
   const builtIns = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
   const categoryNames = [...builtIns, ...(categories.data ?? []).map((item) => item.name)]
@@ -78,18 +90,13 @@ export function TransactionDialog({ open, onOpenChange, type, transaction }: Tra
     if (save.isPending) return
     const trimmedDescription = description.trim()
     const decimal = /^\d{1,10}(?:\.\d{1,2})?$/
-    if (!decimal.test(amount) || Number(amount) <= 0) {
-      toast.error('Enter a positive amount with up to two decimal places.')
-      return
-    }
-    if (!category || !trimmedDescription || !date) {
-      toast.error('Complete the required fields before saving.')
-      return
-    }
-    if (date > todayISO()) {
-      toast.error('The transaction date cannot be in the future.')
-      return
-    }
+    const issues: Record<string, string> = {}
+    if (!decimal.test(amount) || Number(amount) <= 0) issues.amount = 'Enter an amount greater than zero with up to two decimal places.'
+    if (!category) issues.category = 'Choose a category.'
+    if (!trimmedDescription) issues.description = 'Describe this transaction.'
+    if (!date || date > todayISO()) issues.date = 'Choose today or an earlier date.'
+    setValidation(issues)
+    if (Object.keys(issues).length) return
     if (file) {
       const issue = validateFinancialReceipt(file)
       if (issue) {
@@ -143,8 +150,7 @@ export function TransactionDialog({ open, onOpenChange, type, transaction }: Tra
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+    <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -154,12 +160,15 @@ export function TransactionDialog({ open, onOpenChange, type, transaction }: Tra
           </DialogDescription>
           {optionError && <p role="alert" className="text-sm text-destructive">{getErrorMessage(optionError)}</p>}
         </DialogHeader>
-        <form className="space-y-4" onSubmit={submit}>
+        <form className="space-y-4" onSubmit={submit} noValidate>
+          {Object.keys(validation).length > 0 && <div role="alert" className="rounded-lg border border-destructive/25 bg-destructive/5 p-3 text-sm text-destructive"><p className="font-semibold">Check the required fields</p><ul className="mt-1 list-inside list-disc">{Object.entries(validation).map(([field, message]) => <li key={field}>{message}</li>)}</ul></div>}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="finance-amount">Amount</Label>
               <Input
                 id="finance-amount"
+                aria-invalid={!!validation.amount}
+                aria-describedby={validation.amount ? 'finance-amount-error' : undefined}
                 type="number"
                 min="0.01"
                 max="9999999999.99"
@@ -171,24 +180,28 @@ export function TransactionDialog({ open, onOpenChange, type, transaction }: Tra
                 onChange={(event) => setAmount(event.target.value)}
                 required
               />
+              {validation.amount && <p id="finance-amount-error" className="text-xs text-destructive">{validation.amount}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="finance-date">Date</Label>
               <Input
                 id="finance-date"
+                aria-invalid={!!validation.date}
+                aria-describedby={validation.date ? 'finance-date-error' : undefined}
                 type="date"
                 max={todayISO()}
                 value={date}
                 onChange={(event) => setDate(event.target.value)}
                 required
               />
+              {validation.date && <p id="finance-date-error" className="text-xs text-destructive">{validation.date}</p>}
             </div>
           </div>
           <div className="space-y-2">
             <Label>Category</Label>
             <div className="flex gap-2">
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger aria-label="Category" className="w-full">
+                <SelectTrigger aria-label="Category" aria-invalid={!!validation.category} aria-describedby={validation.category ? 'finance-category-error' : undefined} className="w-full">
                   <SelectValue placeholder="Choose category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -199,6 +212,7 @@ export function TransactionDialog({ open, onOpenChange, type, transaction }: Tra
                 {addCategoryOpen ? <X /> : <Plus />}
               </Button>
             </div>
+            {validation.category && <p id="finance-category-error" className="text-xs text-destructive">{validation.category}</p>}
             {addCategoryOpen && (
               <div className="flex gap-2">
                 <Input
@@ -222,12 +236,15 @@ export function TransactionDialog({ open, onOpenChange, type, transaction }: Tra
             <Label htmlFor="finance-description">Description</Label>
             <Textarea
               id="finance-description"
+              aria-invalid={!!validation.description}
+              aria-describedby={validation.description ? 'finance-description-error' : undefined}
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               maxLength={500}
               placeholder={type === 'income' ? 'What was this income for?' : 'Add a note about this expense'}
               required
             />
+            {validation.description && <p id="finance-description-error" className="text-xs text-destructive">{validation.description}</p>}
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
@@ -308,11 +325,10 @@ export function TransactionDialog({ open, onOpenChange, type, transaction }: Tra
             </div>
           )}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <DialogClose asChild><Button type="button" variant="outline" disabled={save.isPending}>Cancel</Button></DialogClose>
             <Button type="submit" disabled={save.isPending}>{save.isPending ? 'Saving…' : transaction ? 'Save changes' : 'Add transaction'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
-    </Dialog>
   )
 }

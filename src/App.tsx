@@ -1,5 +1,4 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { ThemeProvider } from 'next-themes'
 import type { ComponentType } from 'react'
 import { createBrowserRouter, RouterProvider, type RouteObject } from 'react-router'
 import { FullPageSpinner } from '@/components/app/full-page-spinner'
@@ -7,16 +6,23 @@ import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppShell } from '@/layouts/app-shell'
 import { AuthLayout } from '@/layouts/auth-layout'
+import { authCallbackPath } from '@/lib/auth-links'
 import { queryClient } from '@/lib/query-client'
-import { isSupabaseConfigured } from '@/lib/supabase'
+import { initialUrlHash, isSupabaseConfigured } from '@/lib/supabase'
 import { NotFoundPage, SetupRequiredPage } from '@/pages/shared/misc-pages'
 import { AuthProvider } from '@/providers/auth-provider'
+import { ThemeProvider } from '@/providers/theme-provider'
 import { GuestOnly, HomeRedirect, RequireRole } from '@/routes/guards'
 
 /** A lazily loaded route: pages download on demand, so tenants never fetch landlord screens. */
 function page<M>(path: string, load: () => Promise<M>, pick: (m: M) => ComponentType): RouteObject {
   return { path, lazy: () => load().then((m) => ({ Component: pick(m) })) }
 }
+
+// Supabase may redirect dashboard reset emails to / or /login. Capture the
+// callback before either route can discard its recovery tokens.
+const callbackPath = authCallbackPath({ pathname: window.location.pathname, search: window.location.search, hash: initialUrlHash })
+if (callbackPath) window.history.replaceState(window.history.state, '', callbackPath)
 
 const router = createBrowserRouter([
   {
@@ -87,7 +93,7 @@ const router = createBrowserRouter([
 
 export default function App() {
   return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+    <ThemeProvider>
       {isSupabaseConfigured ? (
         <QueryClientProvider client={queryClient}>
           <AuthProvider>

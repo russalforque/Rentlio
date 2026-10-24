@@ -17,15 +17,15 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, eyebrow, description, actions, tabs }: PageHeaderProps) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+    <header className="page-header flex flex-wrap items-start justify-between gap-x-4 gap-y-4">
       <div className="min-w-[min(100%,15rem)] flex-1">
         {eyebrow && <p className="mb-1 text-[13px] text-muted-foreground">{eyebrow}</p>}
         <h1 className="font-display text-2xl leading-tight font-semibold">{title}</h1>
-        {description && <p className="mt-1 max-w-2xl text-sm text-muted-foreground md:text-[13px]">{description}</p>}
+        {description && <div className="page-header-description mt-2 max-w-2xl text-sm text-muted-foreground md:text-[13px]">{description}</div>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2 sm:pt-0.5">{actions}</div>}
+      {actions && <div className="page-header-actions flex min-w-0 flex-wrap items-center gap-2 sm:pt-0.5">{actions}</div>}
       {tabs && <div className="w-full min-w-0">{tabs}</div>}
-    </div>
+    </header>
   )
 }
 

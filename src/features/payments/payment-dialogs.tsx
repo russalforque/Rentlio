@@ -1,9 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, Check, CheckCircle2, ChevronRight, Copy, Download, ExternalLink, HandCoins, Loader2, Lock, type LucideIcon, Mail, Phone, Send, ShieldCheck, Smartphone, X } from 'lucide-react'
 import { useState } from 'react'
-import { useForm, type UseFormReturn } from 'react-hook-form'
+import { useForm, useWatch, type UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { ResponsiveSheet } from '@/components/app/responsive-sheet'
+import { useSheetFormState } from '@/hooks/use-sheet-form-state'
 import { FormField } from '@/components/app/form-field'
 import { NativeSelect } from '@/components/app/native-select'
 import { Button } from '@/components/ui/button'
@@ -58,11 +60,11 @@ export function ReviewPaymentDialog({
   onOpenChange: (open: boolean) => void
 }) {
   return (
-    <Dialog open={!!payment} onOpenChange={onOpenChange}>
+    <ResponsiveSheet open={!!payment} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[94dvh] overflow-y-auto sm:max-w-xl">
         {payment && <ReviewForm key={payment.id} payment={payment} onDone={() => onOpenChange(false)} />}
       </DialogContent>
-    </Dialog>
+    </ResponsiveSheet>
   )
 }
 
@@ -74,6 +76,7 @@ function ReviewForm({ payment, onDone }: { payment: PaymentOverview; onDone: () 
   const [amount, setAmount] = useState(String(payment.amount))
   const [reason, setReason] = useState('')
   const [moneyReceived, setMoneyReceived] = useState(false)
+  useSheetFormState(amount !== String(payment.amount) || !!reason || moneyReceived, review.isPending)
   const [error, setError] = useState<string | null>(null)
   const receivingAccount = accounts.data?.find((a) => a.id === payment.payment_account_id)
   const receivingAccountDetails = payment.payment_account_snapshot
@@ -276,6 +279,9 @@ function PaymentFields({
   balance,
   hideMethod,
   amountReadOnly = false,
+  compact = false,
+  attachment,
+  afterAmount,
 }: {
   form: UseFormReturn<PaymentInput, unknown, PaymentOutput>
   currency: string
@@ -283,6 +289,9 @@ function PaymentFields({
   /** The caller picks the method with its own control. */
   hideMethod?: boolean
   amountReadOnly?: boolean
+  compact?: boolean
+  attachment?: React.ReactNode
+  afterAmount?: React.ReactNode
 }) {
   const { register, setValue, formState: { errors } } = form
   const dateField = (
@@ -290,6 +299,15 @@ function PaymentFields({
       <Input id="pay-date" type="date" max={todayISO()} aria-invalid={!!errors.paid_on} {...register('paid_on')} />
     </FormField>
   )
+  const optionalFields = <>
+    <FormField id="pay-ref" label="Transaction reference (optional)" error={errors.reference?.message}>
+      <Input id="pay-ref" autoComplete="off" enterKeyHint="next" placeholder={compact ? 'Reference on the receipt' : 'Enter if shown on your receipt; otherwise leave blank'} {...register('reference')} />
+    </FormField>
+    <FormField id="pay-notes" label="Note (optional)" error={errors.notes?.message}>
+      <Textarea id="pay-notes" rows={2} {...register('notes')} />
+    </FormField>
+    {attachment}
+  </>
   return (
     <>
       <FormField
@@ -316,6 +334,7 @@ function PaymentFields({
           aria-readonly={amountReadOnly}
         />
       </FormField>
+      {afterAmount}
       {hideMethod ? (
         dateField
       ) : (
@@ -332,12 +351,10 @@ function PaymentFields({
         {dateField}
       </div>
       )}
-      <FormField id="pay-ref" label="Transaction reference (optional)" error={errors.reference?.message}>
-        <Input id="pay-ref" autoComplete="off" enterKeyHint="next" placeholder="Enter if shown on your receipt; otherwise leave blank" {...register('reference')} />
-      </FormField>
-      <FormField id="pay-notes" label="Note (optional)" error={errors.notes?.message}>
-        <Textarea id="pay-notes" rows={2} {...register('notes')} />
-      </FormField>
+      {compact ? <details open={errors.reference || errors.notes ? true : undefined} className="border-t">
+        <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">Reference, note or receipt <span className="font-normal text-muted-foreground">(optional)</span></summary>
+        <div className="grid gap-4 pb-2">{optionalFields}</div>
+      </details> : optionalFields}
     </>
   )
 }
@@ -352,11 +369,11 @@ export function RecordPaymentDialog({
   onOpenChange: (open: boolean) => void
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <ResponsiveSheet open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[94dvh] overflow-y-auto sm:max-w-md">
         {open && <RecordForm bill={bill} onDone={() => onOpenChange(false)} />}
       </DialogContent>
-    </Dialog>
+    </ResponsiveSheet>
   )
 }
 
@@ -371,7 +388,11 @@ function RecordForm({ bill, onDone }: { bill: BillRef; onDone: () => void }) {
     defaultValues: { amount: String(bill.balance), method: 'cash', paid_on: todayISO(), reference: '', notes: '' },
   })
 
-  const onSubmit = (v: PaymentOutput) =>
+  useSheetFormState(form.formState.isDirty || !!receipt, record.isPending)
+  const enteredAmount = Number(useWatch({ control: form.control, name: 'amount' }).replace(/,/g, ''))
+  const remaining = (Math.round(bill.balance * 100) - Math.round(enteredAmount * 100)) / 100
+  const onSubmit = (v: PaymentOutput) => {
+    if (record.isPending) return
     record.mutate(
       {
         billId: bill.id,
@@ -392,6 +413,7 @@ function RecordForm({ bill, onDone }: { bill: BillRef; onDone: () => void }) {
         onError: (err) => toast.error(getErrorMessage(err)),
       },
     )
+  }
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="grid gap-4">
@@ -401,8 +423,11 @@ function RecordForm({ bill, onDone }: { bill: BillRef; onDone: () => void }) {
           For money you received directly, e.g. cash. It counts as verified immediately.
         </DialogDescription>
       </DialogHeader>
-      <PaymentFields form={form} currency={currency} balance={bill.balance} />
-      <ProofFileInput file={receipt} onChange={setReceipt} />
+      <AmountSummary bill={bill} currency={currency} />
+      {(bill.pending_amount ?? 0) > 0 && <p role="status" className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm">{formatMoney(bill.pending_amount ?? 0, currency)} is awaiting verification. Review existing proofs before recording money received separately.</p>}
+      <PaymentFields form={form} currency={currency} balance={bill.balance} compact
+        afterAmount={Number.isFinite(remaining) && remaining >= 0 && enteredAmount > 0 && <p className="rounded-lg bg-muted p-3 text-sm">Balance after this payment: <strong className="tabular">{formatMoney(remaining, currency)}</strong></p>}
+        attachment={<ProofFileInput file={receipt} onChange={setReceipt} />} />
       <DialogFooter>
         <Button type="submit" disabled={record.isPending}>
           {record.isPending && <Loader2 className="animate-spin" />}

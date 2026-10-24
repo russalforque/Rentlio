@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
+import { RecordPaymentButton } from '@/features/payments/record-payment-button'
 import { Callout, StatGrid, StatTile, StatusPill } from '@/components/app/panel'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/app/confirm-dialog'
@@ -363,7 +364,7 @@ export function TenantDetailPage() {
 
   return (
     <div className="space-y-5">
-      <div className="surface flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="detail-header flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-4">
           <UserAvatar
             path={tenant.avatar_path}
@@ -382,7 +383,8 @@ export function TenantDetailPage() {
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {tenant.outstanding_balance > 0 && <RecordPaymentButton tenantId={tenant.id} />}
           {tenant.phone && (
             <Button variant="outline" className="flex-1 sm:hidden" asChild>
               <a href={`tel:${tenant.phone}`}>

@@ -59,36 +59,35 @@ export function CollectionsCard({
 
   return (
     <Panel
-      title={`Collections · ${formatPeriod(period)}`}
-      description="From bills sent to tenants this month"
+      title="Monthly collections"
+      description={`Payments against ${formatPeriod(period)} bills`}
       className={className}
       action={<PanelLink to={`/billing?period=${period}`}>Bills</PanelLink>}
     >
       {sent.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">
-          No bills sent for {formatPeriod(period)} yet.{' '}
-          <Link to={`/billing?period=${period}`} className="font-medium text-foreground underline-offset-2 hover:underline">
-            Finalize this month's bills
-          </Link>{' '}
-          to start collecting.
-        </p>
+        <div className="rounded-xl border border-dashed px-5 py-8 text-center">
+          <Home className="mx-auto mb-3 size-7 text-muted-foreground" aria-hidden />
+          <p className="text-sm font-semibold">A fresh month of collections</p>
+          <p className="mx-auto mt-2 max-w-xs text-[13px] leading-relaxed text-muted-foreground">Finalize your {formatPeriod(period)} bills to see collection progress here.</p>
+          <Link to={`/billing?period=${period}`} className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none">Go to billing</Link>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
-          <div className="min-w-0">
+        <div className="grid grid-cols-1 gap-5 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="dashboard-collection-summary min-w-0">
             <p className="text-[13px] font-medium text-muted-foreground">Total collected</p>
-            <p className="font-display mt-1 text-[32px] leading-none font-semibold tabular">{formatMoney(collected, currency)}</p>
+            <p className="dashboard-collection-value tabular">{formatMoney(collected, currency)}</p>
             <p className="mt-2 text-[13px] text-muted-foreground tabular">
               {pct(collected, billed)}% of {formatMoney(billed, currency)} billed
             </p>
             <div className="mt-3">
               <Meter value={billed > 0 ? (collected / billed) * 100 : 0} label="Share of this month's bills collected" />
             </div>
-            <dl className="mt-5 grid grid-cols-3 gap-2">
+            <dl className="mt-5 grid grid-cols-2 gap-3">
               {roomStats.map((s) => (
-                <div key={s.label} className="min-w-0 rounded-xl border px-3 py-2.5">
-                  <dt className="truncate text-[11px] font-medium text-muted-foreground">{s.label}</dt>
-                  <dd className={cn('mt-0.5 truncate text-sm font-semibold tabular', s.alert && 'text-destructive')}>{s.value}</dd>
-                  <dd className="mt-0.5 truncate text-[11px] text-muted-foreground" title={s.note}>
+                <div key={s.label} className={cn('min-w-0 border-t pt-3', s.label === 'Outstanding' && 'col-span-2')}>
+                  <dt className="text-[11px] font-medium text-muted-foreground">{s.label}</dt>
+                  <dd className={cn('mt-0.5 break-words text-sm font-semibold tabular', s.alert && 'text-destructive')}>{s.value}</dd>
+                  <dd className="mt-0.5 text-[11px] text-muted-foreground" title={s.note}>
                     {s.note}
                   </dd>
                 </div>
@@ -96,16 +95,16 @@ export function CollectionsCard({
             </dl>
           </div>
 
-          <ul className="grid content-start gap-2" aria-label="Collected by charge type">
+          <ul className="grid content-start divide-y" aria-label="Collected by charge type">
             {categories.map((c) => (
-              <li key={c.key} className="rounded-xl border px-3.5 py-3">
+              <li key={c.key} className="py-3 first:pt-1 last:pb-0">
                 <div className="flex items-center gap-2.5">
                   <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground" aria-hidden>
                     <c.icon className="size-4" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold">{c.label}</span>
-                    <span className="block truncate text-xs text-muted-foreground tabular">
+                    <span className="block text-xs wrap-anywhere text-muted-foreground tabular">
                       {formatMoney(c.collected, currency)} of {formatMoney(c.billed, currency)}
                     </span>
                   </span>

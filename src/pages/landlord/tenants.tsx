@@ -10,12 +10,13 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { UserAvatar } from '@/features/account/user-avatar'
 import { useTenants, type TenantOverview } from '@/features/tenants/api'
+import { RecordPaymentButton } from '@/features/payments/record-payment-button'
 import { AddTenantDialog } from '@/features/tenants/add-tenant-dialog'
 import { TenantStatusBadge } from '@/features/tenants/tenant-status-badge'
 import { useCurrency } from '@/hooks/use-settings'
 import { formatMoney } from '@/lib/format'
 
-type Filter = 'all' | TenantOverview['account_status']
+type Filter = 'all' | 'owing' | TenantOverview['account_status']
 
 function TenantAvatar({ tenant, className = 'size-9' }: { tenant: TenantOverview; className?: string }) {
   return (
@@ -69,7 +70,7 @@ export function TenantsPage() {
     const q = search.trim().toLowerCase()
     return (tenants ?? []).filter(
       (t) =>
-        (filter === 'all' || t.account_status === filter) &&
+        (filter === 'all' || (filter === 'owing' ? t.outstanding_balance > 0 : t.account_status === filter)) &&
         (!q ||
           t.full_name.toLowerCase().includes(q) ||
           (t.email ?? '').toLowerCase().includes(q) ||
@@ -91,6 +92,7 @@ export function TenantsPage() {
               onChange={setFilter}
               options={[
                 { value: 'all', label: 'View all', count: counts.all },
+                { value: 'owing', label: 'Balance due', count: counts.owing },
                 { value: 'active', label: 'Portal active', count: counts.active },
                 { value: 'no_portal', label: 'No portal', count: counts.no_portal },
                 { value: 'invited', label: 'Invite pending', count: counts.invited },
@@ -101,9 +103,12 @@ export function TenantsPage() {
           )
         }
         actions={
+          <>
+          <RecordPaymentButton variant="outline" />
           <Button className="hidden md:inline-flex" onClick={() => setInviting(true)}>
             <UserPlus /> Add tenant
           </Button>
+          </>
         }
       />
 

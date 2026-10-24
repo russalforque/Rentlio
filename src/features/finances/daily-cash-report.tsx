@@ -11,172 +11,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { useSettings } from '@/hooks/use-settings'
 import { useDailyCashReport, useSaveDailyCashOpening } from '@/features/finances/api'
-import type { CashReportEntry, DailyCashReport as DailyCashReportData } from '@/features/finances/daily-cash-report-model'
+import type { CashReportEntry } from '@/features/finances/daily-cash-report-model'
 import { todayISO } from '@/lib/dates'
 import { getErrorMessage } from '@/lib/errors'
-
-const peso = new Intl.NumberFormat('en-PH', {
-  style: 'currency',
-  currency: 'PHP',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
-
-function formatPeso(amount: number) {
-  return peso.format(amount)
-}
-
-function wrapLabel(context: CanvasRenderingContext2D, label: string, maxWidth: number) {
-  const words = label.split(/\s+/)
-  const lines: string[] = []
-  let line = ''
-  for (const word of words) {
-    const candidate = line ? `${line} ${word}` : word
-    if (context.measureText(candidate).width <= maxWidth) {
-      line = candidate
-      continue
-    }
-    if (line) lines.push(line)
-    line = ''
-    for (const character of word) {
-      const candidateCharacter = line + character
-      if (context.measureText(candidateCharacter).width > maxWidth && line) {
-        lines.push(line)
-        line = character
-      } else {
-        line = candidateCharacter
-      }
-    }
-  }
-  if (line) lines.push(line)
-  return lines.length ? lines : ['']
-}
-
-function createReportCanvas(report: DailyCashReportData, dateLabel: string) {
-  const width = 390
-  const padding = 22
-  const right = width - padding
-  const labelWidth = 215
-  const measurementCanvas = document.createElement('canvas')
-  const measurementContext = measurementCanvas.getContext('2d')
-  if (!measurementContext) throw new Error('Your browser could not create an image canvas.')
-
-  measurementContext.font = '12px Arial, sans-serif'
-  const prepareEntries = (entries: CashReportEntry[]) => entries.map((entry) => {
-    const lines = wrapLabel(measurementContext, entry.label, labelWidth)
-    return { ...entry, lines, height: Math.max(22, lines.length * 14 + 8) }
-  })
-  const incomeEntries = prepareEntries(report.incomeEntries)
-  const expenseEntries = prepareEntries(report.expenseEntries)
-  const sectionHeight = (entries: typeof incomeEntries) =>
-    32 + (entries.length ? entries.reduce((total, entry) => total + entry.height, 0) : 18)
-  const height = 212 + sectionHeight(incomeEntries) + sectionHeight(expenseEntries)
-
-  const scale = 3
-  const canvas = document.createElement('canvas')
-  canvas.width = width * scale
-  canvas.height = height * scale
-  const context = canvas.getContext('2d')
-  if (!context) throw new Error('Your browser could not create an image canvas.')
-  context.scale(scale, scale)
-  context.fillStyle = '#ffffff'
-  context.fillRect(0, 0, width, height)
-
-  let y = 22
-  context.fillStyle = '#666666'
-  context.font = '700 10px Arial, sans-serif'
-  context.fillText('DAILY CASH REPORT', padding, y)
-  y += 22
-  context.fillStyle = '#111111'
-  context.font = '700 17px Arial, sans-serif'
-  context.fillText(`Report Date · ${dateLabel}`, padding, y)
-  y += 15
-
-  const divider = (color = '#e2e2e2') => {
-    context.strokeStyle = color
-    context.lineWidth = 1
-    context.beginPath()
-    context.moveTo(padding, y)
-    context.lineTo(right, y)
-    context.stroke()
-  }
-  divider()
-  y += 22
-
-  const drawSummaryRow = (label: string, amount: number, emphasis = false) => {
-    context.fillStyle = emphasis ? '#111111' : '#555555'
-    context.font = `${emphasis ? 700 : 500} 12px Arial, sans-serif`
-    context.fillText(label, padding, y)
-    const formatted = formatPeso(amount)
-    let fontSize = emphasis ? 15 : 13
-    context.font = `700 ${fontSize}px Arial, sans-serif`
-    while (context.measureText(formatted).width > 137 && fontSize > 10) {
-      fontSize -= 1
-      context.font = `700 ${fontSize}px Arial, sans-serif`
-    }
-    context.textAlign = 'right'
-    context.fillStyle = '#111111'
-    context.fillText(formatted, right, y)
-    context.textAlign = 'left'
-    y += emphasis ? 28 : 22
-  }
-  drawSummaryRow('Beginning Cash on Hand', report.beginningCash)
-
-  const drawSection = (
-    title: string,
-    entries: typeof incomeEntries,
-    emptyLabel: string,
-  ) => {
-    divider()
-    y += 17
-    context.fillStyle = '#111111'
-    context.font = '700 10px Arial, sans-serif'
-    context.fillText(title, padding, y)
-    y += 15
-
-    if (entries.length === 0) {
-      context.fillStyle = '#777777'
-      context.font = '11px Arial, sans-serif'
-      context.fillText(emptyLabel, padding, y)
-      y += 18
-      return
-    }
-
-    for (const entry of entries) {
-      context.fillStyle = '#333333'
-      context.font = '12px Arial, sans-serif'
-      entry.lines.forEach((line, index) => context.fillText(line, padding, y + index * 14))
-
-      const formatted = formatPeso(entry.amount)
-      let fontSize = 12
-      context.font = `${fontSize}px Arial, sans-serif`
-      while (context.measureText(formatted).width > 125 && fontSize > 8) {
-        fontSize -= 1
-        context.font = `${fontSize}px Arial, sans-serif`
-      }
-      context.textAlign = 'right'
-      context.fillStyle = '#111111'
-      context.fillText(formatted, right, y)
-      context.textAlign = 'left'
-      y += Math.max(entry.height, entry.lines.length * 14 + 5)
-    }
-  }
-
-  drawSection('INCOME ENTRIES', incomeEntries, 'No cash income entries')
-  drawSummaryRow('Total Income', report.income)
-  drawSection('EXPENSE ENTRIES', expenseEntries, 'No cash expense entries')
-  drawSummaryRow('Total Expenses', report.expenses)
-  divider('#c8c8c8')
-  y += 22
-  drawSummaryRow('Ending Cash on Hand', report.endingCash, true)
-
-  return canvas
-}
+import { createReportCanvas, formatPeso } from './cash-report-image'
 
 export function DailyCashReport() {
+  const { data: settings } = useSettings()
   const [open, setOpen] = useState(false)
-  const [date, setDate] = useState(todayISO())
+  const [date, setDate] = useState(() => todayISO(new Date(), settings?.timezone))
   const [openingDraft, setOpeningDraft] = useState<{ date: string; value: string } | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const report = useDailyCashReport(date, open)
@@ -202,7 +47,7 @@ export function DailyCashReport() {
   const openingChanged = !report.data || openingAmount !== report.data.beginningCash || !hasSavedOpening
 
   async function downloadReport() {
-    if (!ready || !reportPreview) return
+    if (!ready || !reportPreview || isDownloading) return
     setIsDownloading(true)
     try {
       const canvas = createReportCanvas(reportPreview, dateLabel)
@@ -229,6 +74,7 @@ export function DailyCashReport() {
   }
 
   function saveBeginningCash() {
+    if (saveOpening.isPending) return
     if (!openingIsValid) {
       toast.error('Enter a beginning cash amount of zero or greater, with no more than two decimal places.')
       return
@@ -250,20 +96,22 @@ export function DailyCashReport() {
   return (
     <>
       <Button variant="outline" onClick={() => setOpen(true)}>
-        <Download /> <span>Download Daily Report</span>
+        <Download /> <span>Daily cash report</span>
       </Button>
       <Dialog
         open={open}
         onOpenChange={(isOpen) => {
+          if (!isOpen && (saveOpening.isPending || isDownloading)) return
+          if (!isOpen && openingDraft && openingChanged && !window.confirm('Discard the unsaved beginning cash amount?')) return
           setOpen(isOpen)
           if (!isOpen) setOpeningDraft(null)
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Download Daily Report</DialogTitle>
+            <DialogTitle>Daily cash report</DialogTitle>
             <DialogDescription>
-              Choose a date to preview and download a cash-only report as a PNG.
+              Review your cash movements, check the opening balance, and download a compact report image.
             </DialogDescription>
           </DialogHeader>
 
@@ -274,9 +122,11 @@ export function DailyCashReport() {
               type="date"
               required
               value={date}
-              max={todayISO()}
+              max={todayISO(new Date(), settings?.timezone)}
+              disabled={saveOpening.isPending || isDownloading}
               onChange={(event) => {
                 if (event.target.value) {
+                  if (openingDraft && openingChanged && !window.confirm('Discard the unsaved beginning cash amount and change date?')) return
                   setDate(event.target.value)
                   setOpeningDraft(null)
                 }
@@ -309,13 +159,16 @@ export function DailyCashReport() {
                   step="0.01"
                   required
                   aria-invalid={!openingIsValid}
+                  aria-describedby="daily-opening-hint"
+                  disabled={saveOpening.isPending || isDownloading}
                   value={openingValue}
                   onChange={(event) => setOpeningDraft({ date, value: event.target.value })}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p id="daily-opening-hint" className="text-xs text-muted-foreground">
                 Defaults to the previous day’s ending cash. Adjust this to match your actual cash count.
               </p>
+              {!openingIsValid && <p role="alert" className="text-xs text-destructive">Enter zero or a positive amount with up to two decimal places.</p>}
               {report.data.previousDayEnding !== openingAmount && openingIsValid && (
                 <p role="status" className="rounded-md bg-amber-500/10 px-2.5 py-2 text-xs text-amber-800 dark:text-amber-300">
                   Differs from the previous day’s ending cash by {formatPeso(Math.abs(openingAmount - report.data.previousDayEnding))}
@@ -351,9 +204,12 @@ export function DailyCashReport() {
               </div>
               <div className="flex justify-between gap-4 py-3 text-sm">
                 <dt className="font-semibold">Ending Total Cash on Hand</dt>
-                <dd className="text-right font-bold tabular-nums">{openingIsValid ? formatPeso(openingAmount + report.data.income - report.data.expenses) : '—'}</dd>
+                <dd className="text-right font-bold tabular-nums">{reportPreview ? formatPeso(reportPreview.endingCash) : '—'}</dd>
               </div>
             </dl>
+            <CashEntries title="Income entries" entries={report.data.incomeEntries} empty="No cash collected on this date." />
+            <CashEntries title="Expense entries" entries={report.data.expenseEntries} empty="No cash expenses on this date." />
+            <p className="text-xs leading-relaxed text-muted-foreground">Rent and utilities paid in one transaction appear as one collection. Bank transfers, e-wallet payments, and security deposits are excluded.</p>
             </>
           )}
 
@@ -366,4 +222,13 @@ export function DailyCashReport() {
 
     </>
   )
+}
+
+function CashEntries({ title, entries, empty }: { title: string; entries: CashReportEntry[]; empty: string }) {
+  return <section className="min-w-0">
+    <h3 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{title} <span className="font-normal">({entries.length})</span></h3>
+    {entries.length ? <ul className="max-h-56 overflow-y-auto divide-y border-y">
+      {entries.map((entry) => <li key={entry.id} className="flex items-start justify-between gap-4 py-2 text-sm"><span className="min-w-0 break-words">{entry.label}</span><span className="shrink-0 font-medium tabular">{formatPeso(entry.amount)}</span></li>)}
+    </ul> : <p className="text-sm text-muted-foreground">{empty}</p>}
+  </section>
 }

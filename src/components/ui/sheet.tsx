@@ -1,5 +1,6 @@
 "use client"
 
+import { LandlordWorkspace } from '@/components/app/workspace-context'
 import * as React from "react"
 import { cn } from "@/lib/utils"
 import { XIcon } from "lucide-react"
@@ -53,6 +54,7 @@ function SheetContent({
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
 }) {
+  const landlord = React.useContext(LandlordWorkspace)
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -68,6 +70,7 @@ function SheetContent({
             "inset-x-0 top-0 h-auto border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
           side === "bottom" &&
             "inset-x-0 bottom-0 h-auto border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+          landlord && 'landlord-overlay',
           className
         )}
         {...props}

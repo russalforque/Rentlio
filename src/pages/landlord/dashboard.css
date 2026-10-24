@@ -1,0 +1,53 @@
+/* Page-local surfaces inherit both light and dark workspace tokens. */
+.landlord-dashboard .page-header { border: 0; padding-bottom: .25rem; align-items: center; }
+.landlord-dashboard .page-header h1 { overflow-wrap: anywhere; }
+.dashboard-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; width: 100%; }
+.dashboard-actions .dashboard-record-payment { grid-column: 1 / -1; }
+.dashboard-actions [data-slot='button'] { min-height: 2.75rem; }
+
+.landlord-dashboard [aria-label='Key figures'] {
+  gap: .75rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+.landlord-dashboard [aria-label='Key figures'] > * { border: 1px solid var(--border); border-radius: 1rem; }
+.landlord-dashboard [aria-label='Key figures'] > div > span { max-width: 100%; }
+.landlord-dashboard .surface { border-radius: 1rem; box-shadow: 0 2px 6px hsl(var(--shadow-color) / .025); }
+.dashboard-layout { display: grid; min-width: 0; gap: 1.25rem; }
+
+/* Operational cards precede longer charts on phones. Columns flow independently on desktop. */
+.dashboard-priorities,
+.dashboard-performance { display: contents; }
+.dashboard-attention { order: 1; }
+.dashboard-collections { order: 2; }
+.dashboard-watchlist { order: 3; }
+.dashboard-transactions { order: 4; }
+.dashboard-revenue { order: 5; }
+.dashboard-cash { order: 6; }
+.dashboard-occupancy { order: 7; }
+.dashboard-rent { order: 8; }
+
+.dashboard-collection-summary { padding: 1.25rem; border-radius: .875rem; background: color-mix(in oklab, var(--chart-2) 7%, var(--card)); }
+.dashboard-collection-value { margin-top: .75rem; font-size: clamp(1.75rem, 3.5cqi, 2.75rem); line-height: 1.15; letter-spacing: -.055em; font-weight: 650; overflow-wrap: anywhere; }
+
+@container (min-width: 40rem) {
+  .landlord-dashboard .page-header-actions { width: auto; }
+  .dashboard-actions { display: flex; flex-wrap: wrap; width: auto; }
+  .landlord-dashboard [aria-label='Key figures'] { gap: 1rem; }
+}
+@container (min-width: 64rem) {
+  .dashboard-layout { grid-template-columns: minmax(0, 1fr) minmax(20rem, .52fr); align-items: start; }
+  .dashboard-priorities,
+  .dashboard-performance { display: grid; min-width: 0; gap: 1.25rem; }
+  .dashboard-performance { grid-column: 1; grid-row: 1; }
+  .dashboard-priorities { grid-column: 2; grid-row: 1; }
+  .dashboard-priorities > *,
+  .dashboard-performance > * { order: initial; }
+}
+@media (max-width: 47.999rem) {
+  .landlord-dashboard .page-header-actions { width: 100%; }
+  .landlord-dashboard [aria-label='Key figures'] > * { padding: .875rem; }
+  .landlord-dashboard .stat-note { font-size: .6875rem; }
+}

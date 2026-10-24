@@ -1,4 +1,5 @@
 import { AuthError } from '@supabase/supabase-js'
+import { AUTH_LINK_REJECTED_MESSAGE } from './auth-links'
 
 interface PostgrestLikeError {
   code?: string
@@ -21,7 +22,7 @@ export function getErrorMessage(err: unknown, fallback = 'Something went wrong. 
     if (err.code === 'user_banned') return 'This account has been deactivated. Please contact your landlord.'
     if (err.code === 'same_password') return 'Choose a password different from your current one.'
     if (err.code === 'weak_password') return 'That password is too weak. Use at least 8 characters with letters and numbers.'
-    if (err.code === 'otp_expired') return 'This link has expired or was already used.'
+    if (err.code === 'otp_expired') return AUTH_LINK_REJECTED_MESSAGE
     if (err.code === 'over_email_send_rate_limit') return 'Too many emails sent. Please wait a few minutes and try again.'
     if (err.code === 'email_not_confirmed') return 'Confirm your email address first. Check your inbox for the link we sent.'
     if (err.code === 'signup_disabled' || err.code === 'email_provider_disabled') return 'Registration is closed. Ask your landlord for an invitation.'

@@ -7,9 +7,10 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { ChoiceCards } from '@/components/app/choice-cards'
 import { FormField } from '@/components/app/form-field'
+import { ResponsiveSheet } from '@/components/app/responsive-sheet'
+import { useSheetFormState } from '@/hooks/use-sheet-form-state'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -57,11 +58,11 @@ type Output = z.output<typeof schema>
 
 export function AddTenantDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <ResponsiveSheet open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
         {open && <AddTenantForm onDone={() => onOpenChange(false)} />}
       </DialogContent>
-    </Dialog>
+    </ResponsiveSheet>
   )
 }
 
@@ -78,7 +79,7 @@ function AddTenantForm({ onDone }: { onDone: () => void }) {
     control,
     handleSubmit,
     setValue,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<Input, unknown, Output>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -95,6 +96,7 @@ function AddTenantForm({ onDone }: { onDone: () => void }) {
   })
   const assign = useWatch({ control, name: 'assign' }) && hasVacancy
   const pending = invite.isPending || createManual.isPending
+  useSheetFormState(isDirty, pending)
 
   const chooseAccount = (next: AccountType) => {
     setAccount(next)

@@ -197,7 +197,7 @@ export function ReceiptPage() {
   const back = profile.role === 'landlord' ? '/payments' : '/my/payments'
 
   return (
-    <div className="min-h-dvh bg-background px-4 py-6 sm:py-12 print:bg-white print:p-0">
+    <div className={cn('min-h-dvh bg-background px-4 py-6 sm:py-12 print:bg-white print:p-0', profile.role === 'landlord' && 'landlord-portal')}>
       <div className="mx-auto max-w-md">
         <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
           <Button variant="ghost" className="-ml-3" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate(back))}>

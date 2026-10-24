@@ -2,11 +2,16 @@
 
 import * as React from "react"
 import { cn } from "@/lib/utils"
+import { LandlordWorkspace } from '@/components/app/workspace-context'
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
+  const landlord = React.useContext(LandlordWorkspace)
   return (
     <div
       data-slot="table-container"
+      role={landlord ? 'region' : undefined}
+      aria-label={landlord ? 'Records. Scroll horizontally to see more columns.' : undefined}
+      tabIndex={landlord ? 0 : undefined}
       className="relative w-full overflow-x-auto"
     >
       <table

@@ -6,6 +6,7 @@ import { Link, useParams } from 'react-router'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { ConfirmDialog } from '@/components/app/confirm-dialog'
+import { ResponsiveSheet } from '@/components/app/responsive-sheet'
 import { FormField } from '@/components/app/form-field'
 import { Callout, Meter, Panel } from '@/components/app/panel'
 import { EmptyState, ErrorState } from '@/components/app/states'
@@ -13,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogClose,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -73,7 +75,7 @@ function ChargeDialog({
   const add = useAddCharge()
   const update = useUpdateBillItem()
   const pending = add.isPending || update.isPending
-  const { register, handleSubmit, formState: { errors } } = useForm<
+  const { register, handleSubmit, formState: { errors, isDirty } } = useForm<
     z.input<typeof chargeSchema>,
     unknown,
     z.output<typeof chargeSchema>
@@ -96,7 +98,7 @@ function ChargeDialog({
   }
 
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
+    <ResponsiveSheet dirty={isDirty} pending={pending} open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid gap-4">
           <DialogHeader>
@@ -121,7 +123,7 @@ function ChargeDialog({
           </DialogFooter>
         </form>
       </DialogContent>
-    </Dialog>
+    </ResponsiveSheet>
   )
 }
 
@@ -130,7 +132,7 @@ function VoidDialog({ billId, onClose }: { billId: string; onClose: () => void }
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
+    <ResponsiveSheet dirty={!!reason} pending={voidBill.isPending} open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Void this bill?</DialogTitle>
@@ -143,9 +145,7 @@ function VoidDialog({ billId, onClose }: { billId: string; onClose: () => void }
           <Textarea id="void-reason" rows={2} value={reason} onChange={(e) => (setReason(e.target.value), setError(null))} />
         </FormField>
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
+          <DialogClose asChild><Button variant="outline" disabled={voidBill.isPending}>Cancel</Button></DialogClose>
           <Button
             variant="destructive"
             disabled={voidBill.isPending}
@@ -168,7 +168,7 @@ function VoidDialog({ billId, onClose }: { billId: string; onClose: () => void }
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
+    </ResponsiveSheet>
   )
 }
 
@@ -187,7 +187,7 @@ function DueDateDialog({
   onClose: () => void
 }) {
   const update = useOverrideBillDueDate()
-  const { register, handleSubmit, formState: { errors } } = useForm<
+  const { register, handleSubmit, formState: { errors, isDirty } } = useForm<
     z.input<typeof dueDateSchema>,
     unknown,
     z.output<typeof dueDateSchema>
@@ -209,7 +209,7 @@ function DueDateDialog({
     )
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <ResponsiveSheet dirty={isDirty} pending={update.isPending} open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid gap-4">
           <DialogHeader>
@@ -230,7 +230,7 @@ function DueDateDialog({
           </DialogFooter>
         </form>
       </DialogContent>
-    </Dialog>
+    </ResponsiveSheet>
   )
 }
 
@@ -383,7 +383,7 @@ export function BillDetailPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between gap-3">
+      <div className="detail-header flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="mb-1 text-[13px] text-muted-foreground tabular">Bill #{b.bill_number}</p>
           <div className="flex flex-wrap items-center gap-2">

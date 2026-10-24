@@ -4,11 +4,11 @@ import type { ReactNode } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { ResponsiveSheet } from '@/components/app/responsive-sheet'
 import { FormField } from '@/components/app/form-field'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -50,15 +50,19 @@ function FormDialog({
   title,
   description,
   children,
+  dirty,
+  pending,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   title: string
   description?: ReactNode
   children: ReactNode
+  dirty?: boolean
+  pending?: boolean
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <ResponsiveSheet open={open} onOpenChange={onOpenChange} dirty={dirty} pending={pending}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -66,7 +70,7 @@ function FormDialog({
         </DialogHeader>
         {open && children}
       </DialogContent>
-    </Dialog>
+    </ResponsiveSheet>
   )
 }
 
@@ -96,7 +100,7 @@ export function AssignRoomDialog({ tenant, open, onOpenChange }: DialogProps) {
     resolver: zodResolver(assignSchema),
     defaultValues: { room_id: '', start_date: todayISO(), monthly_rent: '', deposit_amount: '' },
   })
-  const { register, control, handleSubmit, setValue, formState: { errors } } = form
+  const { register, control, handleSubmit, setValue, formState: { errors, isDirty } } = form
 
   const onSubmit = (v: z.output<typeof assignSchema>) =>
     assign.mutate(
@@ -112,7 +116,7 @@ export function AssignRoomDialog({ tenant, open, onOpenChange }: DialogProps) {
     )
 
   return (
-    <FormDialog open={open} onOpenChange={onOpenChange} title={`Assign ${tenant.full_name} to a room`}>
+    <FormDialog dirty={isDirty} pending={assign.isPending} open={open} onOpenChange={onOpenChange} title={`Assign ${tenant.full_name} to a room`}>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid gap-4">
         <FormField id="assign-room" label="Room" error={errors.room_id?.message}>
           <Controller
@@ -167,7 +171,7 @@ export function MoveRoomDialog({ tenant, open, onOpenChange }: DialogProps) {
     resolver: zodResolver(moveSchema),
     defaultValues: { room_id: '', move_date: firstOfNextMonthISO(), monthly_rent: '' },
   })
-  const { register, control, handleSubmit, setValue, formState: { errors } } = form
+  const { register, control, handleSubmit, setValue, formState: { errors, isDirty } } = form
 
   const onSubmit = (v: z.output<typeof moveSchema>) => {
     if (!tenant.lease_id) return
@@ -184,7 +188,7 @@ export function MoveRoomDialog({ tenant, open, onOpenChange }: DialogProps) {
   }
 
   return (
-    <FormDialog
+    <FormDialog dirty={isDirty} pending={move.isPending}
       open={open}
       onOpenChange={onOpenChange}
       title={`Move ${tenant.full_name}`}
@@ -233,7 +237,7 @@ const endSchema = z.object({ end_date: dateInput('move-out date') })
 export function EndLeaseDialog({ tenant, open, onOpenChange }: DialogProps) {
   const end = useEndLease()
   const currency = useCurrency()
-  const { register, handleSubmit, formState: { errors } } = useForm<z.infer<typeof endSchema>>({
+  const { register, handleSubmit, formState: { errors, isDirty } } = useForm<z.infer<typeof endSchema>>({
     resolver: zodResolver(endSchema),
     defaultValues: { end_date: todayISO() },
   })
@@ -253,7 +257,7 @@ export function EndLeaseDialog({ tenant, open, onOpenChange }: DialogProps) {
   }
 
   return (
-    <FormDialog
+    <FormDialog dirty={isDirty} pending={end.isPending}
       open={open}
       onOpenChange={onOpenChange}
       title="End tenancy"
@@ -293,7 +297,7 @@ const rentSchema = z.object({ rent: moneyInput('Monthly rent') })
 
 export function LeaseRentDialog({ tenant, open, onOpenChange }: DialogProps) {
   const update = useUpdateLeaseRent()
-  const { register, handleSubmit, formState: { errors } } = useForm<z.input<typeof rentSchema>, unknown, z.output<typeof rentSchema>>({
+  const { register, handleSubmit, formState: { errors, isDirty } } = useForm<z.input<typeof rentSchema>, unknown, z.output<typeof rentSchema>>({
     resolver: zodResolver(rentSchema),
     defaultValues: { rent: String(tenant.lease_rent ?? '') },
   })
@@ -313,7 +317,7 @@ export function LeaseRentDialog({ tenant, open, onOpenChange }: DialogProps) {
   }
 
   return (
-    <FormDialog
+    <FormDialog dirty={isDirty} pending={update.isPending}
       open={open}
       onOpenChange={onOpenChange}
       title="Change agreed rent"
@@ -333,7 +337,7 @@ const startDateSchema = z.object({ start_date: z.iso.date('Choose a valid move-i
 
 export function LeaseStartDateDialog({ tenant, open, onOpenChange }: DialogProps) {
   const update = useUpdateLeaseStartDate()
-  const { register, handleSubmit, formState: { errors } } = useForm<z.infer<typeof startDateSchema>>({
+  const { register, handleSubmit, formState: { errors, isDirty } } = useForm<z.infer<typeof startDateSchema>>({
     resolver: zodResolver(startDateSchema),
     defaultValues: { start_date: tenant.lease_start_date ?? '' },
   })
@@ -353,7 +357,7 @@ export function LeaseStartDateDialog({ tenant, open, onOpenChange }: DialogProps
   }
 
   return (
-    <FormDialog
+    <FormDialog dirty={isDirty} pending={update.isPending}
       open={open}
       onOpenChange={onOpenChange}
       title="Edit move-in date"
@@ -390,7 +394,7 @@ export function LeaseOccupantsDialog({
   onOpenChange,
 }: DialogProps & { leaseId: string; occupants: number; capacity: number }) {
   const update = useUpdateLeaseOccupants()
-  const { register, handleSubmit, formState: { errors } } = useForm<
+  const { register, handleSubmit, formState: { errors, isDirty } } = useForm<
     z.input<typeof occupantsSchema>,
     unknown,
     z.output<typeof occupantsSchema>
@@ -412,7 +416,7 @@ export function LeaseOccupantsDialog({
     )
 
   return (
-    <FormDialog
+    <FormDialog dirty={isDirty} pending={update.isPending}
       open={open}
       onOpenChange={onOpenChange}
       title={`Update occupants · Room ${tenant.room_number}`}
@@ -465,7 +469,7 @@ const depositSchema = z
 export function DepositDialog({ tenant, leaseId, open, onOpenChange }: DialogProps & { leaseId: string }) {
   const record = useRecordDeposit()
   const currency = useCurrency()
-  const { register, control, handleSubmit, formState: { errors } } = useForm<
+  const { register, control, handleSubmit, formState: { errors, isDirty } } = useForm<
     z.input<typeof depositSchema>,
     unknown,
     z.output<typeof depositSchema>
@@ -487,7 +491,7 @@ export function DepositDialog({ tenant, leaseId, open, onOpenChange }: DialogPro
     )
 
   return (
-    <FormDialog
+    <FormDialog dirty={isDirty} pending={record.isPending}
       open={open}
       onOpenChange={onOpenChange}
       title="Record deposit transaction"
@@ -542,7 +546,7 @@ const detailsSchema = z.object({
 
 export function EditTenantDialog({ tenant, open, onOpenChange }: DialogProps) {
   const update = useUpdateTenantProfile()
-  const { register, handleSubmit, formState: { errors } } = useForm<
+  const { register, handleSubmit, formState: { errors, isDirty } } = useForm<
     z.input<typeof detailsSchema>,
     unknown,
     z.output<typeof detailsSchema>
@@ -569,7 +573,7 @@ export function EditTenantDialog({ tenant, open, onOpenChange }: DialogProps) {
     )
 
   return (
-    <FormDialog open={open} onOpenChange={onOpenChange} title="Edit tenant details">
+    <FormDialog dirty={isDirty} pending={update.isPending} open={open} onOpenChange={onOpenChange} title="Edit tenant details">
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid gap-4">
         <FormField id="edit-name" label="Full name" error={errors.full_name?.message}>
           <Input id="edit-name" aria-invalid={!!errors.full_name} {...register('full_name')} />

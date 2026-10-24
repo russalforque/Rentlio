@@ -1,10 +1,11 @@
 import { ArrowLeft, ChevronDown, ChevronRight, LogOut, Monitor, Moon, MoreHorizontal, PanelLeft, Search, Sun, UserRound } from 'lucide-react'
-import { useTheme } from 'next-themes'
+import { useTheme } from '@/providers/theme-context'
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { BrandMark } from '@/components/app/brand'
 import { CommandPalette } from '@/components/app/command-palette'
 import { ThemeToggle } from '@/components/app/theme-toggle'
+import { LandlordWorkspace } from '@/components/app/workspace-context'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +31,7 @@ import { cn } from '@/lib/utils'
 import { HOME_BY_ROLE } from '@/routes/home'
 import { NAV, type NavItem } from './nav'
 import '@/pages/tenant/tenant.css'
+import './landlord.css'
 
 const COLLAPSE_KEY = 'rentlio:sidebar-collapsed'
 
@@ -458,7 +460,9 @@ export function AppShell() {
   }, [isLandlord])
 
   return (
-    <div className={cn('min-h-dvh md:pl-18', profile.role === 'tenant' && 'tenant-portal', wide ? 'lg:pl-60' : 'lg:pl-18')}>
+    <LandlordWorkspace value={isLandlord}>
+    <div className={cn('min-h-dvh md:pl-18', isLandlord ? 'landlord-portal' : 'tenant-portal', wide ? 'lg:pl-60' : 'lg:pl-18')}>
+      {isLandlord && <a href="#workspace-main" className="fixed top-2 left-2 z-50 -translate-y-24 rounded-lg bg-primary px-4 py-3 text-sm text-primary-foreground focus:translate-y-0">Skip to content</a>}
       <Sidebar wide={wide} onToggle={toggleSidebar} />
 
       <header className={cn('px-gutter sticky top-0 z-30 flex h-[calc(4rem+env(safe-area-inset-top))] items-center gap-2 bg-background/90 pt-[env(safe-area-inset-top)] backdrop-blur-md sm:gap-3', !isLandlord && 'tenant-shell-header')}>
@@ -476,18 +480,21 @@ export function AppShell() {
             <BrandMark className="size-9" />
           </Link>
         )}
-        <p className="min-w-0 flex-1 truncate text-base font-semibold md:text-[15px]">{offMenu ? 'Notifications' : (current?.label ?? settings?.property_name ?? 'Rentlio')}</p>
+        <div className="min-w-0 flex-1 truncate text-base font-semibold md:text-[15px]">
+          {isLandlord ? <div className="workspace-breadcrumb"><span className="hidden truncate sm:inline">Workspace</span><ChevronRight className="hidden size-3 shrink-0 text-muted-foreground sm:block" aria-hidden /><span className="truncate">{offMenu ? 'Notifications' : current?.label ?? 'Receipt'}{nested && !offMenu && current && <span className="hidden text-muted-foreground sm:inline"> / {location.pathname.includes('readings') ? 'Meter readings' : 'Details'}</span>}</span></div> : (offMenu ? 'Notifications' : (current?.label ?? settings?.property_name ?? 'Rentlio'))}
+        </div>
         {isLandlord && <SearchButton onOpen={() => setSearching(true)} />}
         <NotificationBell className={iconButton} />
         <UserMenu />
       </header>
 
-      <main className="px-gutter mx-auto w-full max-w-360 pt-2 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-10">
+      <main id={isLandlord ? 'workspace-main' : undefined} tabIndex={isLandlord ? -1 : undefined} className="px-gutter mx-auto w-full max-w-360 pt-2 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-10">
         <Outlet />
       </main>
 
       <TabBar items={tabs} more={more} />
       {isLandlord && <CommandPalette open={searching} onOpenChange={setSearching} />}
     </div>
+    </LandlordWorkspace>
   )
 }

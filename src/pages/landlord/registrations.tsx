@@ -80,7 +80,7 @@ export function RegistrationsPage() {
         </div>
       ) : (
         <>
-          <StatGrid className="grid-cols-3 lg:grid-cols-3">
+          <StatGrid className="grid-cols-1 min-[400px]:grid-cols-3 lg:grid-cols-3">
             <StatTile
               label="Awaiting review"
               value={String(counts.pending - counts.awaitingEmail)}
