@@ -177,9 +177,9 @@ function RoomForm({ room, beds, electricityMeters, onManageBedTypes, onDone }: R
   const maintenance = useWatch({ control, name: 'is_under_maintenance' })
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid gap-5">
+    <form onSubmit={handleSubmit(onSubmit)} noValidate className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5">
       <DialogHeader>
-        <DialogTitle>{room ? `Edit room ${room.room_number}` : 'Add a room'}</DialogTitle>
+        <DialogTitle className="wrap-anywhere">{room ? `Edit room ${room.room_number}` : 'Add a room'}</DialogTitle>
         <DialogDescription>
           The standard rent is used when you assign a new tenant. Current tenants keep their agreed rent.
         </DialogDescription>
@@ -189,13 +189,13 @@ function RoomForm({ room, beds, electricityMeters, onManageBedTypes, onDone }: R
         <Link
           to={`/tenants/${room.tenant_id}`}
           onClick={onDone}
-          className="flex items-center gap-3 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm hover:bg-muted"
+          className="flex min-w-0 items-center gap-3 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm hover:bg-muted"
         >
-          <UserRound className="size-4 text-muted-foreground" />
+          <UserRound className="size-4 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate">
             Tenant: <span className="font-semibold">{room.tenant_name || room.tenant_email}</span>
           </span>
-          <ChevronRight className="size-4 text-muted-foreground" />
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
         </Link>
       )}
 

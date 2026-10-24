@@ -1,9 +1,9 @@
-import { BedDouble, BedSingle, Building2, ChevronRight, CircleCheck, DoorOpen, Plus, Tags, TriangleAlert, Wallet, Wrench } from 'lucide-react'
+import { ArrowRight, BedDouble, BedSingle, Building2, ChevronRight, CircleCheck, DoorOpen, Layers3, Pencil, Plus, Tags, TriangleAlert, Users, Wallet, Wrench, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { Fab } from '@/components/app/fab'
+import { NativeSelect } from '@/components/app/native-select'
 import { ActionsMenu, PageHeader } from '@/components/app/page-header'
-import { Callout, FilterChips, InitialsBadge, Panel, SearchField, StatGrid, StatGridSkeleton, StatTile, StatusPill, type Tone } from '@/components/app/panel'
+import { Callout, FilterChips, InitialsBadge, SearchField, StatGrid, StatGridSkeleton, StatTile, StatusPill, type Tone } from '@/components/app/panel'
 import { EmptyState, ErrorState } from '@/components/app/states'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -14,14 +14,19 @@ import { RoomFormDialog } from '@/features/rooms/room-form-dialog'
 import { useCurrency } from '@/hooks/use-settings'
 import { formatMoney, initials } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import './rooms.css'
 
 type Filter = 'all' | RoomOverview['occupancy']
+type Sort = 'room' | 'rent-asc' | 'rent-desc' | 'balance'
 
-const OCCUPANCY_STYLE: Record<RoomOverview['occupancy'], { label: string; tone: Tone }> = {
-  occupied: { label: 'Occupied', tone: 'success' },
-  vacant: { label: 'Vacant', tone: 'info' },
-  maintenance: { label: 'Maintenance', tone: 'warning' },
+const OCCUPANCY_STYLE: Record<RoomOverview['occupancy'], { label: string; tone: Tone; icon: typeof DoorOpen }> = {
+  occupied: { label: 'Occupied', tone: 'success', icon: BedDouble },
+  vacant: { label: 'Vacant', tone: 'info', icon: DoorOpen },
+  maintenance: { label: 'Maintenance', tone: 'warning', icon: Wrench },
 }
+
+const roomRent = (room: RoomOverview) => room.lease_rent ?? room.monthly_rent
+const floorLabel = (floor: number | null) => floor === null ? 'Unassigned floor' : `Floor ${floor}`
 
 interface RoomCardProps {
   room: RoomOverview
@@ -31,110 +36,94 @@ interface RoomCardProps {
 }
 
 function RoomCard({ room, beds, currency, onOpen }: RoomCardProps) {
-  const style = OCCUPANCY_STYLE[room.occupancy]
-  const rent = room.lease_rent ?? room.monthly_rent
+  const { label, tone, icon: Icon } = OCCUPANCY_STYLE[room.occupancy]
+  const rent = roomRent(room)
+
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      aria-label={`Room ${room.room_number}, ${style.label}${room.tenant_name ? `, ${room.tenant_name}` : ''}. Edit room`}
-      className={cn(
-        'group relative flex min-h-40 flex-col rounded-xl border bg-card p-4 text-left transition-colors hover:border-foreground/25 hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-        room.occupancy === 'vacant' && 'border-dashed',
-      )}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <p className="leading-none">
-          <span className="block text-xs text-muted-foreground">Room</span>
-          <span className="font-display mt-1 block text-2xl font-semibold">{room.room_number}</span>
-        </p>
-        <StatusPill tone={style.tone}>{style.label}</StatusPill>
-      </div>
+    <article className="room-card flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card transition-colors hover:border-foreground/25 focus-within:border-foreground/25" aria-label={`Room ${room.room_number}`}>
+      <div className="flex flex-1 flex-col p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className={cn(
+              'grid size-11 shrink-0 place-items-center rounded-xl',
+              room.occupancy === 'occupied' && 'bg-success/8 text-success',
+              room.occupancy === 'vacant' && 'bg-info/8 text-info',
+              room.occupancy === 'maintenance' && 'bg-warning/12 text-warning-foreground',
+            )}>
+              <Icon className="size-5" aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Room</p>
+              <h3 className="font-display mt-0.5 text-xl leading-tight font-semibold wrap-anywhere">{room.room_number}</h3>
+            </div>
+          </div>
+          <StatusPill tone={tone} className="mt-1 shrink-0">{label}</StatusPill>
+        </div>
 
-      <div className="mt-4 flex min-w-0 items-center gap-2">
-        {room.tenant_name ? (
-          <>
-            <InitialsBadge text={initials(room.tenant_name)} className="size-7 text-[10px]" />
-            <span className="truncate text-[13px] font-semibold">{room.tenant_name}</span>
-          </>
-        ) : (
-          <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-            {room.occupancy === 'maintenance' ? <Wrench className="size-3.5" aria-hidden /> : <DoorOpen className="size-3.5" aria-hidden />}
-            {room.occupancy === 'maintenance' ? 'Not available' : 'Ready for a tenant'}
-          </span>
-        )}
-      </div>
-      {beds.length > 0 && (
-        <p className="mt-1.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-          <BedDouble className="size-3.5 shrink-0" aria-hidden />
-          {beds.map((b) => `${b.quantity} × ${b.bed_type.name}`).join(' · ')}
-        </p>
-      )}
-
-      <div className="mt-auto flex flex-wrap items-end justify-between gap-x-2 gap-y-1 border-t pt-3">
-        <p className="text-[13px] tabular">
-          {rent > 0 ? (
+        <div className="mt-5 flex min-w-0 items-center gap-2.5">
+          {room.tenant_name ? (
             <>
-              <span className="font-semibold">{formatMoney(rent, currency)}</span>
-              <span className="text-muted-foreground">/mo</span>
+              <InitialsBadge text={initials(room.tenant_name)} className="size-8 bg-muted text-[11px]" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium" title={room.tenant_name}>{room.tenant_name}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Current tenant</p>
+              </div>
             </>
           ) : (
-            <span className="inline-flex items-center gap-1 font-semibold text-warning-foreground">
-              <Tags className="size-3.5" aria-hidden /> Set rent
-            </span>
+            <div className="flex min-h-10 flex-col justify-center">
+              <p className={cn('text-sm font-medium', room.occupancy === 'vacant' ? 'text-info' : 'text-muted-foreground')}>
+                {room.occupancy === 'maintenance' ? 'Under maintenance' : 'Ready for a tenant'}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {room.occupancy === 'maintenance' ? 'Unavailable for assignment' : 'No tenant assigned'}
+              </p>
+            </div>
           )}
-        </p>
-        {room.outstanding_balance > 0 && (
-          <span className="rounded-md bg-destructive/8 px-1.5 py-0.5 text-[11px] font-semibold text-destructive tabular" title="Outstanding balance">
-            {formatMoney(room.outstanding_balance, currency)} due
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1.5 text-xs leading-relaxed text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5"><Users className="size-3.5 shrink-0" aria-hidden />{room.capacity} {room.capacity === 1 ? 'person' : 'people'}</span>
+          <span className="inline-flex min-w-0 items-start gap-1.5">
+            <BedSingle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            <span className="wrap-anywhere">{beds.length ? beds.map((bed) => `${bed.quantity} × ${bed.bed_type.name}`).join(' · ') : 'No beds listed'}</span>
           </span>
+        </div>
+
+        {room.is_under_maintenance && room.occupancy === 'occupied' && (
+          <p className="mt-3 flex items-center gap-1.5 text-xs text-warning-foreground"><Wrench className="size-3.5 shrink-0" aria-hidden />Maintenance flagged</p>
+        )}
+
+        <div className="mt-auto pt-4">
+          <div className="border-t pt-3.5">
+            <p className="text-xs text-muted-foreground">{room.lease_rent !== null ? 'Lease rent' : 'Standard rent'}</p>
+            <p className="mt-1 flex flex-wrap items-baseline gap-x-1 text-lg font-semibold tracking-tight tabular wrap-anywhere">
+              {rent > 0 ? <>{formatMoney(rent, currency)}<span className="text-xs font-normal tracking-normal text-muted-foreground">/ month</span></> : <span className="inline-flex items-center gap-1.5 text-sm text-warning-foreground"><Tags className="size-3.5" aria-hidden />Rent not set</span>}
+            </p>
+            <div className="mt-2 min-h-4">
+              {room.outstanding_balance > 0 ? (
+                <p className="flex flex-wrap items-center gap-x-1 text-xs font-medium text-destructive tabular wrap-anywhere">
+                  <span className="size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden />
+                  {formatMoney(room.outstanding_balance, currency)} outstanding
+                </p>
+              ) : room.occupancy === 'occupied' ? (
+                <p className="flex items-center gap-1 text-xs text-success"><CircleCheck className="size-3 shrink-0" aria-hidden /> No outstanding balance</p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-x-2 border-t bg-muted/25 px-3 py-1.5 sm:px-4">
+        <Button variant="ghost" onClick={onOpen} aria-label={`Edit room ${room.room_number}`} className="min-h-11 px-2 text-xs dense:min-h-9">
+          <Pencil className="size-3.5" /> Edit room
+        </Button>
+        {room.tenant_id && (
+          <Link to={`/tenants/${room.tenant_id}`} aria-label={`Tenant and billing for room ${room.room_number}`} className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none dense:min-h-9">
+            Tenant & billing <ArrowRight className="size-3.5" aria-hidden />
+          </Link>
         )}
       </div>
-    </button>
-  )
-}
-
-/** Phones: one full-width row per room, the essentials at a glance. */
-function RoomRow({ room, beds, currency, onOpen }: RoomCardProps) {
-  const style = OCCUPANCY_STYLE[room.occupancy]
-  const rent = room.lease_rent ?? room.monthly_rent
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      aria-label={`Room ${room.room_number}, ${style.label}${room.tenant_name ? `, ${room.tenant_name}` : ''}. Edit room`}
-      className="flex min-h-18 w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:bg-muted/60 focus-visible:outline-none"
-    >
-      <span
-        className={cn(
-          'grid size-12 shrink-0 place-items-center rounded-xl border text-[15px] font-semibold tabular',
-          room.occupancy === 'occupied' && 'border-transparent bg-chart-2/12',
-          room.occupancy === 'vacant' && 'border-dashed border-foreground/25',
-          room.occupancy === 'maintenance' && 'border-transparent bg-warning/16',
-        )}
-        aria-hidden
-      >
-        {room.room_number}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-semibold">
-          {room.tenant_name ?? (room.occupancy === 'maintenance' ? 'Under maintenance' : 'Vacant')}
-        </span>
-        <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
-          <span className="shrink-0 tabular">
-            {rent > 0 ? `${formatMoney(rent, currency)}/mo` : <span className="font-semibold text-warning-foreground">Set rent</span>}
-          </span>
-          {beds.length > 0 && <span className="truncate">· {beds.map((b) => `${b.quantity} × ${b.bed_type.name}`).join(', ')}</span>}
-        </span>
-      </span>
-      <span className="flex shrink-0 flex-col items-end gap-1">
-        <StatusPill tone={style.tone}>{style.label}</StatusPill>
-        {room.outstanding_balance > 0 && (
-          <span className="text-xs font-semibold text-destructive tabular">{formatMoney(room.outstanding_balance, currency)} due</span>
-        )}
-      </span>
-      <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-    </button>
+    </article>
   )
 }
 
@@ -143,6 +132,8 @@ export function RoomsPage() {
   const { data: roomBeds } = useRoomBeds()
   const currency = useCurrency()
   const [filter, setFilter] = useState<Filter>('all')
+  const [floorFilter, setFloorFilter] = useState('all')
+  const [sort, setSort] = useState<Sort>('room')
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<RoomOverview | null>(null)
   const [creating, setCreating] = useState(false)
@@ -151,192 +142,172 @@ export function RoomsPage() {
 
   const counts = useMemo(() => {
     const c = { all: 0, occupied: 0, vacant: 0, maintenance: 0, unpriced: 0, rentRoll: 0 }
-    for (const r of rooms ?? []) {
+    for (const room of rooms ?? []) {
       c.all++
-      c[r.occupancy]++
-      if (r.monthly_rent <= 0) c.unpriced++
-      if (r.occupancy === 'occupied') c.rentRoll += r.lease_rent ?? 0
+      c[room.occupancy]++
+      if (room.monthly_rent <= 0) c.unpriced++
+      if (room.occupancy === 'occupied') c.rentRoll += room.lease_rent ?? 0
     }
     return c
   }, [rooms])
 
-  const floorsCount = useMemo(() => new Set((rooms ?? []).map((r) => r.floor)).size, [rooms])
+  const floorOptions = useMemo(() => [...new Set((rooms ?? []).map((room) => room.floor))]
+    .sort((a, b) => (a ?? Infinity) - (b ?? Infinity)), [rooms])
+  const assignedFloors = floorOptions.filter((floor) => floor !== null).length
+  const occupancy = counts.all ? Math.round(counts.occupied / counts.all * 100) : 0
+  const hasFilters = filter !== 'all' || floorFilter !== 'all' || search.trim() !== ''
 
   const floors = useMemo(() => {
     const q = search.trim().toLowerCase()
-    const visible = (rooms ?? []).filter(
-      (r) =>
-        (filter === 'all' || r.occupancy === filter) &&
-        (!q || r.room_number.toLowerCase().includes(q) || (r.tenant_name ?? '').toLowerCase().includes(q)),
+    const visible = (rooms ?? []).filter((room) =>
+      (filter === 'all' || room.occupancy === filter) &&
+      (floorFilter === 'all' || String(room.floor) === floorFilter) &&
+      (!q || room.room_number.toLowerCase().includes(q) || (room.tenant_name ?? '').toLowerCase().includes(q)),
     )
+    visible.sort((a, b) => {
+      const byNumber = a.room_number.localeCompare(b.room_number, undefined, { numeric: true })
+      if (sort === 'rent-asc') return roomRent(a) - roomRent(b) || byNumber
+      if (sort === 'rent-desc') return roomRent(b) - roomRent(a) || byNumber
+      if (sort === 'balance') return b.outstanding_balance - a.outstanding_balance || byNumber
+      return byNumber
+    })
     const groups = new Map<number | null, RoomOverview[]>()
-    for (const r of visible) groups.set(r.floor, [...(groups.get(r.floor) ?? []), r])
+    for (const room of visible) {
+      const group = groups.get(room.floor)
+      if (group) group.push(room)
+      else groups.set(room.floor, [room])
+    }
     return [...groups.entries()].sort(([a], [b]) => (a ?? Infinity) - (b ?? Infinity))
-  }, [rooms, filter, search])
+  }, [rooms, filter, floorFilter, search, sort])
 
-  const visibleCount = floors.reduce((t, [, list]) => t + list.length, 0)
+  const visibleCount = floors.reduce((total, [, list]) => total + list.length, 0)
+
+  function clearFilters() {
+    setFilter('all')
+    setFloorFilter('all')
+    setSearch('')
+  }
 
   return (
-    <div className="space-y-5">
+    <div className="rooms-page space-y-6">
       <PageHeader
-        eyebrow="YOUR PROPERTY"
+        eyebrow="PROPERTY MANAGEMENT"
         title="Rooms overview"
-        description={rooms?.length ? 'Occupancy, monthly rent, and balances at a glance. Open a room to manage its details.' : 'Add your rooms, then assign tenants to them.'}
-        tabs={
-          !!rooms?.length && (
-            <FilterChips
-              label="Filter rooms"
-              value={filter}
-              onChange={setFilter}
-              options={[
-                { value: 'all', label: 'View all', count: counts.all },
-                { value: 'occupied', label: 'Occupied', count: counts.occupied },
-                { value: 'vacant', label: 'Vacant', count: counts.vacant },
-                { value: 'maintenance', label: 'Maintenance', count: counts.maintenance },
-              ]}
-            />
-          )
-        }
+        description="Manage room availability, tenants, and rent in one place."
         actions={
           <>
+            <Button variant="outline" className="hidden lg:inline-flex" onClick={() => setBedTypesOpen(true)}><BedSingle /> Bed types</Button>
+            <Button variant="outline" className="hidden lg:inline-flex" onClick={() => setBulkOpen(true)} disabled={!rooms?.length}><Tags /> Set rent</Button>
+            <Button onClick={() => setCreating(true)} className="rooms-add-button"><Plus /> Add room</Button>
             <ActionsMenu
+              className="sm:inline-flex lg:hidden"
+              label="Room actions"
               actions={[
                 { label: 'Bed types', icon: BedSingle, onSelect: () => setBedTypesOpen(true) },
                 { label: 'Set rent for all rooms', icon: Tags, onSelect: () => setBulkOpen(true), disabled: !rooms?.length },
               ]}
             />
-            <Button variant="outline" className="hidden sm:inline-flex" onClick={() => setBedTypesOpen(true)}>
-              <BedSingle /> Bed types
-            </Button>
-            <Button variant="outline" className="hidden sm:inline-flex" onClick={() => setBulkOpen(true)} disabled={!rooms?.length}>
-              <Tags /> Set rent
-            </Button>
-            <Button className="hidden md:inline-flex" onClick={() => setCreating(true)}>
-              <Plus /> Add room
-            </Button>
           </>
         }
       />
 
-      {error ? (
-        <ErrorState error={error} onRetry={() => refetch()} />
-      ) : isPending ? (
-        <div className="space-y-6">
+      {error ? <ErrorState error={error} onRetry={() => refetch()} /> : isPending ? (
+        <div className="space-y-6" role="status" aria-label="Loading rooms">
           <StatGridSkeleton />
-          <Skeleton className="h-96 rounded-xl" />
+          <Skeleton className="h-36 rounded-xl" />
+          <div className="rooms-grid">{Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-80 rounded-xl" />)}</div>
+          <span className="sr-only">Loading rooms…</span>
         </div>
       ) : counts.all === 0 ? (
-        <EmptyState
-          icon={DoorOpen}
-          title="No rooms yet"
-          description="Add your rooms to start assigning tenants."
-          action={<Button onClick={() => setCreating(true)}><Plus /> Add room</Button>}
-        />
+        <EmptyState icon={Building2} title="Make room for your first tenant" description="Add a room, set its monthly rent, and keep availability organized as your property grows." action={<Button onClick={() => setCreating(true)}><Plus /> Add your first room</Button>} className="min-h-80" />
       ) : (
         <>
           <StatGrid>
-            <StatTile
-              label="Total rooms"
-              value={String(counts.all)}
-              icon={Building2}
-              accent="violet"
-              sub={<span className="text-xs text-muted-foreground">{floorsCount} {floorsCount === 1 ? 'floor' : 'floors'}</span>}
-            />
-            <StatTile
-              label="Occupied"
-              value={String(counts.occupied)}
-              icon={CircleCheck}
-              accent="green"
-              sub={<span className="text-xs text-muted-foreground">{counts.all ? Math.round((counts.occupied / counts.all) * 100) : 0}% occupancy</span>}
-            />
-            <StatTile
-              label="Vacant"
-              value={String(counts.vacant)}
-              icon={DoorOpen}
-              accent="blue"
-              sub={<span className="text-xs text-muted-foreground">{counts.maintenance} under maintenance</span>}
-            />
-            <StatTile
-              label="Monthly rent roll"
-              value={formatMoney(counts.rentRoll, currency)}
-              icon={Wallet}
-              accent="amber"
-              sub={<span className="text-xs text-muted-foreground">Occupied rooms</span>}
-            />
+            <StatTile label="Total rooms" value={String(counts.all)} icon={Building2} sub={assignedFloors ? `Across ${assignedFloors} ${assignedFloors === 1 ? 'floor' : 'floors'}` : 'No floors assigned'} />
+            <StatTile label="Occupancy" value={`${occupancy}%`} icon={CircleCheck} sub={`${counts.occupied} of ${counts.all} rooms occupied`} />
+            <StatTile label="Available" value={String(counts.vacant)} icon={DoorOpen} sub={`${counts.maintenance} under maintenance`} />
+            <StatTile label="Rent roll" value={formatMoney(counts.rentRoll, currency)} icon={Wallet} sub="Monthly, occupied rooms" />
           </StatGrid>
 
           {counts.unpriced > 0 && (
-            <Callout
-              tone="warning"
-              icon={TriangleAlert}
-              action={
-                <Button size="sm" variant="outline" onClick={() => setBulkOpen(true)}>
-                  <Tags /> Set rent
-                </Button>
-              }
-            >
-              <span className="font-semibold">
-                {counts.unpriced} {counts.unpriced === 1 ? 'room' : 'rooms'}
-              </span>{' '}
-              {counts.unpriced === 1 ? 'has' : 'have'} no standard rent yet. Set it once for all
-              rooms, then fine-tune individual rooms.
+            <Callout tone="warning" icon={TriangleAlert} action={<Button variant="outline" onClick={() => setBulkOpen(true)} className="w-full sm:w-auto"><Tags /> Set standard rent <ChevronRight className="size-3.5" /></Button>}>
+              <p className="font-semibold">{counts.unpriced} {counts.unpriced === 1 ? 'room needs' : 'rooms need'} a standard rent</p>
+              <p className="mt-0.5 text-muted-foreground">Set a starting rate for all rooms, then adjust each room as needed.</p>
             </Callout>
           )}
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-[13px] text-muted-foreground">
+          <section aria-label="Find and filter rooms" className="surface min-w-0 p-4 sm:p-5">
+            <div className="rooms-controls">
+              <div className="rooms-search min-w-0">
+                <label htmlFor="room-search" className="mb-2 block text-xs font-medium">Find a room</label>
+                <SearchField id="room-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search room number or tenant…" aria-controls="rooms-results" />
+              </div>
+              <div className="min-w-0">
+                <label htmlFor="room-floor" className="mb-2 block text-xs font-medium">Floor</label>
+                <NativeSelect id="room-floor" value={floorFilter} onChange={(event) => setFloorFilter(event.target.value)} className="text-base dense:text-[13px]" aria-controls="rooms-results">
+                  <option value="all">All floors</option>
+                  {floorOptions.map((floor) => <option key={String(floor)} value={String(floor)}>{floor === null ? 'Not set' : floorLabel(floor)}</option>)}
+                </NativeSelect>
+              </div>
+              <div className="min-w-0">
+                <label htmlFor="room-sort" className="mb-2 block text-xs font-medium">Sort within floors</label>
+                <NativeSelect id="room-sort" value={sort} onChange={(event) => setSort(event.target.value as Sort)} className="text-base dense:text-[13px]" aria-controls="rooms-results">
+                  <option value="room">Room number</option>
+                  <option value="rent-asc">Rent: low to high</option>
+                  <option value="rent-desc">Rent: high to low</option>
+                  <option value="balance">Highest balance</option>
+                </NativeSelect>
+              </div>
+            </div>
+            <div className="mt-4 border-t pt-3">
+              <FilterChips label="Room availability" value={filter} onChange={setFilter} className="mx-0 px-0" options={[
+                { value: 'all', label: 'All rooms', count: counts.all },
+                { value: 'occupied', label: 'Occupied', count: counts.occupied },
+                { value: 'vacant', label: 'Vacant', count: counts.vacant },
+                { value: 'maintenance', label: 'Maintenance', count: counts.maintenance },
+              ]} />
+            </div>
+          </section>
+
+          <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <p role="status" aria-live="polite" aria-atomic="true" className="text-[13px] text-muted-foreground">
               Showing <span className="font-semibold text-foreground tabular">{visibleCount}</span> of {counts.all} rooms
+              <span className="hidden sm:inline"> · Grouped by floor</span>
             </p>
-            <SearchField
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search room or tenant"
-              aria-label="Search rooms"
-              className="sm:w-72"
-            />
+            {hasFilters && <Button variant="ghost" onClick={clearFilters} className="min-h-11 text-xs dense:min-h-9"><X className="size-3.5" /> Clear filters</Button>}
           </div>
 
-          {floors.length === 0 ? (
-            <EmptyState icon={BedDouble} title="No matching rooms" description="Try a different filter or search." />
-          ) : (
-            <div className="space-y-4">
-              {floors.map(([floor, list]) => (
-                <Panel
-                  key={floor ?? 'none'}
-                  title={floor === null ? 'No floor set' : `Floor ${floor}`}
-                  description={`${list.filter((r) => r.occupancy === 'occupied').length} of ${list.length} occupied`}
-                >
-                  <ul className="-mx-5 divide-y border-t sm:hidden">
-                    {list.map((room) => (
-                      <li key={room.id}>
-                        <RoomRow room={room} beds={roomBeds?.get(room.id) ?? []} currency={currency} onOpen={() => setEditing(room)} />
-                        {room.tenant_id && <Link className="mx-5 mb-2 inline-flex min-h-10 items-center gap-1 text-xs font-medium underline-offset-4 hover:underline" to={`/tenants/${room.tenant_id}`}>Tenant & billing <ChevronRight className="size-3" aria-hidden /></Link>}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="hidden grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))] gap-3 sm:grid">
-                    {list.map((room) => (
-                      <div key={room.id} className="min-w-0">
-                      <RoomCard
-                        room={room}
-                        beds={roomBeds?.get(room.id) ?? []}
-                        currency={currency}
-                        onOpen={() => setEditing(room)}
-                      />
-                      {room.tenant_id && <Link className="mt-1 inline-flex min-h-10 items-center gap-1 px-1 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" to={`/tenants/${room.tenant_id}`}>Tenant & billing <ChevronRight className="size-3" aria-hidden /></Link>}
+          <div id="rooms-results">
+            {floors.length === 0 ? (
+              <EmptyState icon={BedDouble} title="No rooms found" description="Try another room number, tenant name, or availability filter." action={<Button variant="outline" onClick={clearFilters}><X /> Clear filters</Button>} />
+            ) : (
+              <div className="space-y-7">
+                {floors.map(([floor, list]) => {
+                  const occupied = list.filter((room) => room.occupancy === 'occupied').length
+                  return (
+                    <section key={String(floor)} aria-label={floorLabel(floor)}>
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <Layers3 className="size-4 text-muted-foreground" aria-hidden />
+                          <h2 className="text-sm font-semibold">{floorLabel(floor)}</h2>
+                          <span className="rounded-md border bg-card px-2 py-0.5 text-xs text-muted-foreground tabular">{list.length} {list.length === 1 ? 'room' : 'rooms'}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{occupied} occupied{hasFilters ? ' in results' : ` · ${list.length - occupied} unoccupied`}</p>
                       </div>
-                    ))}
-                  </div>
-                </Panel>
-              ))}
-            </div>
-          )}
+                      <ul className="rooms-grid">
+                        {list.map((room) => <li key={room.id} className="flex min-w-0 [&>article]:w-full"><RoomCard room={room} beds={roomBeds?.get(room.id) ?? []} currency={currency} onOpen={() => setEditing(room)} /></li>)}
+                      </ul>
+                    </section>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </>
       )}
 
-      {!!rooms?.length && <Fab icon={Plus} label="Add room" onClick={() => setCreating(true)} />}
       <RoomFormDialog open={creating} onOpenChange={setCreating} />
-      <RoomFormDialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)} room={editing ?? undefined} />
+      <RoomFormDialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)} room={editing ?? undefined} />
       <BulkRentDialog open={bulkOpen} onOpenChange={setBulkOpen} rooms={rooms ?? []} />
       <BedTypesDialog open={bedTypesOpen} onOpenChange={setBedTypesOpen} />
     </div>

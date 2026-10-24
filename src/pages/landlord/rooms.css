@@ -1,0 +1,63 @@
+/* Respond to the content area, including when the tablet sidebar is visible. */
+.rooms-page {
+  container-type: inline-size;
+}
+
+.rooms-grid,
+.rooms-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.rooms-page .room-card {
+  box-shadow: 0 2px 4px hsl(var(--shadow-color) / 0.025);
+}
+
+.rooms-page .room-card:focus-within {
+  box-shadow: 0 0 0 2px var(--border);
+}
+
+@container (min-width: 21rem) {
+  .rooms-controls {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  }
+
+  .rooms-search {
+    grid-column: 1 / -1;
+  }
+}
+
+@container (min-width: 36rem) {
+  .rooms-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 48rem) {
+  .rooms-controls {
+    grid-template-columns: minmax(0, 1fr) 10rem 12rem;
+  }
+
+  .rooms-search {
+    grid-column: auto;
+  }
+}
+
+@container (min-width: 56rem) {
+  .rooms-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 76rem) {
+  .rooms-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 47.999rem) {
+  .rooms-page .rooms-add-button {
+    flex: 1;
+  }
+}
